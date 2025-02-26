@@ -1,0 +1,17 @@
+[Unit]
+Description=Job Tracker Dashboard
+After=network.target job-tracker-api.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/job-tracker
+Environment="PATH=/home/ubuntu/job-tracker/venv/bin"
+ExecStart=/home/ubuntu/job-tracker/venv/bin/streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0
+Restart=always
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=job-tracker-dashboard
+
+[Install]
+WantedBy=multi-user.target

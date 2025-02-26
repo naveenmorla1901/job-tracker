@@ -1,0 +1,17 @@
+[Unit]
+Description=Job Tracker API
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/job-tracker
+Environment="PATH=/home/ubuntu/job-tracker/venv/bin"
+ExecStart=/home/ubuntu/job-tracker/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=job-tracker-api
+
+[Install]
+WantedBy=multi-user.target

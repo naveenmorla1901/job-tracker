@@ -1,0 +1,16 @@
+[Unit]
+Description=Job Tracker API Service
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=your_username
+Group=your_username
+WorkingDirectory=/path/to/job_tracker
+ExecStart=/path/to/job_tracker/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5s
+Environment="PYTHONPATH=/path/to/job_tracker"
+
+[Install]
+WantedBy=multi-user.target
