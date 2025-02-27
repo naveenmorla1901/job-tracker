@@ -217,7 +217,7 @@ pg_dump -U job_tracker -d job_tracker > backup-$(date +%Y%m%d).sql
 
 ### Cleaning Up Old Job Records
 
-The system automatically cleans up old job records, but you can manually trigger it:
+The system automatically cleans up old job records, but you can manually trigger it:test
 
 ```bash
 cd ~/job-tracker
