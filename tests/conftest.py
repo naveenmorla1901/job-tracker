@@ -12,8 +12,9 @@ from sqlalchemy.pool import StaticPool
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.db.database import Base, get_db
-from app.db.models import Job, Role
+# Import from the correct locations
+from app.db.database import get_db
+from app.db.models import Base, Job, Role
 from main import app
 
 # Create an in-memory SQLite database for testing
