@@ -1,37 +1,41 @@
 """
 Database connection handling
 """
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-import os
+import logging
 
-from app.config import SQLALCHEMY_DATABASE_URL, ENVIRONMENT
+from app.config import SQLALCHEMY_DATABASE_URL
 
-# Create SQLAlchemy engine with specific settings based on connection type
-if SQLALCHEMY_DATABASE_URL.startswith('sqlite'):
-    # SQLite needs these parameters
-    connect_args = {"check_same_thread": False}
-    poolclass = StaticPool if ENVIRONMENT == "test" else None
-    
+# Set up logger
+logger = logging.getLogger("job_tracker.database")
+
+# Check if we're in testing mode
+TESTING = os.environ.get("TESTING", "False").lower() in ("true", "1", "t")
+
+if TESTING:
+    # Use SQLite for testing
+    logger.info("Using SQLite for testing")
+    SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./test.db")
     engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        connect_args=connect_args,
-        poolclass=poolclass
+        SQLALCHEMY_DATABASE_URL, 
+        connect_args={"check_same_thread": False}
     )
 else:
-    # PostgreSQL or other database
+    # Use PostgreSQL for production
+    logger.info(f"Using database: {SQLALCHEMY_DATABASE_URL}")
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
-# Create SessionLocal class
+# Create database session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create Base class
+# Create declarative base for models
 Base = declarative_base()
 
-# Generator function to get DB session
 def get_db():
+    """Database dependency for FastAPI"""
     db = SessionLocal()
     try:
         yield db
