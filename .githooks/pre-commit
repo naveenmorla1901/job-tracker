@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Pre-commit hook to run tests before committing
+
+# Run the tests
+echo "Running tests before commit..."
+
+# Determine which script to run based on platform
+if [ "$(uname)" = "Darwin" ] || [ "$(uname)" = "Linux" ]; then
+    # macOS or Linux
+    bash scripts/run_tests.sh
+else
+    # Windows
+    powershell -File scripts/run_tests.ps1
+fi
+
+# If the tests fail, prevent the commit
+if [ $? -ne 0 ]; then
+    echo "Tests failed. Commit aborted."
+    exit 1
+fi
+
+# Continue with the commit
+exit 0

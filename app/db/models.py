@@ -1,9 +1,12 @@
 # app/db/models.py
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Table, UniqueConstraint, Boolean
+import os
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Table, UniqueConstraint, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime
+
+# Check if we're using SQLite (for testing)
+TESTING = os.environ.get("TESTING", "False").lower() in ("true", "1", "t")
 
 Base = declarative_base()
 
@@ -30,7 +33,10 @@ class Job(Base):
     description = Column(Text)
     first_seen = Column(DateTime, default=datetime.utcnow)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    raw_data = Column(JSONB)  # Store the full JSON for future reference
+    
+    # Use standard JSON type for SQLite compatibility
+    raw_data = Column(JSON, nullable=True)  # Store the full JSON for future reference
+    
     is_active = Column(Boolean, default=True)  # Flag to mark if the job is still active
     
     # Relationships

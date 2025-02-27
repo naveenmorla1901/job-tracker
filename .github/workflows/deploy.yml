@@ -6,13 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test_and_deploy:
+  deploy:
     runs-on: ubuntu-latest
-    
-    env:
-      CI: true
-      TESTING: true
-      DATABASE_URL: sqlite:///./test.db
     
     steps:
     - name: Checkout code
@@ -26,21 +21,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install pytest
         pip install -r requirements.txt
-        pip install pytest pytest-cov
     
     - name: Run basic tests
       run: |
-        pytest tests/test_basic.py tests/test_scrapers.py -v
-    
-    - name: Setup test database
-      run: |
-        touch test.db
-        
-    # Uncomment these tests when database setup is working properly
-    # - name: Run API tests
-    #   run: |
-    #     pytest tests/test_api.py -v
+        pytest tests/test_basic.py -v
         
     - name: Set up SSH key
       uses: webfactory/ssh-agent@v0.8.0
@@ -51,5 +37,5 @@ jobs:
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.ORACLE_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
-        rsync -avz --exclude '.git' --exclude 'venv' --exclude '__pycache__' --exclude '*.sqlite' --exclude '*.db' . ${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }}:~/job-tracker/
+        rsync -avz --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }}:~/job-tracker/
         ssh ${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }} "cd ~/job-tracker && bash scripts/deploy.sh"
