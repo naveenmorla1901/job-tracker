@@ -33,5 +33,7 @@ def test_scrapers_import():
 def test_config():
     """Test that config values are reasonable"""
     from app import config
-    assert hasattr(config, 'SQLALCHEMY_DATABASE_URI')
+    assert hasattr(config, 'SQLALCHEMY_DATABASE_URL')
     assert hasattr(config, 'ENVIRONMENT')
+    assert hasattr(config, 'API_HOST')
+    assert hasattr(config, 'API_PORT')

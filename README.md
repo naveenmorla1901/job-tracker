@@ -97,15 +97,14 @@ The system provides a RESTful API for accessing job data:
 - `GET /api/jobs/roles` - Get all job role categories
 - `GET /api/stats` - Get statistics about job listings
 
-## Contributing
+## Deployment
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+This project can be easily deployed to Oracle Cloud Infrastructure Free Tier:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- For a quick setup, follow the [Quick Deployment Guide](docs/QUICK_DEPLOY.md)
+- For a more comprehensive setup, see the [Oracle Cloud Setup Guide](docs/ORACLE_CLOUD_SETUP.md)
+
+The project includes GitHub Actions workflows for automated deployment.
 
 ## License
 
