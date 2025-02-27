@@ -1,4 +1,4 @@
-name: Deploy to Oracle Cloud
+name: Deploy to Oracle Cloud (Alternate)
 
 on:
   push:
@@ -23,18 +23,18 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
-    - name: Create SSH key
+    - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.DEPLOYMENT_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
+        echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
         ssh-keyscan 170.9.227.112 >> ~/.ssh/known_hosts
-    
+        
     - name: Test SSH connection
       run: |
-        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "echo SSH connection successful"
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "echo SSH connection successful"
       
     - name: Deploy to Oracle Cloud
       run: |
-        rsync -avz -e "ssh -i ~/.ssh/id_ed25519" --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ubuntu@170.9.227.112:~/job-tracker/
-        ssh -i ~/.ssh/id_ed25519 ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/deploy.sh"
+        rsync -avz -e "ssh -i ~/.ssh/deploy_key" --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ubuntu@170.9.227.112:~/job-tracker/
+        ssh -i ~/.ssh/deploy_key ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/deploy.sh"
