@@ -105,7 +105,7 @@ You'll need an SSH key pair to securely access your cloud instance.
 
 ## Step 4: Connect to Your Instance
 
-1. Get the public IP address from the instance details page
+1. Get the public IP address from the instance details page test1
 2. Connect via SSH:
 
    **Windows (PowerShell):**
@@ -157,7 +157,7 @@ To set up automatic deployment, you need to add these secrets to your GitHub rep
    - `ORACLE_SSH_KEY`: Your private SSH key (contents of `~/.ssh/oci_key`)
    - `ORACLE_HOST`: Your instance's public IP address
    - `ORACLE_USER`: `ubuntu`
-   - `ORACLE_KNOWN_HOSTS`: Run `ssh-keyscan <instance-ip>` to get this value
+   - `ORACLE_KNOWN_HOSTS`: Run `ssh-keyscan 170.9.227.112` to get this value
 
 Now when you push changes to the main branch, GitHub Actions will automatically deploy them to your Oracle Cloud instance.
 
@@ -165,8 +165,8 @@ Now when you push changes to the main branch, GitHub Actions will automatically 
 
 After the deployment is complete, you can access your application at:
 
-- Dashboard: `http://<instance-ip>:8501`
-- API: `http://<instance-ip>:8000/api`
+- Dashboard: `http://170.9.227.112:8501`
+- API: `http://170.9.227.112:8000/api`
 
 ## Troubleshooting
 
