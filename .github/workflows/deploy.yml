@@ -23,18 +23,23 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
-    - name: Create SSH key
+    - name: Install SSH key using proper action
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.DEPLOYMENT_PRIVATE_KEY }}
+    
+    - name: Add host key
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.DEPLOYMENT_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
-        ssh-keyscan 170.9.227.112 >> ~/.ssh/known_hosts
+        ssh-keyscan -t ed25519 170.9.227.112 >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
     
     - name: Test SSH connection
       run: |
-        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "echo SSH connection successful"
+        ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "echo SSH connection successful"
       
     - name: Deploy to Oracle Cloud
+      if: success()
       run: |
-        rsync -avz -e "ssh -i ~/.ssh/id_ed25519" --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ubuntu@170.9.227.112:~/job-tracker/
-        ssh -i ~/.ssh/id_ed25519 ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/deploy.sh"
+        rsync -avz -e "ssh -o StrictHostKeyChecking=no" --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ubuntu@170.9.227.112:~/job-tracker/
+        ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/deploy.sh"
