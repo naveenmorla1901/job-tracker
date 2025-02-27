@@ -110,12 +110,12 @@ You'll need an SSH key pair to securely access your cloud instance.
 
    **Windows (PowerShell):**
    ```powershell
-   ssh -i "$HOME\.ssh\oci_key" ubuntu@<instance-ip-address>
+   ssh -i "$HOME\.ssh\oci_key" ubuntu@ubuntu@170.9.227.112
    ```
 
    **macOS/Linux:**
    ```bash
-   ssh -i ~/.ssh/oci_key ubuntu@<instance-ip-address>
+   ssh -i ~/.ssh/oci_key ubuntu@ubuntu@170.9.227.112
    ```
 
 ## Step 5: Set Up the Server Environment
@@ -131,7 +131,7 @@ sudo apt upgrade -y
 sudo apt install -y git
 
 # Clone the repository
-git clone https://github.com/yourusername/job-tracker.git
+git clone https://github.com/naveenmorla1901/job-tracker.git
 cd job-tracker
 
 # Run the install script

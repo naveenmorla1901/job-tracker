@@ -41,7 +41,7 @@ The system consists of three main components:
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/job-tracker.git
+git clone https://github.com/naveenmorla1901/job-tracker.git
 cd job-tracker
 ```
 
@@ -59,7 +59,7 @@ pip install -r requirements.txt
 4. Configure the database
 ```bash
 # Create a .env file with your database credentials
-echo "DATABASE_URL=postgresql://username:password@localhost/job_tracker" > .env
+echo "DATABASE_URL=postgresql://postgres:1901@localhost/job_tracker" > .env
 ```
 
 5. Initialize the database

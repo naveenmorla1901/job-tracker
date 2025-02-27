@@ -10,7 +10,7 @@ env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 # Database settings
-SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost/job_tracker")
+SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "postgresql://postgres:1901@localhost/job_tracker")
 
 # Environment
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
