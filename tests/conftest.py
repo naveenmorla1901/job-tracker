@@ -12,24 +12,39 @@ from sqlalchemy.pool import StaticPool
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Import from the correct locations
-from app.db.database import get_db
-from app.db.models import Base, Job, Role
+# Set test environment
+os.environ["ENVIRONMENT"] = "test"
+
+# Use existing DB_URL from env or create a test SQLite DB
+if "DATABASE_URL" in os.environ:
+    SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
+    is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+else:
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+    is_sqlite = True
+
+# Import after setting environment variables
+from app.db.database import Base, get_db
+from app.db.models import Job, Role
 from main import app
 
-# Create an in-memory SQLite database for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+# Create test engine
+if is_sqlite:
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+else:
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture(scope="function")
 def test_db():
     """Create a fresh database for each test"""
+    # Drop all tables to start fresh for each test
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     
     # Create test data

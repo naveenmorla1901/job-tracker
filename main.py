@@ -1,3 +1,6 @@
+"""
+Main FastAPI application
+"""
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +9,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import logging
 import sys
+import os
 
 # Configure logging
 logging.basicConfig(
@@ -20,13 +24,24 @@ logger = logging.getLogger("job_tracker")
 
 from app.db.database import get_db, engine
 from app.db.models import Base, Job, Role
-from app.scheduler.jobs import setup_scheduler
 from app.api.endpoints.jobs import router as jobs_router
 from app.api.endpoints.stats import router as stats_router
 from app.api.endpoints.health import router as health_router
+from app.config import ENVIRONMENT
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Get environment for conditional logic
+is_test = ENVIRONMENT == "test"
+
+# Create database tables - only if not in test environment
+# (tests will create their own tables)
+if not is_test:
+    logger.info("Creating database tables...")
+    Base.metadata.create_all(bind=engine)
+    
+    # Import only if not in test to prevent circular imports
+    from app.scheduler.jobs import setup_scheduler
+else:
+    logger.info("Test environment detected, skipping database initialization")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -52,6 +67,11 @@ app.include_router(health_router, prefix="/api", tags=["health"])
 @app.on_event("startup")
 async def startup_event():
     """Start the scheduler and purge old records when the application starts"""
+    # Skip startup tasks in test environment
+    if is_test:
+        logger.info("Test environment: skipping startup tasks")
+        return
+        
     logger.info("="*80)
     logger.info("STARTING JOB TRACKER API")
     logger.info("="*80)
@@ -105,6 +125,7 @@ async def startup_event():
     
     # Then start the scheduler
     logger.info("Initializing job scraper scheduler...")
+    from app.scheduler.jobs import setup_scheduler
     setup_scheduler()
     logger.info("Startup complete!")
 

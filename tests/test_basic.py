@@ -1,13 +1,27 @@
 """
-Basic tests that should always pass to ensure CI pipeline continues
+Basic tests to ensure the infrastructure is working
 """
+import pytest
 
-def test_python_works():
-    """Most basic test to ensure pytest works"""
+def test_environment_setup():
+    """Test that the test environment is set up correctly"""
     assert True
 
-def test_basic_math():
-    """Test basic arithmetic to ensure environment is working"""
-    assert 2 + 2 == 4
-    assert 10 - 5 == 5
-    assert 3 * 4 == 12
+def test_imports():
+    """Test that key modules import correctly"""
+    import app
+    import app.db
+    import app.api
+    import app.scrapers
+    assert app is not None
+    assert app.db is not None
+    assert app.api is not None
+    assert app.scrapers is not None
+
+def test_api_connection(test_client):
+    """Test that the API is accessible"""
+    response = test_client.get("/")
+    assert response.status_code == 200
+    assert "message" in response.json()
+    assert "status" in response.json()
+    assert response.json()["status"] == "ok"

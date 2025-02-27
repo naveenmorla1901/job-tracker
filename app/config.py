@@ -9,12 +9,19 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-# Database settings
-SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "postgresql://postgres:1901@localhost/job_tracker")
-
 # Environment
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = ENVIRONMENT == "development"
+
+# Database settings - with fallback to SQLite for tests if PostgreSQL unavailable
+DEFAULT_DB_URL = "postgresql://postgres:postgres@localhost/job_tracker"
+
+if ENVIRONMENT == "test":
+    # Use provided DATABASE_URL or SQLite for testing
+    SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+else:
+    # Use provided DATABASE_URL or default PostgreSQL for development
+    SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 # API settings
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
