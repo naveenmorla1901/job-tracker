@@ -118,7 +118,7 @@ You'll need an SSH key pair to securely access your cloud instance.
    ssh -i ~/.ssh/oci_key ubuntu@ubuntu@170.9.227.112
    ```
 
-## Step 5: Set Up the Server Environment
+## Step 5: Set Up the Server Environment test
 
 Once connected to your instance, run the following commands:
 

@@ -28,21 +28,18 @@ jobs:
     #   run: |
     #     pytest
     
-    # Changed approach: Use built-in SSH actions instead of ssh-agent
-    - name: Install SSH key
+    - name: Set up SSH key
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.ORACLE_SSH_KEY }}" > ~/.ssh/oracle_key
-        chmod 600 ~/.ssh/oracle_key
-        echo "${{ secrets.ORACLE_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-        
+        echo "${{ secrets.ORACLE_SSH_KEY }}" > ~/.ssh/oci_key
+        chmod 600 ~/.ssh/oci_key
+        ssh-keyscan 170.9.227.112 >> ~/.ssh/known_hosts
+    
+    - name: Test SSH connection
+      run: |
+        ssh -v -i ~/.ssh/oci_key ubuntu@170.9.227.112 "echo SSH connection successful"
+      
     - name: Deploy to Oracle Cloud
       run: |
-        # Test SSH connection with verbose output
-        ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=accept-new ${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }} "echo SSH connection successful"
-        
-        # Sync files to server
-        rsync -avz -e "ssh -i ~/.ssh/oracle_key" --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }}:~/job-tracker/
-        
-        # Run deployment script
-        ssh -i ~/.ssh/oracle_key ${{ secrets.ORACLE_USER }}@${{ secrets.ORACLE_HOST }} "cd ~/job-tracker && bash scripts/deploy.sh"
+        rsync -avz -e "ssh -i ~/.ssh/oci_key" --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ubuntu@170.9.227.112:~/job-tracker/
+        ssh -i ~/.ssh/oci_key ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/deploy.sh"
