@@ -4,7 +4,7 @@ Configuration settings for the Job Tracker application
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-
+# from app.config import SQLALCHEMY_DATABASE_URL as SQLALCHEMY_DATABASE_URL
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -14,7 +14,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = ENVIRONMENT == "development"
 
 # Database settings - with fallback to SQLite for tests if PostgreSQL unavailable
-DEFAULT_DB_URL = "postgresql://postgres:postgres@localhost/job_tracker"
+DEFAULT_DB_URL = "postgresql://postgres:1901@localhost/job_tracker"
 
 if ENVIRONMENT == "test":
     # Use provided DATABASE_URL or SQLite for testing

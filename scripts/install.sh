@@ -27,7 +27,7 @@ fi
 if [ ! -f .env ]; then
   echo "Creating .env file..."
   cat > .env << EOF
-DATABASE_URL=postgresql://job_tracker:job_tracker_password@localhost/job_tracker
+DATABASE_URL=postgresql://postgres:1901@localhost/job_tracker
 ENVIRONMENT=production
 EOF
 fi

@@ -133,9 +133,23 @@ sudo apt install -y git
 # Clone the repository
 git clone https://github.com/naveenmorla1901/job-tracker.git
 cd job-tracker
-
+# Create a Python virtual environment
+python3 -m venv venv
+source venv/bin/activate
 # Run the install script
 bash scripts/install.sh
+
+# Install Python dependencies from requirements.txt
+pip install -r requirements.txt
+
+# **IMPORTANT: Initialize and Upgrade the Database Schema**
+# This step creates the necessary tables in the database.
+python create_database.py  # Create the database itself (if it doesn't exist)
+alembic upgrade head       # Run database migrations to create tables
+
+# Run the install script (this handles systemd services, Nginx, etc.)
+bash scripts/install.sh
+
 ```
 
 The install script will:

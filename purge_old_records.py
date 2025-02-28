@@ -16,12 +16,12 @@ if __name__ == "__main__":
 
 logger = logging.getLogger('job_tracker.purge')
 
-from app.config import SQLALCHEMY_DATABASE_URI
+from app.config import SQLALCHEMY_DATABASE_URL
 
 def get_connection():
     """Get a connection to the database"""
     try:
-        conn = psycopg2.connect(SQLALCHEMY_DATABASE_URI)
+        conn = psycopg2.connect(SQLALCHEMY_DATABASE_URL)
         return conn
     except Exception as e:
         logger.error(f"Error connecting to database: {str(e)}")

@@ -9,7 +9,7 @@ from psycopg2.extras import RealDictCursor
 import shutil
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from app.config import SQLALCHEMY_DATABASE_URI
+from app.config import SQLALCHEMY_DATABASE_URL
 import logging
 
 # Configure logging
@@ -22,7 +22,7 @@ logger = logging.getLogger('database_reset')
 def get_connection():
     """Get a direct PostgreSQL connection"""
     try:
-        conn = psycopg2.connect(SQLALCHEMY_DATABASE_URI)
+        conn = psycopg2.connect(SQLALCHEMY_DATABASE_URL)
         return conn
     except Exception as e:
         logger.error(f"Error connecting to database: {str(e)}")
@@ -30,7 +30,7 @@ def get_connection():
 
 def get_sqlalchemy_session():
     """Get a SQLAlchemy session"""
-    engine = create_engine(SQLALCHEMY_DATABASE_URI)
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
     Session = sessionmaker(bind=engine)
     return Session()
 

@@ -6,12 +6,12 @@ import sys
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import shutil
-from app.config import SQLALCHEMY_DATABASE_URI
+from app.config import SQLALCHEMY_DATABASE_URL
 
 def get_connection():
     """Get a connection to the database"""
     try:
-        conn = psycopg2.connect(SQLALCHEMY_DATABASE_URI)
+        conn = psycopg2.connect(SQLALCHEMY_DATABASE_URL)
         return conn
     except Exception as e:
         print(f"Error connecting to database: {str(e)}")
