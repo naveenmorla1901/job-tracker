@@ -78,7 +78,7 @@ python run.py dashboard
 
 7. Open the dashboard in your browser
 ```
-http://localhost:8501
+http://170.9.227.112:8501
 ```
 
 ## Usage
