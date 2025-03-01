@@ -15,9 +15,6 @@ import sys
 # Add app directory to path
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Import dashboard pages
-from app.dashboard.logs import display_logs_page
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -208,7 +205,7 @@ def display_jobs_page():
     if search_term or selected_roles or selected_companies or location or selected_employment_type != "All":
         if st.sidebar.button("Clear All Filters"):
             st.session_state.clear()
-            st.experimental_rerun()
+            st.rerun()
     
     # Create requests-compatible params
     # For single parameters, use simple key-value
@@ -469,6 +466,8 @@ def main():
     if page == "Jobs Dashboard":
         display_jobs_page()
     elif page == "System Logs":
+        # Import logs page here to avoid circular imports
+        from app.dashboard.logs import display_logs_page
         display_logs_page()
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ def display_logs_page():
     
     # Add refresh button at the top
     if st.button("Refresh Logs"):
-        st.experimental_rerun()
+        st.rerun()  # Using st.rerun() instead of deprecated experimental_rerun
     
     # Clean up old logs
     st.sidebar.title("Log Management")
@@ -39,31 +39,12 @@ def display_logs_page():
             # Read content
             log_content = read_log_content("job_tracker.log")
             
-            # Group logs by hour
-            hourly_logs = {}
+            # Reverse the log content to show most recent logs first
+            log_content.reverse()
             
-            for line in log_content:
-                # Try to extract timestamp
-                try:
-                    # Format is typically: 2025-02-25 23:46:05,500 - ...
-                    timestamp_str = line.split(" - ", 1)[0]
-                    timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f")
-                    hour_key = timestamp.strftime("%Y-%m-%d %H:00")
-                    
-                    if hour_key not in hourly_logs:
-                        hourly_logs[hour_key] = []
-                    
-                    hourly_logs[hour_key].append(line)
-                except:
-                    # If timestamp parsing fails, add to "Unknown" hour
-                    if "Unknown" not in hourly_logs:
-                        hourly_logs["Unknown"] = []
-                    hourly_logs["Unknown"].append(line)
+            # Display logs in a fixed height text area
+            st.text_area("Recent logs first:", "".join(log_content), height=600)
             
-            # Display logs grouped by hour (most recent first)
-            for hour in sorted(hourly_logs.keys(), reverse=True):
-                with st.expander(f"Logs from {hour}", expanded=(hour == sorted(hourly_logs.keys(), reverse=True)[0])):
-                    st.text("".join(hourly_logs[hour]))
         else:
             st.warning("API log file (job_tracker.log) not found")
     
@@ -76,31 +57,12 @@ def display_logs_page():
             # Read content
             log_content = read_log_content("dashboard.log")
             
-            # Group logs by hour
-            hourly_logs = {}
+            # Reverse the log content to show most recent logs first
+            log_content.reverse()
             
-            for line in log_content:
-                # Try to extract timestamp
-                try:
-                    # Format is typically: 2025-02-25 23:46:05,500 - ...
-                    timestamp_str = line.split(" - ", 1)[0]
-                    timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f")
-                    hour_key = timestamp.strftime("%Y-%m-%d %H:00")
-                    
-                    if hour_key not in hourly_logs:
-                        hourly_logs[hour_key] = []
-                    
-                    hourly_logs[hour_key].append(line)
-                except:
-                    # If timestamp parsing fails, add to "Unknown" hour
-                    if "Unknown" not in hourly_logs:
-                        hourly_logs["Unknown"] = []
-                    hourly_logs["Unknown"].append(line)
+            # Display logs in a fixed height text area
+            st.text_area("Recent logs first:", "".join(log_content), height=600)
             
-            # Display logs grouped by hour (most recent first)
-            for hour in sorted(hourly_logs.keys(), reverse=True):
-                with st.expander(f"Logs from {hour}", expanded=(hour == sorted(hourly_logs.keys(), reverse=True)[0])):
-                    st.text("".join(hourly_logs[hour]))
         else:
             st.warning("Dashboard log file (dashboard.log) not found")
     
