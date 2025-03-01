@@ -429,7 +429,8 @@ def display_jobs_page():
                     border-bottom: 1px solid #ddd;
                 }
                 th {
-                    background-color: #f2f2f2;
+                    background-color: #000; /* Change header background color to black */
+                    color: #fff; /* Change header text color to white for contrast */
                 }
 
                 /* Specific column width adjustments */
