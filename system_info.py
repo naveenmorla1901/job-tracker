@@ -9,7 +9,11 @@ import shutil
 import platform
 import datetime
 import re
+import psutil
 from typing import Dict, Any, List, Optional, Tuple
+
+# Import support module with additional functions
+from system_info_utils import get_project_info, get_process_info, format_system_info
 
 # Configure logging
 logger = logging.getLogger("job_tracker.system_info")
@@ -23,6 +27,7 @@ def get_system_info() -> Dict[str, Any]:
     - Network stats
     - System uptime
     - Project folder size
+    - Process information
     
     Returns:
         Dict with system information
@@ -36,13 +41,15 @@ def get_system_info() -> Dict[str, Any]:
             "version": platform.version(),
             "machine": platform.machine(),
             "processor": platform.processor(),
+            "python_version": platform.python_version(),
         },
         "memory": get_memory_info(),
         "disk": get_disk_info(),
         "cpu": get_cpu_info(),
         "uptime": get_uptime_info(),
         "network": get_network_info(),
-        "project": get_project_info()
+        "project": get_project_info(),
+        "processes": get_process_info()
     }
     
     return info
@@ -50,45 +57,29 @@ def get_system_info() -> Dict[str, Any]:
 def get_memory_info() -> Dict[str, Any]:
     """Get memory usage information"""
     try:
-        if platform.system() == "Linux":
-            # Use free command on Linux
-            output = subprocess.check_output(["free", "-m"]).decode("utf-8")
-            memory_lines = output.strip().split("\n")
-            
-            # Parse the memory line
-            if len(memory_lines) >= 2:
-                memory_values = re.split(r'\s+', memory_lines[1].strip())
-                
-                if len(memory_values) >= 7:
-                    total = int(memory_values[1])
-                    used = int(memory_values[2])
-                    free = int(memory_values[3])
-                    shared = int(memory_values[4])
-                    buff_cache = int(memory_values[5])
-                    available = int(memory_values[6])
-                    
-                    memory_info = {
-                        "total_mb": total,
-                        "used_mb": used,
-                        "free_mb": free,
-                        "shared_mb": shared,
-                        "buff_cache_mb": buff_cache,
-                        "available_mb": available,
-                        "used_percent": round((used / total) * 100, 2),
-                        "available_percent": round((available / total) * 100, 2)
-                    }
-                    return memory_info
+        memory_info = {}
         
-        # Generic fallback approach for all systems
-        total, available, percent, used, free = shutil.disk_usage("/")
-        
-        return {
-            "total_mb": total // (1024 * 1024),
-            "used_mb": used // (1024 * 1024),
-            "free_mb": free // (1024 * 1024),
-            "used_percent": percent,
-            "available_percent": 100 - percent
+        # Use psutil for cross-platform memory info
+        vm = psutil.virtual_memory()
+        memory_info = {
+            "total_mb": vm.total // (1024 * 1024),
+            "available_mb": vm.available // (1024 * 1024),
+            "used_mb": vm.used // (1024 * 1024),
+            "free_mb": vm.free // (1024 * 1024),
+            "used_percent": vm.percent,
+            "available_percent": 100 - vm.percent
         }
+        
+        # Add swap information
+        swap = psutil.swap_memory()
+        memory_info["swap"] = {
+            "total_mb": swap.total // (1024 * 1024),
+            "used_mb": swap.used // (1024 * 1024),
+            "free_mb": swap.free // (1024 * 1024),
+            "used_percent": swap.percent
+        }
+        
+        return memory_info
     except Exception as e:
         logger.error(f"Error getting memory info: {str(e)}")
         return {"error": str(e)}
@@ -96,42 +87,50 @@ def get_memory_info() -> Dict[str, Any]:
 def get_disk_info() -> Dict[str, Any]:
     """Get disk usage information"""
     try:
-        disk_info = {}
+        disk_info = {"partitions": [], "total": {}}
         
-        # Get usage of root directory
-        total, used, free = shutil.disk_usage("/")
-        root_info = {
-            "total_gb": round(total / (1024**3), 2),
-            "used_gb": round(used / (1024**3), 2),
-            "free_gb": round(free / (1024**3), 2),
-            "used_percent": round((used / total) * 100, 2)
-        }
-        disk_info["root"] = root_info
-        
-        # In Linux, try to get more detailed filesystem info
-        if platform.system() == "Linux":
+        # Get all partitions
+        for partition in psutil.disk_partitions():
             try:
-                df_output = subprocess.check_output(["df", "-h"]).decode("utf-8")
-                df_lines = df_output.strip().split("\n")
+                if os.name == 'nt' and 'cdrom' in partition.opts or partition.fstype == '':
+                    # Skip CD-ROM drives on Windows
+                    continue
+                    
+                usage = psutil.disk_usage(partition.mountpoint)
                 
-                filesystems = []
-                for line in df_lines[1:]:  # Skip header
-                    parts = re.split(r'\s+', line.strip())
-                    if len(parts) >= 6:
-                        filesystem = {
-                            "filesystem": parts[0],
-                            "size": parts[1],
-                            "used": parts[2],
-                            "available": parts[3],
-                            "used_percent": parts[4],
-                            "mounted_on": parts[5]
-                        }
-                        filesystems.append(filesystem)
+                partition_info = {
+                    "device": partition.device,
+                    "mountpoint": partition.mountpoint,
+                    "fstype": partition.fstype,
+                    "total_gb": round(usage.total / (1024**3), 2),
+                    "used_gb": round(usage.used / (1024**3), 2),
+                    "free_gb": round(usage.free / (1024**3), 2),
+                    "used_percent": usage.percent
+                }
                 
-                disk_info["filesystems"] = filesystems
-            except Exception as e:
-                logger.error(f"Error getting filesystem info: {str(e)}")
+                disk_info["partitions"].append(partition_info)
+                
+                # If this is the root or main partition, use it for total
+                if partition.mountpoint == '/' or partition.mountpoint == 'C:\\':
+                    disk_info["root"] = partition_info
+            except:
+                # Skip partitions that can't be accessed
+                continue
+                
+        # If root wasn't set, use the first partition
+        if "root" not in disk_info and disk_info["partitions"]:
+            disk_info["root"] = disk_info["partitions"][0]
         
+        # Add total disk I/O statistics
+        io_counters = psutil.disk_io_counters()
+        if io_counters:
+            disk_info["io"] = {
+                "read_mb": io_counters.read_bytes // (1024 * 1024),
+                "write_mb": io_counters.write_bytes // (1024 * 1024),
+                "read_count": io_counters.read_count,
+                "write_count": io_counters.write_count
+            }
+            
         return disk_info
     except Exception as e:
         logger.error(f"Error getting disk info: {str(e)}")
@@ -142,8 +141,45 @@ def get_cpu_info() -> Dict[str, Any]:
     try:
         cpu_info = {}
         
+        # Get CPU count and usage
+        cpu_info["count_physical"] = psutil.cpu_count(logical=False)
+        cpu_info["count_logical"] = psutil.cpu_count(logical=True)
+        
+        # Get current CPU utilization (averaged over all cores)
+        cpu_info["used_percent"] = psutil.cpu_percent(interval=0.5)
+        
+        # Get per-CPU utilization
+        per_cpu = psutil.cpu_percent(interval=0.1, percpu=True)
+        cpu_info["per_cpu_percent"] = per_cpu
+        
+        # Get CPU frequency if available
+        freq = psutil.cpu_freq()
+        if freq:
+            cpu_info["frequency_mhz"] = {
+                "current": round(freq.current, 2),
+                "min": round(freq.min, 2) if freq.min else None,
+                "max": round(freq.max, 2) if freq.max else None
+            }
+        
+        # Get CPU load average if on Unix
+        if hasattr(psutil, "getloadavg"):
+            load1, load5, load15 = psutil.getloadavg()
+            cpu_info["load_1min"] = load1
+            cpu_info["load_5min"] = load5
+            cpu_info["load_15min"] = load15
+        
+        # Get CPU stats
+        stats = psutil.cpu_stats()
+        if stats:
+            cpu_info["stats"] = {
+                "ctx_switches": stats.ctx_switches,
+                "interrupts": stats.interrupts,
+                "soft_interrupts": stats.soft_interrupts,
+                "syscalls": stats.syscalls
+            }
+        
+        # Try to get CPU model information
         if platform.system() == "Linux":
-            # Get CPU model
             try:
                 with open("/proc/cpuinfo", "r") as f:
                     for line in f:
@@ -152,40 +188,21 @@ def get_cpu_info() -> Dict[str, Any]:
                             break
             except:
                 pass
-                
-            # Get CPU load
+        elif platform.system() == "Windows":
             try:
-                with open("/proc/loadavg", "r") as f:
-                    load = f.read().strip().split()
-                    cpu_info["load_1min"] = float(load[0])
-                    cpu_info["load_5min"] = float(load[1])
-                    cpu_info["load_15min"] = float(load[2])
+                import winreg
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+                cpu_info["model"] = winreg.QueryValueEx(key, "ProcessorNameString")[0]
+                winreg.CloseKey(key)
+            except:
+                pass
+        elif platform.system() == "Darwin":  # macOS
+            try:
+                output = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"]).decode("utf-8").strip()
+                cpu_info["model"] = output
             except:
                 pass
                 
-            # Get more detailed CPU usage with top
-            try:
-                top_output = subprocess.check_output(
-                    ["top", "-bn", "1"], 
-                    stderr=subprocess.STDOUT
-                ).decode("utf-8")
-                
-                # Extract CPU percentages
-                for line in top_output.split("\n"):
-                    if line.startswith("%Cpu"):
-                        parts = line.split(",")
-                        user = float(parts[0].split(":")[1].strip().split()[0])
-                        system = float(parts[1].strip().split()[0])
-                        idle = float(parts[3].strip().split()[0])
-                        
-                        cpu_info["user_percent"] = user
-                        cpu_info["system_percent"] = system
-                        cpu_info["idle_percent"] = idle
-                        cpu_info["used_percent"] = 100 - idle
-                        break
-            except:
-                pass
-        
         return cpu_info
     except Exception as e:
         logger.error(f"Error getting CPU info: {str(e)}")
@@ -196,24 +213,25 @@ def get_uptime_info() -> Dict[str, Any]:
     try:
         uptime_info = {}
         
-        if platform.system() == "Linux":
-            try:
-                with open("/proc/uptime", "r") as f:
-                    uptime_seconds = float(f.read().split()[0])
-                    days, remainder = divmod(uptime_seconds, 86400)
-                    hours, remainder = divmod(remainder, 3600)
-                    minutes, seconds = divmod(remainder, 60)
-                    
-                    uptime_info["days"] = int(days)
-                    uptime_info["hours"] = int(hours)
-                    uptime_info["minutes"] = int(minutes)
-                    uptime_info["seconds"] = int(seconds)
-                    uptime_info["total_seconds"] = int(uptime_seconds)
-                    uptime_info["uptime_formatted"] = f"{int(days)} days, {int(hours)} hours, {int(minutes)} minutes"
-            except:
-                # Alternative: use uptime command
-                uptime_output = subprocess.check_output(["uptime"]).decode("utf-8").strip()
-                uptime_info["uptime_output"] = uptime_output
+        # Get boot time
+        boot_time = psutil.boot_time()
+        boot_datetime = datetime.datetime.fromtimestamp(boot_time)
+        
+        # Calculate uptime
+        uptime_seconds = (datetime.datetime.now() - boot_datetime).total_seconds()
+        
+        days, remainder = divmod(uptime_seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        uptime_info["boot_time"] = boot_time
+        uptime_info["boot_datetime"] = boot_datetime.strftime("%Y-%m-%d %H:%M:%S")
+        uptime_info["days"] = int(days)
+        uptime_info["hours"] = int(hours)
+        uptime_info["minutes"] = int(minutes)
+        uptime_info["seconds"] = int(seconds)
+        uptime_info["total_seconds"] = int(uptime_seconds)
+        uptime_info["uptime_formatted"] = f"{int(days)} days, {int(hours)} hours, {int(minutes)} minutes"
         
         return uptime_info
     except Exception as e:
@@ -223,143 +241,94 @@ def get_uptime_info() -> Dict[str, Any]:
 def get_network_info() -> Dict[str, Any]:
     """Get network usage information"""
     try:
-        network_info = {
-            "interfaces": []
-        }
+        network_info = {}
         
-        if platform.system() == "Linux":
+        # Get network interfaces and addresses
+        network_info["interfaces"] = []
+        
+        # Get all network interfaces
+        addrs = psutil.net_if_addrs()
+        for interface_name, interface_addresses in addrs.items():
+            interface = {"name": interface_name, "addresses": []}
+            
+            for addr in interface_addresses:
+                if addr.family == psutil.AF_LINK:
+                    interface["mac"] = addr.address
+                elif addr.family in (2, 30):  # IPv4 or IPv6
+                    interface["addresses"].append(addr.address)
+            
+            if "addresses" in interface and interface["addresses"]:
+                network_info["interfaces"].append(interface)
+        
+        # Get network I/O statistics
+        io_counters = psutil.net_io_counters(pernic=True)
+        if io_counters:
+            network_info["io"] = {}
+            
+            for nic, counters in io_counters.items():
+                network_info["io"][nic] = {
+                    "bytes_sent_mb": counters.bytes_sent // (1024 * 1024),
+                    "bytes_recv_mb": counters.bytes_recv // (1024 * 1024),
+                    "packets_sent": counters.packets_sent,
+                    "packets_recv": counters.packets_recv,
+                    "errin": counters.errin,
+                    "errout": counters.errout,
+                    "dropin": counters.dropin,
+                    "dropout": counters.dropout
+                }
+        
+        # Get connection information
+        network_info["connections"] = {}
+        
+        try:
+            # Count by connection status
+            connections = psutil.net_connections()
+            by_status = {}
+            
+            for conn in connections:
+                status = conn.status
+                if status not in by_status:
+                    by_status[status] = 0
+                by_status[status] += 1
+            
+            network_info["connections"]["by_status"] = by_status
+            network_info["connections"]["total"] = len(connections)
+            network_info["active_connections"] = by_status.get("ESTABLISHED", 0)
+        except:
+            # Needs elevated privileges on some systems
+            network_info["connections"]["error"] = "Insufficient privileges to get connection information"
+        
+        # Check if specific ports are in use for our services
+        network_info["api_port_active"] = is_port_in_use(8000)
+        network_info["dashboard_port_active"] = is_port_in_use(8501)
+        network_info["nginx_active"] = is_port_in_use(80) or is_port_in_use(443)
+        
+        # Get running services using psutil
+        services = []
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
-                # Use netstat to get active connections
-                netstat_output = subprocess.check_output(
-                    ["netstat", "-tn"], 
-                    stderr=subprocess.STDOUT
-                ).decode("utf-8")
-                
-                active_connections = len([
-                    line for line in netstat_output.split('\n') 
-                    if 'ESTABLISHED' in line
-                ])
-                
-                network_info["active_connections"] = active_connections
-                
-                # Get interfaces information (simplified)
-                interfaces_output = subprocess.check_output(
-                    ["ip", "-s", "addr"], 
-                    stderr=subprocess.STDOUT
-                ).decode("utf-8")
-                
-                interfaces = []
-                interface = None
-                for line in interfaces_output.split('\n'):
-                    if ': ' in line and '<' in line and '>' in line:
-                        # Start of a new interface
-                        if interface:
-                            interfaces.append(interface)
-                        interface_name = line.split(': ')[1].split(':')[0]
-                        interface = {"name": interface_name, "addresses": []}
-                    elif interface and 'inet ' in line:
-                        # IP address
-                        ip = line.strip().split()[1].split('/')[0]
-                        interface["addresses"].append(ip)
-                
-                if interface:
-                    interfaces.append(interface)
-                
-                network_info["interfaces"] = interfaces
-                
-                # HTTP traffic (from process listening on port 8000, 8501)
-                try:
-                    # Check if ports are in use
-                    port_check = subprocess.check_output(["netstat", "-tnlp"]).decode("utf-8")
-                    
-                    api_active = ":8000 " in port_check
-                    dashboard_active = ":8501 " in port_check
-                    
-                    network_info["api_port_active"] = api_active
-                    network_info["dashboard_port_active"] = dashboard_active
-                except:
-                    pass
-            except Exception as e:
-                logger.error(f"Error in network info subprocess: {str(e)}")
+                # Check if this process is related to our application
+                if any(service in proc.info['name'].lower() for service in ['uvicorn', 'streamlit', 'nginx']):
+                    services.append({
+                        "name": proc.info['name'],
+                        "pid": proc.info['pid'],
+                        "cmdline": " ".join(proc.info.get('cmdline', [])) if proc.info.get('cmdline') else ""
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+        
+        network_info["services"] = services
         
         return network_info
     except Exception as e:
         logger.error(f"Error getting network info: {str(e)}")
         return {"error": str(e)}
 
-def get_project_info() -> Dict[str, Any]:
-    """Get information about the job-tracker project folder"""
-    try:
-        project_info = {}
-        
-        # Determine the project directory
-        project_dir = os.path.abspath(os.path.dirname(__file__))
-        project_info["path"] = project_dir
-        
-        # Calculate directory size
-        total_size = 0
-        file_count = 0
-        for dirpath, dirnames, filenames in os.walk(project_dir):
-            for f in filenames:
-                fp = os.path.join(dirpath, f)
-                if os.path.exists(fp):
-                    total_size += os.path.getsize(fp)
-                    file_count += 1
-        
-        project_info["size_bytes"] = total_size
-        project_info["size_mb"] = round(total_size / (1024 * 1024), 2)
-        project_info["file_count"] = file_count
-        
-        # Check logs size separately
-        logs_dir = os.path.join(project_dir, "logs")
-        logs_size = 0
-        logs_count = 0
-        
-        if os.path.exists(logs_dir):
-            for dirpath, dirnames, filenames in os.walk(logs_dir):
-                for f in filenames:
-                    fp = os.path.join(dirpath, f)
-                    if os.path.exists(fp):
-                        logs_size += os.path.getsize(fp)
-                        logs_count += 1
-        
-        project_info["logs_size_mb"] = round(logs_size / (1024 * 1024), 2)
-        project_info["logs_count"] = logs_count
-        
-        # Check individual log file sizes
-        log_files = {}
-        for log_file in ["job_tracker.log", "dashboard.log", "api.log"]:
-            file_path = os.path.join(project_dir, log_file)
-            if os.path.exists(file_path):
-                size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
-                log_files[log_file] = {"size_mb": size_mb}
-        
-        project_info["log_files"] = log_files
-        
-        # Get information about database if possible
-        db_info = {}
-        try:
-            # Try to get a list of database files
-            db_files = [f for f in os.listdir(project_dir) if f.endswith(".db")]
-            
-            if db_files:
-                db_info["files"] = []
-                for db_file in db_files:
-                    file_path = os.path.join(project_dir, db_file)
-                    size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
-                    db_info["files"].append({
-                        "name": db_file,
-                        "size_mb": size_mb
-                    })
-        except:
-            pass
-        
-        project_info["database"] = db_info
-        
-        return project_info
-    except Exception as e:
-        logger.error(f"Error getting project info: {str(e)}")
-        return {"error": str(e)}
+def is_port_in_use(port):
+    """Check if a port is in use using socket"""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
 
 def get_api_stats() -> Dict[str, Any]:
     """Get statistics about API usage if available"""
@@ -369,16 +338,20 @@ def get_api_stats() -> Dict[str, Any]:
         # Try to count job entries in the database
         try:
             from app.db.database import get_db
-            from app.db.models import Job, ScraperRun
+            from app.db.models import Job, ScraperRun, Role, job_roles
             
             db = next(get_db())
             
             # Count jobs
             total_jobs = db.query(Job).count()
             active_jobs = db.query(Job).filter(Job.is_active == True).count()
+            inactive_jobs = db.query(Job).filter(Job.is_active == False).count()
             
             # Count companies
             companies = db.query(Job.company).distinct().count()
+            
+            # Count roles
+            roles = db.query(Role).count()
             
             # Count recent scraper runs
             recent_runs = db.query(ScraperRun).order_by(ScraperRun.id.desc()).limit(100).all()
@@ -392,117 +365,52 @@ def get_api_stats() -> Dict[str, Any]:
             else:
                 success_rate = 0
                 
+            # Count jobs by posting date
+            jobs_by_date = []
+            dates_query = db.query(Job.date_posted, db.func.count(Job.id)).group_by(Job.date_posted).order_by(Job.date_posted.desc()).limit(7).all()
+            
+            for date, count in dates_query:
+                jobs_by_date.append({
+                    "date": date.strftime("%Y-%m-%d") if date else "Unknown",
+                    "count": count
+                })
+                
+            # Count jobs by role
+            jobs_by_role = []
+            try:
+                roles_query = db.query(Role.name, db.func.count(job_roles.c.job_id)).join(
+                    job_roles, Role.id == job_roles.c.role_id
+                ).group_by(Role.name).order_by(db.func.count(job_roles.c.job_id).desc()).limit(10).all()
+                
+                for role, count in roles_query:
+                    jobs_by_role.append({
+                        "role": role,
+                        "count": count
+                    })
+            except:
+                pass
+                
             api_stats["database"] = {
                 "total_jobs": total_jobs,
                 "active_jobs": active_jobs,
+                "inactive_jobs": inactive_jobs,
                 "companies": companies,
+                "roles": roles,
                 "recent_scraper_runs": len(recent_runs),
-                "success_rate": round(success_rate, 2)
+                "success_rate": round(success_rate, 2),
+                "jobs_by_date": jobs_by_date,
+                "jobs_by_role": jobs_by_role
             }
             
             db.close()
         except Exception as e:
             logger.error(f"Error getting database stats: {str(e)}")
+            api_stats["database_error"] = str(e)
         
         return api_stats
     except Exception as e:
         logger.error(f"Error getting API stats: {str(e)}")
         return {"error": str(e)}
-
-def format_system_info(info):
-    """Format system information for display"""
-    formatted = []
-    
-    # System Overview
-    formatted.append("System Information:")
-    formatted.append(f"  Platform: {info['system']['platform']}")
-    formatted.append(f"  Hostname: {info['system']['node']}")
-    formatted.append(f"  Processor: {info['system']['processor']}")
-    formatted.append("")
-    
-    # CPU
-    if "cpu" in info and info["cpu"]:
-        formatted.append("CPU:")
-        if "model" in info["cpu"]:
-            formatted.append(f"  Model: {info['cpu']['model']}")
-        if "used_percent" in info["cpu"]:
-            formatted.append(f"  Usage: {info['cpu']['used_percent']:.1f}%")
-        if "load_1min" in info["cpu"]:
-            formatted.append(f"  Load Avg: {info['cpu']['load_1min']} (1m), {info['cpu']['load_5min']} (5m), {info['cpu']['load_15min']} (15m)")
-        formatted.append("")
-    
-    # Memory
-    if "memory" in info and info["memory"]:
-        formatted.append("Memory:")
-        if "total_mb" in info["memory"]:
-            total_gb = info["memory"]["total_mb"] / 1024
-            used_gb = info["memory"]["used_mb"] / 1024
-            free_gb = info["memory"]["free_mb"] / 1024
-            formatted.append(f"  Total: {total_gb:.2f} GB")
-            formatted.append(f"  Used: {used_gb:.2f} GB ({info['memory']['used_percent']}%)")
-            formatted.append(f"  Free: {free_gb:.2f} GB")
-        formatted.append("")
-    
-    # Disk
-    if "disk" in info and info["disk"]:
-        formatted.append("Disk:")
-        if "root" in info["disk"]:
-            root = info["disk"]["root"]
-            formatted.append(f"  Total: {root['total_gb']} GB")
-            formatted.append(f"  Used: {root['used_gb']} GB ({root['used_percent']}%)")
-            formatted.append(f"  Free: {root['free_gb']} GB")
-        formatted.append("")
-    
-    # Network
-    if "network" in info and info["network"]:
-        formatted.append("Network:")
-        if "active_connections" in info["network"]:
-            formatted.append(f"  Active Connections: {info['network']['active_connections']}")
-        
-        # Interfaces
-        if "interfaces" in info["network"]:
-            for interface in info["network"]["interfaces"]:
-                if "addresses" in interface and interface["addresses"]:
-                    formatted.append(f"  Interface: {interface['name']}")
-                    formatted.append(f"    IP Addresses: {', '.join(interface['addresses'])}")
-        
-        # Service status
-        if "api_port_active" in info["network"]:
-            formatted.append(f"  API Service: {'Running' if info['network']['api_port_active'] else 'Not Running'} (Port 8000)")
-        if "dashboard_port_active" in info["network"]:
-            formatted.append(f"  Dashboard Service: {'Running' if info['network']['dashboard_port_active'] else 'Not Running'} (Port 8501)")
-        formatted.append("")
-    
-    # Uptime
-    if "uptime" in info and info["uptime"]:
-        formatted.append("Uptime:")
-        if "uptime_formatted" in info["uptime"]:
-            formatted.append(f"  System up: {info['uptime']['uptime_formatted']}")
-        elif "uptime_output" in info["uptime"]:
-            formatted.append(f"  {info['uptime']['uptime_output']}")
-        formatted.append("")
-    
-    # Project
-    if "project" in info and info["project"]:
-        formatted.append("Project Information:")
-        formatted.append(f"  Directory: {info['project']['path']}")
-        formatted.append(f"  Size: {info['project']['size_mb']} MB")
-        formatted.append(f"  Files: {info['project']['file_count']}")
-        
-        # Log files
-        if "log_files" in info["project"] and info["project"]["log_files"]:
-            formatted.append("  Log Files:")
-            for log_name, log_info in info["project"]["log_files"].items():
-                formatted.append(f"    {log_name}: {log_info['size_mb']} MB")
-                
-        # Database
-        if "database" in info["project"] and "files" in info["project"]["database"]:
-            formatted.append("  Database Files:")
-            for db_file in info["project"]["database"]["files"]:
-                formatted.append(f"    {db_file['name']}: {db_file['size_mb']} MB")
-        formatted.append("")
-    
-    return "\n".join(formatted)
 
 if __name__ == "__main__":
     # When run directly, print system information

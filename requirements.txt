@@ -1,27 +1,31 @@
 # API and Database
-fastapi
-uvicorn[standard]
-sqlalchemy
 alembic
+aiofiles
+fastapi
 psycopg2-binary
 pydantic
 python-multipart
-
-# Web Scraping
-requests
-beautifulsoup4
-aiohttp
-lxml
-
-# Dashboard
-streamlit
-pandas
-plotly
-numpy
+sqlalchemy
+uvicorn[standard]
 
 # Scheduling
 apscheduler
 schedule
+
+# Web Scraping
+aiohttp
+beautifulsoup4
+colorlog
+lxml
+matplotlib
+pandas
+plotly
+psutil
+requests
+
+# Dashboard
+numpy
+streamlit
 
 # Utilities
 python-dateutil
@@ -33,5 +37,5 @@ gunicorn
 python-dotenv
 
 # Testing
-pytest
 httpx
+pytest

@@ -21,6 +21,9 @@ echo "Installing dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Install psutil for system monitoring
+pip install psutil
+
 # Run database migrations if needed
 echo "Running database migrations..."
 python run.py update_db
