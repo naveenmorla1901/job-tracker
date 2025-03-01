@@ -11,7 +11,7 @@ from datetime import datetime
 logger = logging.getLogger("job_tracker.cleanup")
 
 def cleanup_logs_task():
-    """Perform scheduled log cleanup"""
+    """Perform scheduled log cleanup - removing logs older than 2 days"""
     from log_manager import cleanup_old_logs
     
     logger.info("Running scheduled log cleanup")
@@ -40,8 +40,9 @@ def run_scheduled_tasks():
 
 def start_scheduled_cleanup_thread():
     """Start the scheduled cleanup in a background thread"""
-    # Schedule log cleanup daily at 3 AM
+    # Schedule log cleanup twice daily to ensure logs don't build up
     schedule.every().day.at("03:00").do(cleanup_logs_task)
+    schedule.every().day.at("15:00").do(cleanup_logs_task)
     
     # Schedule database cleanup daily at 4 AM
     schedule.every().day.at("04:00").do(cleanup_database_task)

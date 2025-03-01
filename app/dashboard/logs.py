@@ -1,146 +1,108 @@
 """
-Logs page for the Job Tracker dashboard
+Simplified logs page for the Job Tracker dashboard
 """
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import sys
 import os
+import glob
 
 # Add parent directory to path to import log_manager
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from log_manager import get_log_files, read_log_content, extract_scraper_runs, cleanup_old_logs
+from log_manager import get_log_files, read_log_content, cleanup_old_logs
 
 def display_logs_page():
-    """Display the logs page in the Streamlit dashboard"""
-    st.title("Job Tracker Logs")
+    """Display a simplified logs page in the Streamlit dashboard"""
+    st.title("System Logs")
     
-    # Auto-refresh
-    auto_refresh = st.sidebar.checkbox("Auto refresh", value=True)
-    if auto_refresh:
-        refresh_interval = st.sidebar.slider("Refresh interval (seconds)", 
-                                          min_value=10, 
-                                          max_value=300, 
-                                          value=30)
-        st.sidebar.write(f"Next refresh in: {refresh_interval} seconds")
-    
-    # Manual refresh button
-    if st.sidebar.button("Refresh Now"):
+    # Add refresh button at the top
+    if st.button("Refresh Logs"):
         st.experimental_rerun()
     
     # Clean up old logs
-    clean_logs = st.sidebar.button("Clean Up Old Logs (> 2 days)")
-    if clean_logs:
+    st.sidebar.title("Log Management")
+    if st.sidebar.button("Clean Up Old Logs (> 2 days)"):
         deleted_count = cleanup_old_logs(days=2)
         st.sidebar.success(f"Deleted {deleted_count} old log files")
     
-    # Get all available log files
-    log_files = get_log_files()
+    # Display API logs and Dashboard logs in tabs
+    tab1, tab2 = st.tabs(["API Logs", "Dashboard Logs"])
     
-    if not log_files:
-        st.warning("No log files found.")
-        return
-    
-    # Create tabs for different log views
-    tab1, tab2 = st.tabs(["Scraper Runs", "Raw Logs"])
-    
+    # Read API logs
     with tab1:
-        st.subheader("Recent Scraper Runs")
+        st.subheader("API Logs (job_tracker.log)")
         
-        # Read main log file
-        main_log = "job_tracker.log"
-        if main_log in log_files:
-            log_content = read_log_content(main_log, max_lines=10000)
+        # Check if main log file exists
+        if os.path.exists("job_tracker.log"):
+            # Read content
+            log_content = read_log_content("job_tracker.log")
             
-            # Extract scraper runs
-            scraper_runs = extract_scraper_runs(log_content)
+            # Group logs by hour
+            hourly_logs = {}
             
-            if not scraper_runs:
-                st.info("No scraper runs found in logs.")
-            else:
-                # Display runs from newest to oldest
-                for i, run in enumerate(reversed(scraper_runs)):
-                    if i >= 5:  # Show only last 5 runs
-                        break
-                        
-                    # Format start time
-                    start_time = run.get("start_time", "Unknown")
-                    
-                    with st.expander(f"Run: {start_time}", expanded=(i == 0)):
-                        # Summary at the top
-                        if run.get("summary"):
-                            st.markdown("### Summary")
-                            for line in run.get("summary", []):
-                                st.text(line)
-                        
-                        # Show stats in a dataframe
-                        if run.get("scrapers"):
-                            st.markdown("### Scrapers")
-                            df = pd.DataFrame(run["scrapers"])
-                            
-                            # Calculate duration
-                            if len(run["scrapers"]) > 1:
-                                start = datetime.strptime(run["scrapers"][0]["time"], "%Y-%m-%d %H:%M:%S,%f")
-                                end = datetime.strptime(run["scrapers"][-1]["time"], "%Y-%m-%d %H:%M:%S,%f")
-                                duration = (end - start).total_seconds()
-                                st.text(f"Duration: {duration:.2f} seconds")
-                            
-                            # Count totals
-                            total_added = sum(s["added"] for s in run["scrapers"])
-                            total_updated = sum(s["updated"] for s in run["scrapers"])
-                            total_expired = sum(s["expired"] for s in run["scrapers"])
-                            
-                            # Show totals
-                            st.text(f"Total: {total_added} added, {total_updated} updated, {total_expired} expired")
-                            
-                            # Display scrapers with metrics
-                            st.dataframe(df)
-        else:
-            st.warning("Main log file (job_tracker.log) not found.")
-    
-    with tab2:
-        st.subheader("Raw Logs")
-        
-        # Select which log file to view
-        selected_log = st.selectbox("Select Log File", log_files)
-        
-        # Read and display the log content
-        log_content = read_log_content(selected_log)
-        
-        if log_content:
-            # Filter options
-            filter_text = st.text_input("Filter log content (case-insensitive)")
-            level_filter = st.multiselect(
-                "Filter by log level", 
-                ["INFO", "WARNING", "ERROR", "DEBUG"],
-                default=["INFO", "WARNING", "ERROR"]
-            )
-            
-            # Apply filters
-            filtered_lines = []
             for line in log_content:
-                # Apply level filter
-                if not any(f" {level} " in line for level in level_filter):
-                    continue
+                # Try to extract timestamp
+                try:
+                    # Format is typically: 2025-02-25 23:46:05,500 - ...
+                    timestamp_str = line.split(" - ", 1)[0]
+                    timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f")
+                    hour_key = timestamp.strftime("%Y-%m-%d %H:00")
                     
-                # Apply text filter
-                if filter_text and filter_text.lower() not in line.lower():
-                    continue
+                    if hour_key not in hourly_logs:
+                        hourly_logs[hour_key] = []
                     
-                filtered_lines.append(line)
+                    hourly_logs[hour_key].append(line)
+                except:
+                    # If timestamp parsing fails, add to "Unknown" hour
+                    if "Unknown" not in hourly_logs:
+                        hourly_logs["Unknown"] = []
+                    hourly_logs["Unknown"].append(line)
             
-            # Display the filtered log content
-            if filtered_lines:
-                st.text_area("Log Content", "".join(filtered_lines), height=500)
-            else:
-                st.info("No log entries match the selected filters.")
+            # Display logs grouped by hour (most recent first)
+            for hour in sorted(hourly_logs.keys(), reverse=True):
+                with st.expander(f"Logs from {hour}", expanded=(hour == sorted(hourly_logs.keys(), reverse=True)[0])):
+                    st.text("".join(hourly_logs[hour]))
         else:
-            st.warning(f"No content found in {selected_log}.")
+            st.warning("API log file (job_tracker.log) not found")
     
-    # Auto-refresh logic
-    if auto_refresh:
-        time.sleep(1)  # Small delay to ensure UI updates properly
-        st.empty()  # Create a placeholder
-        time.sleep(refresh_interval - 1)  # Wait for remaining time
-        st.experimental_rerun()  # Rerun the app
+    # Read Dashboard logs
+    with tab2:
+        st.subheader("Dashboard Logs (dashboard.log)")
+        
+        # Check if dashboard log file exists
+        if os.path.exists("dashboard.log"):
+            # Read content
+            log_content = read_log_content("dashboard.log")
+            
+            # Group logs by hour
+            hourly_logs = {}
+            
+            for line in log_content:
+                # Try to extract timestamp
+                try:
+                    # Format is typically: 2025-02-25 23:46:05,500 - ...
+                    timestamp_str = line.split(" - ", 1)[0]
+                    timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f")
+                    hour_key = timestamp.strftime("%Y-%m-%d %H:00")
+                    
+                    if hour_key not in hourly_logs:
+                        hourly_logs[hour_key] = []
+                    
+                    hourly_logs[hour_key].append(line)
+                except:
+                    # If timestamp parsing fails, add to "Unknown" hour
+                    if "Unknown" not in hourly_logs:
+                        hourly_logs["Unknown"] = []
+                    hourly_logs["Unknown"].append(line)
+            
+            # Display logs grouped by hour (most recent first)
+            for hour in sorted(hourly_logs.keys(), reverse=True):
+                with st.expander(f"Logs from {hour}", expanded=(hour == sorted(hourly_logs.keys(), reverse=True)[0])):
+                    st.text("".join(hourly_logs[hour]))
+        else:
+            st.warning("Dashboard log file (dashboard.log) not found")
+    
+    # Information about logs cleanup
+    st.sidebar.info("Logs are automatically cleaned up every 2 days")
