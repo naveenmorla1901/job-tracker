@@ -417,6 +417,28 @@ def display_jobs_page():
                 td:contains('Yesterday') { 
                     background-color: #f7f7e6 !important;
                 }
+
+                /* Adjust column widths */
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                th, td {
+                    padding: 12px; /* Adjust padding for spacing */
+                    text-align: left;
+                    border-bottom: 1px solid #ddd;
+                }
+                th {
+                    background-color: #f2f2f2;
+                }
+
+                /* Specific column width adjustments */
+                td:nth-child(3) { /* Location column */
+                    width: 30%; /* Adjust width as needed */
+                }
+                td:nth-child(4) { /* Posted column */
+                    width: 15%; /* Adjust width as needed */
+                }
                 </style>
                 """, unsafe_allow_html=True)
                 
