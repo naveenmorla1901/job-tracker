@@ -23,6 +23,7 @@ def get_project_info() -> Dict[str, Any]:
         
         # Calculate directory size and structure
         folder_sizes = {}
+        subfolder_sizes = {}  # Track subdirectories too
         total_size = 0
         file_count = 0
         
@@ -41,9 +42,18 @@ def get_project_info() -> Dict[str, Any]:
             if rel_path == '.':
                 rel_path = 'root'
                 
-            # Only track immediate subdirectories for clarity
-            if rel_path == 'root' or rel_path.count(os.sep) == 0:
+            # Track all subdirectories for more detailed view
+            parts = rel_path.split(os.sep)
+            
+            # Store first level directories
+            if rel_path == 'root' or len(parts) == 1:
                 folder_sizes[rel_path] = path_size
+                
+            # Store second level directories too
+            if len(parts) == 2:
+                parent = parts[0]
+                subfolder_name = f"{parent}/{parts[1]}"
+                subfolder_sizes[subfolder_name] = path_size
         
         project_info["size_bytes"] = total_size
         project_info["size_mb"] = round(total_size / (1024 * 1024), 2)
@@ -55,11 +65,21 @@ def get_project_info() -> Dict[str, Any]:
         for folder, size in folder_sizes.items():
             folder_sizes_mb[folder] = round(size / (1024 * 1024), 2)
             
+        # Add subfolder size breakdown
+        subfolder_sizes_mb = {}
+        for folder, size in subfolder_sizes.items():
+            subfolder_sizes_mb[folder] = round(size / (1024 * 1024), 2)
+            
         project_info["folder_sizes_mb"] = folder_sizes_mb
+        project_info["subfolder_sizes_mb"] = subfolder_sizes_mb
         
         # Sort folders by size (descending)
         sorted_folders = sorted(folder_sizes_mb.items(), key=lambda x: x[1], reverse=True)
         project_info["folders_by_size"] = sorted_folders
+        
+        # Sort subfolders by size (descending)
+        sorted_subfolders = sorted(subfolder_sizes_mb.items(), key=lambda x: x[1], reverse=True)
+        project_info["subfolders_by_size"] = sorted_subfolders
         
         # Check logs size separately
         logs_dir = os.path.join(project_dir, "logs")
@@ -407,14 +427,6 @@ def format_system_info(info):
                     if "mac" in interface:
                         formatted.append(f"    MAC: {interface['mac']}")
         
-        # Service status
-        if "api_port_active" in info["network"]:
-            formatted.append(f"  API Service: {'Running' if info['network']['api_port_active'] else 'Not Running'} (Port 8000)")
-        if "dashboard_port_active" in info["network"]:
-            formatted.append(f"  Dashboard Service: {'Running' if info['network']['dashboard_port_active'] else 'Not Running'} (Port 8501)")
-        if "nginx_active" in info["network"]:
-            formatted.append(f"  Nginx Service: {'Running' if info['network']['nginx_active'] else 'Not Running'} (Port 80/443)")
-        
         formatted.append("")
     
     # Uptime
@@ -434,10 +446,17 @@ def format_system_info(info):
         formatted.append(f"  Files: {info['project']['file_count']}")
         
         # Folder sizes
-        if "folder_sizes_mb" in info["project"]:
+        if "folders_by_size" in info["project"]:
             formatted.append("  Folder Sizes:")
             for folder, size in info["project"]["folders_by_size"]:
                 if folder != "root" and size > 0.1:  # Skip very small folders
+                    formatted.append(f"    {folder}: {size} MB")
+        
+        # Subfolder sizes
+        if "subfolders_by_size" in info["project"]:
+            formatted.append("  Subfolder Sizes:")
+            for folder, size in info["project"]["subfolders_by_size"]:
+                if size > 0.1:  # Skip very small folders
                     formatted.append(f"    {folder}: {size} MB")
         
         # Log files size

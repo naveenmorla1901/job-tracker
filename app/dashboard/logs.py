@@ -128,41 +128,39 @@ def display_logs_page():
                 if "project" in system_info:
                     project = system_info["project"]
                     
-                    # Show folder size breakdown
-                    st.markdown("#### Project Directory Sizes")
+                    # Show both main folders and subfolders
+                    st.markdown("#### Directory Sizes")
                     
+                    # Combine folder and subfolder information
+                    all_folders = []
+                    
+                    # Add top-level folders
                     if "folder_sizes_mb" in project:
-                        # Convert to DataFrame for easier display
-                        folders = []
                         for folder, size in project["folders_by_size"]:
-                            if size > 0.1:  # Skip tiny folders
-                                folders.append({"Folder": folder, "Size (MB)": size})
+                            if folder != "root" and size > 0.1:  # Skip very small folders
+                                folder_type = "Directory"
+                                all_folders.append({"Path": folder, "Size (MB)": size, "Type": folder_type})
+                    
+                    # Add sub-folders
+                    if "subfolder_sizes_mb" in project:
+                        for folder, size in project["subfolders_by_size"]:
+                            if size > 0.1:  # Skip very small folders
+                                folder_type = "Subdirectory"
+                                all_folders.append({"Path": folder, "Size (MB)": size, "Type": folder_type})
                                 
-                        if folders:
-                            folder_df = pd.DataFrame(folders)
-                            st.dataframe(folder_df, use_container_width=True)
+                    if all_folders:
+                        folder_df = pd.DataFrame(all_folders)
+                        st.dataframe(folder_df, use_container_width=True)
             
             with col2:
                 st.markdown("### Application Stats")
                 
-                # Service Status
-                service_status = []
-                
-                # Network services - Always show as running
-                st.metric("API Service", "✅ Running")
-                st.metric("Dashboard Service", "✅ Running")
-                st.metric("Nginx Service", "✅ Running" if system_info.get("network", {}).get("nginx_active", False) else "❌ Not Running")
-                
                 # Database Stats
                 if "database" in api_stats:
                     db_stats = api_stats["database"]
-                    st.metric("Total Jobs", db_stats.get("total_jobs", 0))
-                    
-                    # Always show actual values
                     total_jobs = db_stats.get("total_jobs", 0)
-                    active_jobs = total_jobs  # Always show all jobs as active
-                    
-                    st.metric("Active Jobs", active_jobs)
+                    st.metric("Total Jobs", total_jobs)
+                    st.metric("Active Jobs", total_jobs)  # Show total as active
                     st.metric("Companies", db_stats.get("companies", 0))
                     
                     # Scraper success rate

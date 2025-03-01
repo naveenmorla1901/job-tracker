@@ -339,6 +339,7 @@ def get_api_stats() -> Dict[str, Any]:
         try:
             from app.db.database import get_db
             from app.db.models import Job, ScraperRun, Role, job_roles
+            from sqlalchemy import func
             
             db = next(get_db())
             
@@ -367,7 +368,7 @@ def get_api_stats() -> Dict[str, Any]:
                 
             # Count jobs by posting date
             jobs_by_date = []
-            dates_query = db.query(Job.date_posted, db.func.count(Job.id)).group_by(Job.date_posted).order_by(Job.date_posted.desc()).limit(7).all()
+            dates_query = db.query(Job.date_posted, func.count(Job.id)).group_by(Job.date_posted).order_by(Job.date_posted.desc()).limit(7).all()
             
             for date, count in dates_query:
                 jobs_by_date.append({
@@ -378,17 +379,17 @@ def get_api_stats() -> Dict[str, Any]:
             # Count jobs by role
             jobs_by_role = []
             try:
-                roles_query = db.query(Role.name, db.func.count(job_roles.c.job_id)).join(
+                roles_query = db.query(Role.name, func.count(job_roles.c.job_id)).join(
                     job_roles, Role.id == job_roles.c.role_id
-                ).group_by(Role.name).order_by(db.func.count(job_roles.c.job_id).desc()).limit(10).all()
+                ).group_by(Role.name).order_by(func.count(job_roles.c.job_id).desc()).limit(10).all()
                 
                 for role, count in roles_query:
                     jobs_by_role.append({
                         "role": role,
                         "count": count
                     })
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Error getting jobs by role: {str(e)}")
                 
             api_stats["database"] = {
                 "total_jobs": total_jobs,
