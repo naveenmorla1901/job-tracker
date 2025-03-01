@@ -9,6 +9,14 @@ from datetime import datetime, timedelta
 import time
 import logging
 import traceback
+import os
+import sys
+
+# Add app directory to path
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
+# Import dashboard pages
+from app.dashboard.logs import display_logs_page
 
 # Configure logging
 logging.basicConfig(
@@ -100,7 +108,8 @@ def format_job_date(date_str):
     except:
         return date_str
 
-def main():
+def display_jobs_page():
+    """Display the main jobs page in the Streamlit dashboard"""
     # Start timing the dashboard rendering
     dashboard_start = time.time()
     
@@ -443,11 +452,24 @@ def main():
     except:
         st.sidebar.error("❌ API Connection: Failed")
 
-if __name__ == "__main__":
+def main():
+    # Setup page configuration
     st.set_page_config(
         page_title="Job Tracker Dashboard",
         page_icon="💼",
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    
+    # Add page navigation to sidebar
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio("Go to", ["Jobs Dashboard", "System Logs"])
+    
+    # Display the selected page
+    if page == "Jobs Dashboard":
+        display_jobs_page()
+    elif page == "System Logs":
+        display_logs_page()
+
+if __name__ == "__main__":
     main()
