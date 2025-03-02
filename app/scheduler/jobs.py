@@ -69,13 +69,13 @@ def reset_global_stats():
         "scraper_errors": 0
     }
 
-def run_scraper(scraper_name, roles, days_back=7):
+def run_scraper(scraper_name, roles=None, days_back=7):
     """
     Run a specific scraper and update the database with results
     
     Args:
         scraper_name: Name of the scraper module (e.g., 'salesforce')
-        roles: List of roles to search for
+        roles: List of roles to search for, if None uses company-specific custom roles
         days_back: How many days back to check
     """
     global global_stats
@@ -84,6 +84,50 @@ def run_scraper(scraper_name, roles, days_back=7):
     global_stats["scrapers_run"] += 1
     current_scraper = global_stats["scrapers_run"]
     total_scrapers = len(get_all_scrapers())
+    
+    # Default roles to use for all scrapers
+    default_roles = ["Data Scientist", "Data Analyst", "Machine Learning Engineer"]
+    
+    # Define custom roles for specific scrapers if needed
+    custom_roles = {
+        "accenture": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "adobe": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "appliedmaterials": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "assurant": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "autodesk": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "broadridge": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "cat": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "cox": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "cushmanwakefield": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "cvshealth": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "denverhealth": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "discover": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "expedia": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "gartner": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "grubhub": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "homedepot": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "lilly": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "marmon": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "noblecorp": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "nvidia": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "premier": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "radian": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "republic": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "salesforce": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "scottsmiracle": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "sunlife": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "verily": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "verizon": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "walmart": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "workday": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "x": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "xpanse": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"]
+    }
+    
+    # If roles not provided, use company-specific custom roles or default
+    if roles is None:
+        roles = custom_roles.get(scraper_name, default_roles)
+        logger.info(f"Using custom roles for {scraper_name}: {roles}")
     
     # Log the start of this scraper
     logger.info(f"Running scraper {current_scraper}/{total_scrapers}: {scraper_name}")
@@ -186,23 +230,13 @@ def run_all_scrapers():
     # Get all available scrapers
     available_scrapers = get_all_scrapers()
     
-    # Default roles to use for all scrapers
-    default_roles = ["Data Scientist", "Data Analyst", "Machine Learning Engineer"]
-    
-    # Define custom roles for specific scrapers if needed
-    custom_roles = {
-        "salesforce": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
-        # Add more custom role lists here if needed
-    }
-    
     # Log the number of scrapers found
     logger.info(f"Found {len(available_scrapers)} scrapers to run")
     
-    # Run each scraper
+    # Run each scraper with its custom roles
     for scraper_name in available_scrapers:
-        # Get roles for this scraper (default or custom)
-        roles = custom_roles.get(scraper_name, default_roles)
-        run_scraper(scraper_name, roles)
+        # Custom roles will be used automatically in run_scraper
+        run_scraper(scraper_name)
 
 def check_for_expired_jobs():
     """Check for and mark expired jobs"""
@@ -229,15 +263,6 @@ def setup_scheduler():
     
     # Get all available scrapers
     available_scrapers = get_all_scrapers()
-    
-    # Default roles to use for all scrapers
-    default_roles = ["Data Scientist", "Data Analyst", "Machine Learning Engineer"]
-    
-    # Define custom roles for specific scrapers if needed
-    custom_roles = {
-        "salesforce": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
-        # Add more custom role lists here if needed
-    }
     
     # Log the number of scrapers found
     logger.info(f"Found {len(available_scrapers)} scrapers to schedule")
