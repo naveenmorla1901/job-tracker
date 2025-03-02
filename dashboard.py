@@ -46,15 +46,9 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Add API URL configuration in sidebar
-    with st.sidebar.expander("API Configuration"):
-        from dashboard_components.utils import get_api_url
-        current_api_url = get_api_url()
-        new_api_url = st.text_input("API URL", value=current_api_url)
-        if st.button("Update API URL"):
-            os.environ['JOB_TRACKER_API_URL'] = new_api_url
-            st.success(f"API URL updated to: {new_api_url}")
-            st.rerun()
+    # API URL is configured behind the scenes
+    from dashboard_components.utils import get_api_url
+    current_api_url = get_api_url()
     
     # Add page navigation to sidebar
     st.sidebar.title("Navigation")

@@ -7,6 +7,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 import glob
+import pytz
 
 # Configure logging
 logger = logging.getLogger("job_tracker.log_manager")
@@ -36,7 +37,7 @@ def get_log_files(log_dir="logs"):
 
 def read_log_content(log_file, max_lines=5000):
     """
-    Read content from a log file
+    Read content from a log file and adjust timezone if needed
     """
     try:
         if not os.path.exists(log_file):
@@ -47,7 +48,36 @@ def read_log_content(log_file, max_lines=5000):
             lines = f.readlines()
             if len(lines) > max_lines:
                 lines = lines[-max_lines:]
-            return lines
+                
+            # Fix timezone issue (convert from UTC to local time)
+            corrected_lines = []
+            for line in lines:
+                try:
+                    # Check if this is a log line with a timestamp
+                    if len(line) > 19 and line[4] == '-' and line[7] == '-' and line[10] == ' ' and line[13] == ':' and line[16] == ':':
+                        # Extract timestamp part (2025-03-02 18:06:04)
+                        timestamp_str = line[:19]
+                        rest_of_line = line[19:]
+                        
+                        # Parse the timestamp
+                        dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+                        
+                        # Assuming the timestamp is in UTC and we want to convert to EST (UTC-5)
+                        local_tz = pytz.timezone('America/New_York')  # Adjust to your local timezone
+                        utc_dt = pytz.utc.localize(dt)
+                        local_dt = utc_dt.astimezone(local_tz)
+                        
+                        # Create new line with the corrected timestamp
+                        corrected_line = local_dt.strftime("%Y-%m-%d %H:%M:%S") + rest_of_line
+                        corrected_lines.append(corrected_line)
+                    else:
+                        # Not a timestamp line, keep as is
+                        corrected_lines.append(line)
+                except Exception:
+                    # If any error in parsing, keep the original line
+                    corrected_lines.append(line)
+                    
+            return corrected_lines
     except Exception as e:
         logger.error(f"Error reading log file {log_file}: {str(e)}")
         return []

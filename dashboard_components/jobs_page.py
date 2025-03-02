@@ -224,53 +224,41 @@ def display_jobs_page():
                         st.info("Role data not available for visualization")
                 
                 with viz_col2:
-                    # 2. Date by employment type visualization
-                    if "employment_type" in df_jobs.columns:
-                        # Ensure employment_type exists
-                        df_jobs["employment_type"] = df_jobs["employment_type"].fillna("Unknown")
+                    # 2. Jobs per company heatmap visualization
+                    if "company" in df_jobs.columns:
+                        # Count jobs by company
+                        company_counts = df_jobs["company"].value_counts().reset_index()
+                        company_counts.columns = ["company", "count"]
                         
-                        # Count jobs by date and employment type
-                        df_jobs["count"] = 1
-                        type_viz_df = df_jobs.groupby([
-                            pd.Grouper(key="date_posted", freq="D"),
-                            "employment_type"
-                        ])["count"].sum().reset_index()
+                        # Get top companies for better visualization
+                        top_companies = company_counts.nlargest(15, "count")
                         
-                        # Create bar chart
-                        fig2 = px.bar(
-                            type_viz_df,
-                            x="date_posted",
-                            y="count",
-                            color="employment_type",
-                            title="Jobs by Employment Type",
-                            labels={
-                                "date_posted": "Date Posted",
-                                "count": "Number of Jobs",
-                                "employment_type": "Job Type"
-                            }
+                        # Create heatmap-style visualization
+                        fig2 = px.treemap(
+                            top_companies,
+                            path=["company"],
+                            values="count",
+                            color="count",
+                            color_continuous_scale="blues",
+                            title="Jobs per Company (Top 15)",
                         )
                         
-                        # Add date range
-                        min_date = df_jobs["date_posted"].min()
-                        max_date = df_jobs["date_posted"].max()
-                        
-                        # Optimize layout
+                        # Update layout for better appearance
                         fig2.update_layout(
                             height=350,
                             margin=dict(l=20, r=20, t=40, b=20),
-                            xaxis_title="Date Posted",
-                            yaxis_title="Number of Jobs",
-                            legend_title="Job Type",
-                            xaxis=dict(
-                                range=[min_date - pd.Timedelta(hours=12), max_date + pd.Timedelta(hours=12)],
-                                tickformat="%Y-%m-%d"
-                            )
+                        )
+                        
+                        # Update treemap text for better readability
+                        fig2.update_traces(
+                            textinfo="label+value",
+                            hovertemplate="<b>%{label}</b><br>Jobs: %{value}<extra></extra>"
                         )
                         
                         # Display chart
                         st.plotly_chart(fig2, use_container_width=True)
                     else:
-                        st.info("Employment type data not available for visualization")
+                        st.info("Company data not available for visualization")
             
             # Display job listings table
             _display_jobs_table(df_jobs)
@@ -360,11 +348,15 @@ def _display_jobs_table(df_jobs):
         table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed; /* Add fixed layout for better column control */
         }
         th, td {
             padding: 12px; /* Adjust padding for spacing */
             text-align: left;
             border-bottom: 1px solid #ddd;
+            overflow: hidden; /* Hide overflow text */
+            text-overflow: ellipsis; /* Add ellipsis for overflow */
+            white-space: nowrap; /* Keep text on one line */
         }
         th {
             background-color: #000; /* Change header background color to black */
@@ -372,11 +364,26 @@ def _display_jobs_table(df_jobs):
         }
 
         /* Specific column width adjustments */
+        td:nth-child(1) { /* Job Title column */
+            width: 25%; /* Adjust width as needed */
+        }
+        td:nth-child(2) { /* Company column */
+            width: 15%; /* Adjust width as needed */
+        }
         td:nth-child(3) { /* Location column */
-            width: 30%; /* Adjust width as needed */
+            width: 15%; /* Reduced width for location column */
         }
         td:nth-child(4) { /* Posted column */
-            width: 15%; /* Adjust width as needed */
+            width: 10%; /* Adjust width as needed */
+        }
+        td:nth-child(5) { /* Type column */
+            width: 10%; /* Adjust width as needed */
+        }
+        td:nth-child(6) { /* Roles column */
+            width: 20%; /* Adjust width as needed */
+        }
+        td:nth-child(7) { /* Apply column */
+            width: 5%; /* Adjust width as needed */
         }
         </style>
         """, unsafe_allow_html=True)

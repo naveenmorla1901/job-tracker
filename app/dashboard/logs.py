@@ -60,8 +60,8 @@ def _display_api_logs():
         # Reverse the log content to show most recent logs first
         log_content.reverse()
         
-        # Display logs in a fixed height text area
-        st.text_area("Recent logs first:", "".join(log_content), height=600)
+        # Display logs in a fixed height read-only text area
+        st.code("".join(log_content), language="text")
         
     else:
         st.warning("API log file (job_tracker.log) not found")
@@ -78,8 +78,8 @@ def _display_dashboard_logs():
         # Reverse the log content to show most recent logs first
         log_content.reverse()
         
-        # Display logs in a fixed height text area
-        st.text_area("Recent logs first:", "".join(log_content), height=600)
+        # Display logs in a fixed height read-only text area
+        st.code("".join(log_content), language="text")
         
     else:
         st.warning("Dashboard log file (dashboard.log) not found")
@@ -145,29 +145,69 @@ def _display_system_info():
             if "project" in system_info:
                 project = system_info["project"]
                 
-                # Show both main folders and subfolders
-                st.markdown("#### Directory Sizes")
+                # Show comprehensive directory information
+                st.markdown("#### Directory Storage Analysis")
                 
-                # Combine folder and subfolder information
-                all_folders = []
+                # First, show root directory total storage
+                if "size_mb" in project:
+                    total_size_mb = project["size_mb"]
+                    total_size_gb = total_size_mb / 1024 if total_size_mb else 0
+                    st.metric("Total Project Storage", f"{total_size_gb:.2f} GB ({total_size_mb:.2f} MB)")
                 
-                # Add top-level folders
-                if "folder_sizes_mb" in project:
+                # Combine folder and subfolder information with clearer presentation
+                if "folder_sizes_mb" in project and "folders_by_size" in project:
+                    # Create tabs for different views
+                    storage_tabs = st.tabs(["Top-Level Directories", "Subdirectories", "All"])
+                    
+                    # Prepare the data
+                    top_folders = []
                     for folder, size in project["folders_by_size"]:
                         if folder != "root" and size > 0.1:  # Skip very small folders
-                            folder_type = "Directory"
-                            all_folders.append({"Path": folder, "Size (MB)": size, "Type": folder_type})
-                
-                # Add sub-folders
-                if "subfolder_sizes_mb" in project:
-                    for folder, size in project["subfolders_by_size"]:
-                        if size > 0.1:  # Skip very small folders
-                            folder_type = "Subdirectory"
-                            all_folders.append({"Path": folder, "Size (MB)": size, "Type": folder_type})
+                            percent = (size / total_size_mb * 100) if total_size_mb > 0 else 0
+                            top_folders.append({
+                                "Directory": folder,
+                                "Size (MB)": size,
+                                "Size (GB)": size / 1024,
+                                "% of Total": f"{percent:.1f}%"
+                            })
+                    
+                    sub_folders = []
+                    if "subfolder_sizes_mb" in project and "subfolders_by_size" in project:
+                        for folder, size in project["subfolders_by_size"]:
+                            if size > 0.1:  # Skip very small folders
+                                percent = (size / total_size_mb * 100) if total_size_mb > 0 else 0
+                                sub_folders.append({
+                                    "Directory": folder,
+                                    "Size (MB)": size,
+                                    "Size (GB)": size / 1024,
+                                    "% of Total": f"{percent:.1f}%"
+                                })
+                    
+                    # All folders combined
+                    all_folders = top_folders + sub_folders
+                    
+                    # Display in tabs
+                    with storage_tabs[0]:
+                        if top_folders:
+                            # Create a dataframe
+                            df_top = pd.DataFrame(top_folders)
+                            st.dataframe(df_top, use_container_width=True)
                             
-                if all_folders:
-                    folder_df = pd.DataFrame(all_folders)
-                    st.dataframe(folder_df, use_container_width=True)
+                            # Add a bar chart for visual comparison
+                            if len(top_folders) > 1:
+                                st.bar_chart(df_top.set_index("Directory")["Size (MB)"])
+                    
+                    with storage_tabs[1]:
+                        if sub_folders:
+                            # Create a dataframe
+                            df_sub = pd.DataFrame(sub_folders)
+                            st.dataframe(df_sub, use_container_width=True)
+                    
+                    with storage_tabs[2]:
+                        if all_folders:
+                            # Create a dataframe
+                            df_all = pd.DataFrame(all_folders)
+                            st.dataframe(df_all, use_container_width=True)
         
         with col2:
             st.markdown("### Application Stats")
