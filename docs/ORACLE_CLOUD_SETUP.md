@@ -25,24 +25,24 @@ You'll need an SSH key pair to securely access your cloud instance.
 1. Open PowerShell
 2. Run this command to generate an SSH key:
    ```powershell
-   ssh-keygen -t rsa -b 4096 -f "$HOME\.ssh\oci_key"
+   ssh-keygen -t ed25519 -f "$HOME\.ssh\deployment_key"
    ```
 3. Press Enter when asked for a passphrase (or enter a passphrase for additional security)
 4. Find your keys at:
-   - Private key: `C:\Users\YourUsername\.ssh\oci_key`
-   - Public key: `C:\Users\YourUsername\.ssh\oci_key.pub`
+   - Private key: `C:\Users\YourUsername\.ssh\deployment_key`
+   - Public key: `C:\Users\YourUsername\.ssh\deployment_key.pub`
 
 ### On macOS/Linux:
 
 1. Open Terminal
 2. Run this command:
    ```bash
-   ssh-keygen -t rsa -b 4096 -f ~/.ssh/oci_key
+   ssh-keygen -t ed25519 -f ~/.ssh/deployment_key
    ```
 3. Press Enter when asked for a passphrase (or enter a passphrase for additional security)
 4. Find your keys at:
-   - Private key: `~/.ssh/oci_key`
-   - Public key: `~/.ssh/oci_key.pub`
+   - Private key: `~/.ssh/deployment_key`
+   - Public key: `~/.ssh/deployment_key.pub`
 
 ## Step 3: Set up Oracle Cloud Infrastructure (OCI)
 
@@ -75,7 +75,7 @@ You'll need an SSH key pair to securely access your cloud instance.
    - Assign a public IP address: Yes
 8. Add your SSH key:
    - Select "Paste public key"
-   - Paste the contents of your public key file (e.g., `~/.ssh/oci_key.pub`)
+   - Paste the contents of your public key file (e.g., `~/.ssh/deployment_key.pub`)
 9. Click "Create"
 
 ### Configure Security Rules
@@ -105,20 +105,20 @@ You'll need an SSH key pair to securely access your cloud instance.
 
 ## Step 4: Connect to Your Instance
 
-1. Get the public IP address from the instance details page test1
+1. Get the public IP address from the instance details page
 2. Connect via SSH:
 
    **Windows (PowerShell):**
    ```powershell
-   ssh -i "$HOME\.ssh\oci_key" ubuntu@ubuntu@170.9.227.112
+   ssh -i "$HOME\.ssh\deployment_key" ubuntu@170.9.227.112
    ```
 
    **macOS/Linux:**
    ```bash
-   ssh -i ~/.ssh/oci_key ubuntu@ubuntu@170.9.227.112
+   ssh -i ~/.ssh/deployment_key ubuntu@170.9.227.112
    ```
 
-## Step 5: Set Up the Server Environment test
+## Step 5: Set Up the Server Environment
 
 Once connected to your instance, run the following commands:
 
@@ -130,26 +130,25 @@ sudo apt upgrade -y
 # Install Git
 sudo apt install -y git
 
-# Clone the repository
-git clone https://github.com/naveenmorla1901/job-tracker.git
-cd job-tracker
-# Create a Python virtual environment
+# Create directory for the application
+# mkdir -p ~/job-tracker
+
+# Clone the repository (if you're doing a manual setup)
+git clone https://github.com/naveenmorla1901/job-tracker.git ~/job-tracker
+cd ~/job-tracker
 python3 -m venv venv
 source venv/bin/activate
 # Run the install script
 bash scripts/install.sh
-
-# Install Python dependencies from requirements.txt
 pip install -r requirements.txt
-
-# **IMPORTANT: Initialize and Upgrade the Database Schema**
-# This step creates the necessary tables in the database.
 python create_database.py  # Create the database itself (if it doesn't exist)
-alembic upgrade head       # Run database migrations to create tables
+alembic upgrade head 
+# Initialize the database
+python run.py reset_db
 
-# Run the install script (this handles systemd services, Nginx, etc.)
-bash scripts/install.sh
-
+# Start the services manually (if not using systemd)
+python run.py api
+python run.py dashboard
 ```
 
 The install script will:
@@ -168,12 +167,21 @@ To set up automatic deployment, you need to add these secrets to your GitHub rep
 2. Click on "Settings" > "Secrets and variables" > "Actions"
 3. Click "New repository secret"
 4. Add the following secrets:
-   - `ORACLE_SSH_KEY`: Your private SSH key (contents of `~/.ssh/oci_key`)
+   - `DEPLOYMENT_PRIVATE_KEY`: Your private SSH key (contents of `~/.ssh/deployment_key`)
    - `ORACLE_HOST`: Your instance's public IP address
    - `ORACLE_USER`: `ubuntu`
    - `ORACLE_KNOWN_HOSTS`: Run `ssh-keyscan 170.9.227.112` to get this value
 
-Now when you push changes to the main branch, GitHub Actions will automatically deploy them to your Oracle Cloud instance.
+### Generate Known Hosts Value
+```bash
+# Run this command locally, replacing with your instance IP
+ssh-keyscan -t ed25519 170.9.227.112
+```
+Copy the entire output and add it as the `ORACLE_KNOWN_HOSTS` secret.
+
+### Set Up GitHub Action Workflow
+
+The repository includes a GitHub Actions workflow file (`.github/workflows/deploy.yml`) that handles deployment to Oracle Cloud. Make sure this file contains the correct IP address for your instance.
 
 ## Step 7: Access Your Application
 
@@ -181,33 +189,106 @@ After the deployment is complete, you can access your application at:
 
 - Dashboard: `http://170.9.227.112:8501`
 - API: `http://170.9.227.112:8000/api`
+- API Documentation: `http://170.9.227.112:8000/docs`
+
+## Step 8: Set Up Systemd Services for Reliability
+
+For long-term reliability, set up systemd services:
+
+```bash
+# Ensure the service files exist
+ls -la ~/job-tracker/scripts/job-tracker-*.service
+
+# If they exist, copy them to systemd
+sudo cp ~/job-tracker/scripts/job-tracker-api.service /etc/systemd/system/
+sudo cp ~/job-tracker/scripts/job-tracker-dashboard.service /etc/systemd/system/
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable and start services
+sudo systemctl enable job-tracker-api
+sudo systemctl enable job-tracker-dashboard
+sudo systemctl start job-tracker-api
+sudo systemctl start job-tracker-dashboard
+
+# Check status
+sudo systemctl status job-tracker-api
+sudo systemctl status job-tracker-dashboard
+```
 
 ## Troubleshooting
 
 If you encounter issues:
 
-1. **Check service status**:
+### 1. GitHub Actions SSH Key Issues
+If GitHub Actions fails with "Permission denied (publickey)" or key format errors:
+
+1. Generate a fresh key specifically for deployment:
    ```bash
-   sudo systemctl status job-tracker-api
-   sudo systemctl status job-tracker-dashboard
+   ssh-keygen -t ed25519 -f deployment_key -N ""
    ```
 
-2. **View logs**:
+2. Add the public key to your server:
    ```bash
-   sudo journalctl -u job-tracker-api
-   sudo journalctl -u job-tracker-dashboard
+   # On your server
+   echo "content-of-deployment_key.pub" >> ~/.ssh/authorized_keys
    ```
 
-3. **Restart services**:
-   ```bash
-   sudo systemctl restart job-tracker-api
-   sudo systemctl restart job-tracker-dashboard
-   ```
+3. Update the GitHub secret with the private key content
 
-4. **Check the database connection**:
-   ```bash
-   sudo -u postgres psql -c "\l" | grep job_tracker
-   ```
+### 2. Check Service Status
+```bash
+# Check service status
+sudo systemctl status job-tracker-api
+sudo systemctl status job-tracker-dashboard
+
+# View detailed logs
+sudo journalctl -u job-tracker-api
+sudo journalctl -u job-tracker-dashboard
+```
+
+### 3. Manual Service Start
+If services won't start through systemd:
+```bash
+# Activate environment
+cd ~/job-tracker
+source venv/bin/activate
+
+# Start services manually
+mkdir -p logs
+nohup uvicorn main:app --host 0.0.0.0 --port 8000 > logs/api.log 2>&1 &
+nohup streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 > logs/dashboard.log 2>&1 &
+```
+
+### 4. Check Process Status
+```bash
+# Check if processes are running
+ps aux | grep uvicorn
+ps aux | grep streamlit
+```
+
+### 5. Check Database Connection
+```bash
+# Check if database exists
+sudo -u postgres psql -c "\l" | grep job_tracker
+
+# Check database connection
+cd ~/job-tracker
+source venv/bin/activate
+python -c "from app.db.database import get_db; from app.db.models import Job; db = next(get_db()); print(f'Total jobs: {db.query(Job).count()}')"
+```
+
+### 6. Verify Ports are Open
+Make sure ports 8000 and 8501 are accessible:
+```bash
+# Check if ports are open
+sudo netstat -tulpn | grep -E '8000|8501'
+
+# Test ports from your local machine
+curl http://<your-instance-ip>:8000
+curl http://<your-instance-ip>:8501
+```
 
 ## Maintenance
 
@@ -231,10 +312,22 @@ pg_dump -U job_tracker -d job_tracker > backup-$(date +%Y%m%d).sql
 
 ### Cleaning Up Old Job Records
 
-The system automatically cleans up old job records, but you can manually trigger it:test
+The system automatically cleans up old job records, but you can manually trigger it:
 
 ```bash
 cd ~/job-tracker
 source venv/bin/activate
 python run.py purge
+```
+
+### Monitoring Application Logs
+
+To monitor logs in real-time:
+
+```bash
+# API logs
+tail -f ~/job-tracker/logs/api.log
+
+# Dashboard logs
+tail -f ~/job-tracker/logs/dashboard.log
 ```
