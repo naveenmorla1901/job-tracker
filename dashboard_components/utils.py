@@ -30,9 +30,10 @@ def inject_google_analytics():
         with open(analytics_path, 'r') as f:
             html_content = f.read()
         
-        # Use streamlit component to insert the HTML with a proper height to ensure rendering
-        # Adding a small height ensures the iframe is properly rendered
-        components.html(html_content, height=10, width=0)
+        # Use streamlit component to insert the HTML with minimized visibility
+        # Place it in the sidebar to keep it out of the main content area
+        with st.sidebar:
+            components.html(html_content, height=1, width=1)
         logger.info("Google Analytics tracking code injected successfully")
         
     except Exception as e:

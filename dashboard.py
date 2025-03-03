@@ -38,17 +38,17 @@ def main():
         os.environ['JOB_TRACKER_API_URL'] = args.api_url
         logger.info(f"Using API URL from command line: {args.api_url}")
     
-    # Inject Google Analytics tracking code before anything else
-    from dashboard_components.utils import inject_google_analytics
-    inject_google_analytics()
-    
-    # Setup page configuration
+    # Setup page configuration - MUST be the first Streamlit command
     st.set_page_config(
         page_title="Job Tracker Dashboard",
         page_icon="💼",
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    
+    # Inject Google Analytics tracking code (after set_page_config)
+    from dashboard_components.utils import inject_google_analytics
+    inject_google_analytics()
     
     # API URL is configured behind the scenes
     from dashboard_components.utils import get_api_url
