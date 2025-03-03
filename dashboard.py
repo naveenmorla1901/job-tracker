@@ -46,9 +46,22 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Inject Google Analytics tracking code (after set_page_config)
-    from dashboard_components.utils import inject_google_analytics
-    inject_google_analytics()
+    # Add a custom header with base tag to help with Google Analytics
+    st.markdown(
+        """
+        <head>
+            <!-- Global site tag (gtag.js) - Google Analytics -->
+            <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
+            <script>
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-EGVJQG5M34');
+            </script>
+        </head>
+        """,
+        unsafe_allow_html=True
+    )
     
     # API URL is configured behind the scenes
     from dashboard_components.utils import get_api_url

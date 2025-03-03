@@ -30,10 +30,9 @@ def inject_google_analytics():
         with open(analytics_path, 'r') as f:
             html_content = f.read()
         
-        # Use streamlit component to insert the HTML with minimized visibility
-        # Place it in the sidebar to keep it out of the main content area
-        with st.sidebar:
-            components.html(html_content, height=1, width=1)
+        # Use streamlit component to insert the HTML and sandbox='allow-scripts allow-same-origin'
+        # to allow script execution with same-origin permissions
+        st.components.v1.html(html_content, height=1, width=1, scrolling=False)
         logger.info("Google Analytics tracking code injected successfully")
         
     except Exception as e:

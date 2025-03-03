@@ -2,40 +2,56 @@
 <html>
 <head>
     <title>Analytics</title>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-EGVJQG5M34', {
-            'send_page_view': true,
-            'transport_type': 'beacon'
-        });
-        
-        // Send a test event to confirm tracking is working
-        gtag('event', 'page_view', {
-            'app_name': 'job_tracker',
-            'screen_name': 'dashboard'
-        });
-        
-        // Log to console for debugging
-        console.log('Google Analytics loaded with ID: G-EGVJQG5M34');
-        
-        // Send additional event after a delay to ensure connection
-        setTimeout(function() {
-            gtag('event', 'tracker_loaded', {
-                'event_category': 'engagement',
-                'event_label': 'init'
-            });
-            console.log('Delayed tracking event sent');
-        }, 2000);
-    </script>
 </head>
 <body>
-    <div id="analytics-container">
-        <!-- This text helps ensure the iframe is properly rendered -->
-        Analytics loaded
-    </div>
+    <script>
+        // Try to access the top-level window context
+        try {
+            // Script to inject into the main window
+            var scriptContent = `
+                // Create Google Analytics gtag
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-EGVJQG5M34');
+                
+                // Create script element for gtag.js
+                var gtagScript = document.createElement('script');
+                gtagScript.async = true;
+                gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34';
+                document.head.appendChild(gtagScript);
+                
+                // Log for verification
+                console.log("Google Analytics injected into top window");
+            `;
+            
+            // Create script element
+            var scriptElement = document.createElement('script');
+            scriptElement.textContent = scriptContent;
+            
+            // Try to append to the top window document
+            if (window.parent && window.parent !== window) {
+                window.parent.document.head.appendChild(scriptElement);
+                document.write("Analytics injected into top window");
+            } else {
+                document.head.appendChild(scriptElement);
+                document.write("Analytics injected locally");
+            }
+        } catch (e) {
+            // If security restrictions prevent access to parent
+            document.write("Unable to inject into top window due to: " + e.message);
+            
+            // Fall back to local injection
+            var scriptElement = document.createElement('script');
+            scriptElement.async = true;
+            scriptElement.src = 'https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34';
+            document.head.appendChild(scriptElement);
+            
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-EGVJQG5M34');
+        }
+    </script>
 </body>
 </html>
