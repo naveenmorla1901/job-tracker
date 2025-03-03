@@ -46,7 +46,11 @@ COMPANY_NAMES = {
     "walmart": "Walmart",
     "workday": "Workday",
     "x": "X (Twitter)",
-    "xpanse": "Xpanse"
+    "xpanse": "Xpanse",
+    "hitachi": "Hitachi",
+    "usaa":"USAA",
+    "milwaukee":"milwaukee",
+    "etsy":"etsy"
 }
 
 # Running statistics
@@ -121,7 +125,11 @@ def run_scraper(scraper_name, roles=None, days_back=7):
         "walmart": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
         "workday": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
         "x": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
-        "xpanse": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"]
+        "xpanse": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "hitachi": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "usaa": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "milwaukee": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"],
+        "etsy": ["Data Scientist", "Data Analyst", "Machine Learning Engineer", "AI Engineer"]
     }
     
     # If roles not provided, use company-specific custom roles or default
