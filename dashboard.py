@@ -47,22 +47,11 @@ def main():
     )
     
     # API URL is configured behind the scenes
-    from dashboard_components.utils import get_api_url
+    from dashboard_components.utils import get_api_url, inject_google_analytics
     current_api_url = get_api_url()
     
-    # Add Google Analytics tracking
-    ga_tracking = """
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-
-      gtag('config', 'G-EGVJQG5M34');
-    </script>
-    """
-    st.markdown(ga_tracking, unsafe_allow_html=True)
+    # Inject Google Analytics tracking code
+    inject_google_analytics()
     
     # Add page navigation to sidebar
     st.sidebar.title("Navigation")

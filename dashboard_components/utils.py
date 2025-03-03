@@ -9,9 +9,24 @@ import logging
 import traceback
 from datetime import datetime
 import pandas as pd
+import streamlit.components.v1 as components
 
 # Configure logging
 logger = logging.getLogger('job_tracker.dashboard.utils')
+
+def inject_google_analytics():
+    """Inject Google Analytics tracking code into the Streamlit page using a custom HTML component"""
+    ga_html = """
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-EGVJQG5M34');
+    </script>
+    """
+    # Use streamlit component to insert the HTML
+    components.html(ga_html, height=0, width=0)
 
 # Read API URL from environment or use default
 def get_api_url():
