@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Analytics</title>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-EGVJQG5M34', {
+            'send_page_view': true,
+            'transport_type': 'beacon'
+        });
+        
+        // Send a test event to confirm tracking is working
+        gtag('event', 'page_view', {
+            'app_name': 'job_tracker',
+            'screen_name': 'dashboard'
+        });
+        
+        // Log to console for debugging
+        console.log('Google Analytics loaded with ID: G-EGVJQG5M34');
+        
+        // Send additional event after a delay to ensure connection
+        setTimeout(function() {
+            gtag('event', 'tracker_loaded', {
+                'event_category': 'engagement',
+                'event_label': 'init'
+            });
+            console.log('Delayed tracking event sent');
+        }, 2000);
+    </script>
+</head>
+<body>
+    <div id="analytics-container">
+        <!-- This text helps ensure the iframe is properly rendered -->
+        Analytics loaded
+    </div>
+</body>
+</html>

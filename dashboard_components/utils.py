@@ -15,18 +15,29 @@ import streamlit.components.v1 as components
 logger = logging.getLogger('job_tracker.dashboard.utils')
 
 def inject_google_analytics():
-    """Inject Google Analytics tracking code into the Streamlit page using a custom HTML component"""
-    ga_html = """
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-EGVJQG5M34');
-    </script>
-    """
-    # Use streamlit component to insert the HTML
-    components.html(ga_html, height=0, width=0)
+    """Inject Google Analytics tracking code using a dedicated HTML file"""
+    try:
+        # Get the absolute path to the analytics.html file
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        analytics_path = os.path.join(current_dir, "static", "analytics.html")
+        
+        # Check if the file exists before trying to read it
+        if not os.path.exists(analytics_path):
+            logger.error(f"Analytics HTML file not found at: {analytics_path}")
+            return
+        
+        # Read the HTML file content
+        with open(analytics_path, 'r') as f:
+            html_content = f.read()
+        
+        # Use streamlit component to insert the HTML with a proper height to ensure rendering
+        # Adding a small height ensures the iframe is properly rendered
+        components.html(html_content, height=10, width=0)
+        logger.info("Google Analytics tracking code injected successfully")
+        
+    except Exception as e:
+        logger.error(f"Error injecting Google Analytics: {str(e)}")
+        logger.error(traceback.format_exc())
 
 # Read API URL from environment or use default
 def get_api_url():

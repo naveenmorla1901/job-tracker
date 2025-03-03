@@ -38,6 +38,10 @@ def main():
         os.environ['JOB_TRACKER_API_URL'] = args.api_url
         logger.info(f"Using API URL from command line: {args.api_url}")
     
+    # Inject Google Analytics tracking code before anything else
+    from dashboard_components.utils import inject_google_analytics
+    inject_google_analytics()
+    
     # Setup page configuration
     st.set_page_config(
         page_title="Job Tracker Dashboard",
@@ -47,11 +51,8 @@ def main():
     )
     
     # API URL is configured behind the scenes
-    from dashboard_components.utils import get_api_url, inject_google_analytics
+    from dashboard_components.utils import get_api_url
     current_api_url = get_api_url()
-    
-    # Inject Google Analytics tracking code
-    inject_google_analytics()
     
     # Add page navigation to sidebar
     st.sidebar.title("Navigation")
