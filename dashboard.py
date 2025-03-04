@@ -20,6 +20,8 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 # Import dashboard components
 from dashboard_components.jobs_page import display_jobs_page
 from app.dashboard.logs import display_logs_page
+from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required
+from app.dashboard.user_jobs import tracked_jobs_page
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -67,15 +69,65 @@ def main():
     from dashboard_components.utils import get_api_url
     current_api_url = get_api_url()
     
+    # Initialize session state for page navigation if not exists
+    if 'page' not in st.session_state:
+        st.session_state.page = 'jobs'
+    
+    # Display user auth menu in sidebar
+    user_menu()
+    
     # Add page navigation to sidebar
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Jobs Dashboard", "System Logs"])
     
-    # Display the selected page
-    if page == "Jobs Dashboard":
+    # Different navigation options based on auth status
+    if is_authenticated():
+        pages = ["Jobs Dashboard", "My Tracked Jobs"]
+        
+        # Add admin pages if user is admin
+        if is_admin():
+            pages.append("System Logs")
+            
+        page = st.sidebar.radio("Go to", pages)
+        
+        # Map selected page to session state
+        if page == "Jobs Dashboard":
+            st.session_state.page = 'jobs'
+        elif page == "My Tracked Jobs":
+            st.session_state.page = 'tracked_jobs'
+        elif page == "System Logs" and is_admin():
+            st.session_state.page = 'system_logs'
+    else:
+        # Not authenticated, simplified menu
+        pages = ["Jobs Dashboard", "Login"]
+        page = st.sidebar.radio("Go to", pages)
+        
+        if page == "Jobs Dashboard":
+            st.session_state.page = 'jobs'
+        elif page == "Login":
+            st.session_state.page = 'login'
+    
+    # Display the selected page based on session state
+    current_page = st.session_state.page
+    
+    if current_page == 'jobs':
         display_jobs_page()
-    elif page == "System Logs":
-        display_logs_page()
+    elif current_page == 'tracked_jobs':
+        tracked_jobs_page()
+    elif current_page == 'system_logs':
+        # Check if user is admin for protected pages
+        if is_admin():
+            display_logs_page()
+        else:
+            st.error("You don't have permission to view this page")
+            st.session_state.page = 'jobs'
+            st.experimental_rerun()
+    elif current_page == 'login':
+        login_page()
+    elif current_page == 'settings':
+        user_settings_page()
+    else:
+        # Default to jobs page
+        display_jobs_page()
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,7 @@
 # app/db/models.py
 import os
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Table, UniqueConstraint, Boolean, JSON
+import enum
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Table, UniqueConstraint, Boolean, JSON, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -9,6 +10,12 @@ from datetime import datetime
 TESTING = os.environ.get("TESTING", "False").lower() in ("true", "1", "t")
 
 Base = declarative_base()
+
+# User role enum
+class UserRole(enum.Enum):
+    REGULAR = "regular"
+    PREMIUM = "premium"
+    ADMIN = "admin"
 
 # Association table for many-to-many relationship between Job and Role
 job_roles = Table(
@@ -68,3 +75,36 @@ class ScraperRun(Base):
     jobs_added = Column(Integer, default=0)
     jobs_updated = Column(Integer, default=0)
     error_message = Column(Text)
+
+class User(Base):
+    """User account information for authentication and authorization"""
+    __tablename__ = 'users'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(Enum(UserRole), default=UserRole.REGULAR, nullable=False)
+    registration_date = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    tracked_jobs = relationship("UserJob", back_populates="user")
+
+class UserJob(Base):
+    """Tracks user's job application status"""
+    __tablename__ = 'user_jobs'
+    
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    job_id = Column(Integer, ForeignKey('jobs.id'), primary_key=True)
+    is_applied = Column(Boolean, default=False)
+    date_saved = Column(DateTime, default=datetime.utcnow)
+    date_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="tracked_jobs")
+    job = relationship("Job")
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'job_id', name='uix_user_job'),
+    )

@@ -15,6 +15,8 @@ from dashboard_components.utils import (
     format_job_date,
     check_api_status
 )
+from app.dashboard.auth import is_authenticated
+from app.dashboard.user_jobs import add_job_tracking_buttons
 
 # Configure logging
 logger = logging.getLogger('job_tracker.dashboard.jobs_page')
@@ -388,8 +390,35 @@ def _display_jobs_table(df_jobs):
         </style>
         """, unsafe_allow_html=True)
         
-        # Sort by date (newest first) - depends on original order 
-        # since format_job_date changes the values
-        st.write(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+        # Display each job with tracking buttons if authenticated
+        for index, row in df_jobs.iterrows():
+            with st.container():
+                col1, col2 = st.columns([4, 1])
+                
+                with col1:
+                    job_title = row["job_title"]
+                    company = row["company"]
+                    location = row.get("location", "")
+                    posted = format_job_date(row["date_posted"])
+                    employment_type = row.get("employment_type", "")
+                    job_url = row["job_url"]
+                    
+                    st.markdown(f"### [{job_title}]({job_url})")
+                    st.markdown(f"**{company}** | {location} | {employment_type}")
+                    st.markdown(f"Posted: {posted}")
+                    
+                    # Show roles if available
+                    if "roles" in row and row["roles"]:
+                        roles_text = ", ".join(row["roles"]) if isinstance(row["roles"], list) else row["roles"]
+                        st.markdown(f"**Roles:** {roles_text}")
+                
+                with col2:
+                    # Add tracking buttons if authenticated
+                    if is_authenticated():
+                        add_job_tracking_buttons(row["id"])
+                    else:
+                        st.markdown(f"[Apply]({job_url})")
+                
+                st.markdown("---")
     else:
         st.warning("No data available to display.")

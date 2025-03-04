@@ -32,6 +32,11 @@ python-dateutil
 pytz
 tqdm
 
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+email-validator
+
 # Deployment
 gunicorn
 python-dotenv

@@ -15,7 +15,9 @@ Job Tracker Runner
 Usage: python run.py [command]
 
 Commands:
-  api          Start the API server
+  api    else:
+        print(f"Unknown command: {command}")
+        print(usage)  Start the API server
   dashboard    Start the dashboard
   purge        Delete job records older than 7 days
   cleanup      Clean up the database (remove duplicates, fix issues)
@@ -23,6 +25,7 @@ Commands:
   quick_clean  Quickly remove test files without confirmation
   free         Free port 8000 if it's in use
   update_db    Update the database schema
+  create_admin Create an admin user for the application
   help         Show this help message
 """
 
@@ -88,9 +91,26 @@ Commands:
         from update_db import run_migration_update
         run_migration_update()
         
+    elif command == "create_admin":
+        # Create an admin user
+        if len(sys.argv) < 4:
+            print("Usage: python run.py create_admin EMAIL PASSWORD")
+            return
+            
+        email = sys.argv[2]
+        password = sys.argv[3]
+        
+        from create_admin_user import create_admin_user
+        try:
+            create_admin_user(email, password)
+            print(f"Admin user {email} created/updated successfully")
+        except Exception as e:
+            print(f"Error creating admin user: {str(e)}")
+        
+        
     elif command == "help":
         print(usage)
-        
+    
     else:
         print(f"Unknown command: {command}")
         print(usage)
