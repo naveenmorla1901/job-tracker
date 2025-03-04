@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger("job_tracker.dashboard.auth")
 
 # Constants
-API_URL = "http://localhost:8000/api"
+API_URL = "http://127.0.0.1:8000/api"
 
 def get_auth_status():
     """Get the current authentication status from session state."""
