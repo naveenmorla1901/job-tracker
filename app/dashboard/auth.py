@@ -47,22 +47,19 @@ def is_admin() -> bool:
 def login(email: str, password: str) -> bool:
     """
     Authenticate a user with the API.
-    
-    Args:
-        email: User's email
-        password: User's password
-        
-    Returns:
-        True if login was successful, False otherwise
     """
     try:
         # Make API request to login
+        st.write(f"Trying to connect to: {API_URL}/auth/login/json")
         response = requests.post(
             f"{API_URL}/auth/login/json",
             json={"email": email, "password": password}
         )
         
+        st.write(f"Status code: {response.status_code}")
+        
         if response.status_code != 200:
+            st.write(f"Error response: {response.text}")
             return False
         
         # Parse response
@@ -70,6 +67,7 @@ def login(email: str, password: str) -> bool:
         token = data.get("access_token")
         
         if not token:
+            st.write("No token in response")
             return False
             
         # Get user info
@@ -78,7 +76,10 @@ def login(email: str, password: str) -> bool:
             headers={"Authorization": f"Bearer {token}"}
         )
         
+        st.write(f"User info status: {user_response.status_code}")
+        
         if user_response.status_code != 200:
+            st.write(f"Error getting user info: {user_response.text}")
             return False
             
         user_data = user_response.json()
@@ -94,9 +95,9 @@ def login(email: str, password: str) -> bool:
         return True
         
     except Exception as e:
+        st.write(f"Login error: {str(e)}")
         logger.error(f"Login error: {str(e)}")
         return False
-
 def logout():
     """Log the user out by clearing the session state."""
     if hasattr(st.session_state, "auth_status"):
