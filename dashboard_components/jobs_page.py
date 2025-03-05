@@ -15,7 +15,7 @@ from dashboard_components.utils import (
     format_job_date,
     check_api_status
 )
-from app.dashboard.auth import is_authenticated
+from app.dashboard.auth import is_authenticated, api_request
 from app.dashboard.user_jobs import add_job_tracking_buttons
 
 # Configure logging
@@ -313,21 +313,49 @@ def _display_jobs_table(df_jobs):
         }
         df_display = df_display.rename(columns=column_mapping)
         
-        # Add apply links
-        apply_links = []
-        for i, url in enumerate(df_jobs["job_url"]):
-            clean_url = url.strip() if isinstance(url, str) else ""
-            if not clean_url:
-                clean_url = "#"
-            # Add tracking functionality if authenticated
-            if is_authenticated():
-                job_id = df_jobs.iloc[i]["id"]
-                link_html = f'<a href="{clean_url}" target="_blank">Apply</a> | <a href="#" onclick="trackJob({job_id})">Track</a>'
-            else:
-                link_html = f'<a href="{clean_url}" target="_blank">Apply</a>'
-            apply_links.append(link_html)
+        # Get user's tracked jobs if authenticated
+        tracked_jobs = {}
+        if is_authenticated():
+            user_jobs = api_request("user/jobs")
+            if user_jobs:
+                for job in user_jobs:
+                    tracked_jobs[job['id']] = {
+                        'is_tracked': True,
+                        'is_applied': job['tracking'].get('is_applied', False)
+                    }
         
-        df_display["Actions"] = apply_links
+        # Add Applied column if user is authenticated
+        if is_authenticated():
+            # Add an Applied column with checkboxes
+            applied_status = []
+            for i, row in df_jobs.iterrows():
+                job_id = row['id']
+                job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
+                applied_status.append("✅" if job_status['is_applied'] else "")
+            
+            df_display["Applied"] = applied_status
+        
+        # Add apply and track links
+        actions = []
+        for i, job in df_jobs.iterrows():
+            job_id = job["id"]
+            job_url = job["job_url"].strip() if isinstance(job["job_url"], str) else "#"
+            
+            # Check if job is tracked
+            job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
+            
+            # Create HTML for actions
+            action_html = f'<a href="{job_url}" target="_blank">Apply</a>'
+            
+            if is_authenticated():
+                if job_status['is_tracked']:
+                    action_html += f' | <a href="#" onclick="removeJob({job_id})">Untrack</a>'
+                else:
+                    action_html += f' | <a href="#" onclick="trackJob({job_id})">Track</a>'
+            
+            actions.append(action_html)
+        
+        df_display["Actions"] = actions
         
         # Set a height for the scrollable area
         st.markdown("""
@@ -406,23 +434,66 @@ def _display_jobs_table(df_jobs):
         # Close the scrollable container
         st.markdown("</div>", unsafe_allow_html=True)
         
-        # Add tracking functionality below in a more compact form
+        # Create interactive job application status checkboxes with expander
         if is_authenticated():
-            with st.expander("Track Multiple Jobs"):
-                st.write("Select jobs to track or mark as applied:")
-                # Display as a grid of checkboxes
-                job_count = len(df_jobs)
-                cols_per_row = 3
-                rows = (job_count + cols_per_row - 1) // cols_per_row
+            with st.expander("Mark Jobs as Applied", expanded=False):
+                st.markdown("### Update Application Status")
+                st.markdown("Use these checkboxes to mark jobs you've applied to:")
                 
-                for row in range(rows):
+                # Create a grid layout for job application checkboxes
+                num_jobs = len(df_jobs)
+                cols_per_row = 3
+                
+                for idx in range(0, num_jobs, cols_per_row):
                     cols = st.columns(cols_per_row)
-                    for col in range(cols_per_row):
-                        idx = row * cols_per_row + col
-                        if idx < job_count:
-                            job = df_jobs.iloc[idx]
-                            with cols[col]:
-                                if st.checkbox(f"{job['job_title']} ({job['company']})", key=f"track_{job['id']}"):
-                                    add_job_tracking_buttons(job['id'])
+                    
+                    for col_idx in range(cols_per_row):
+                        job_idx = idx + col_idx
+                        if job_idx < num_jobs:
+                            job = df_jobs.iloc[job_idx]
+                            job_id = job['id']
+                            job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
+                            
+                            with cols[col_idx]:
+                                # Only show checkbox if job is tracked or if we're showing all jobs
+                                job_title = job['job_title']
+                                if len(job_title) > 30:
+                                    job_title = job_title[:27] + "..."
+                                
+                                # If job is not tracked, first need to track it
+                                is_applied = st.checkbox(
+                                    f"{job_title} ({job['company']})", 
+                                    value=job_status['is_applied'],
+                                    key=f"applied_{job_id}"
+                                )
+                                
+                                # If status changed, update it
+                                if is_applied != job_status['is_applied']:
+                                    # If job is not tracked yet, track it first
+                                    if not job_status['is_tracked']:
+                                        track_result = api_request(
+                                            f"user/jobs/{job_id}/track",
+                                            method="POST"
+                                        )
+                                        if not track_result:
+                                            st.error(f"Failed to track job: {job_title}")
+                                            continue
+                                    
+                                    # Update application status
+                                    result = api_request(
+                                        f"user/jobs/{job_id}/applied",
+                                        method="PUT",
+                                        data={"applied": is_applied}
+                                    )
+                                    
+                                    if result:
+                                        st.success(f"Updated status for: {job_title}")
+                                        # Update local status for display purposes
+                                        tracked_jobs[job_id] = {
+                                            'is_tracked': True,
+                                            'is_applied': is_applied
+                                        }
+                                    else:
+                                        st.error(f"Failed to update status for: {job_title}")
     else:
         st.warning("No data available to display.")

@@ -22,6 +22,7 @@ from dashboard_components.jobs_page import display_jobs_page
 from app.dashboard.logs import display_logs_page
 from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required
 from app.dashboard.user_jobs import tracked_jobs_page
+from app.dashboard.admin import admin_users_page
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -85,7 +86,7 @@ def main():
         
         # Add admin pages if user is admin
         if is_admin():
-            pages.append("System Logs")
+            pages.extend(["User Management", "System Logs"])
             
         page = st.sidebar.radio("Go to", pages)
         
@@ -94,6 +95,8 @@ def main():
             st.session_state.page = 'jobs'
         elif page == "My Tracked Jobs":
             st.session_state.page = 'tracked_jobs'
+        elif page == "User Management" and is_admin():
+            st.session_state.page = 'admin_users'
         elif page == "System Logs" and is_admin():
             st.session_state.page = 'system_logs'
     else:
@@ -113,6 +116,14 @@ def main():
         display_jobs_page()
     elif current_page == 'tracked_jobs':
         tracked_jobs_page()
+    elif current_page == 'admin_users':
+        # Check if user is admin for protected pages
+        if is_admin():
+            admin_users_page()
+        else:
+            st.error("You don't have permission to view this page")
+            st.session_state.page = 'jobs'
+            st.rerun()
     elif current_page == 'system_logs':
         # Check if user is admin for protected pages
         if is_admin():

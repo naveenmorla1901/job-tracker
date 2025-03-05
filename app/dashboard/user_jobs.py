@@ -67,7 +67,7 @@ def tracked_jobs_page():
                             data={"applied": False}
                         ):
                             st.success("Updated successfully")
-                            st.experimental_rerun()
+                            st.rerun()
                         else:
                             st.error("Failed to update status")
                 else:
@@ -78,7 +78,7 @@ def tracked_jobs_page():
                             data={"applied": True}
                         ):
                             st.success("Updated successfully")
-                            st.experimental_rerun()
+                            st.rerun()
                         else:
                             st.error("Failed to update status")
                 
@@ -88,7 +88,7 @@ def tracked_jobs_page():
                         method="DELETE"
                     ):
                         st.success("Job removed from tracking")
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Failed to remove job")
             
@@ -140,7 +140,7 @@ def add_job_tracking_buttons(job_id, job_data=None):
                         data={"applied": False}
                     ):
                         st.success("Updated successfully")
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Failed to update status")
             else:
@@ -151,7 +151,7 @@ def add_job_tracking_buttons(job_id, job_data=None):
                         data={"applied": True}
                     ):
                         st.success("Updated successfully")
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Failed to update status")
         
@@ -163,7 +163,7 @@ def add_job_tracking_buttons(job_id, job_data=None):
                     method="DELETE"
                 ):
                     st.success("Job removed from tracking")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Failed to remove job")
     
@@ -176,6 +176,6 @@ def add_job_tracking_buttons(job_id, job_data=None):
                     method="POST"
                 ):
                     st.success("Job saved successfully")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Failed to save job")
