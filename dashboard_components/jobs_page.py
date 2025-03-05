@@ -287,23 +287,17 @@ def display_jobs_page():
 
 def _display_jobs_table(df_jobs):
     """Helper function to display jobs table with formatting"""
-    st.subheader("Job Listings")
+    st.markdown("### Job Listings")
     
     # Prepare display columns
     display_columns = []
-    for col in ["job_title", "company", "location", "date_posted", "employment_type", "roles"]:
+    for col in ["job_title", "company", "location", "date_posted", "employment_type"]:
         if col in df_jobs.columns:
             display_columns.append(col)
     
     # Create display DataFrame
     if display_columns:
         df_display = df_jobs[display_columns].copy()
-        
-        # Format roles column if it exists
-        if "roles" in df_display.columns:
-            df_display["roles"] = df_display["roles"].apply(
-                lambda x: ", ".join(x) if isinstance(x, list) else x
-            )
         
         # Format date column with human-friendly display
         if "date_posted" in df_display.columns:
@@ -316,109 +310,119 @@ def _display_jobs_table(df_jobs):
             "location": "Location",
             "date_posted": "Posted",
             "employment_type": "Type",
-            "roles": "Roles"
         }
         df_display = df_display.rename(columns=column_mapping)
         
-        # Add apply links - ensure URLs are correct and direct to the original job posting
+        # Add apply links
         apply_links = []
-        for url in df_jobs["job_url"]:
-            # Clean URL and ensure it's valid
+        for i, url in enumerate(df_jobs["job_url"]):
             clean_url = url.strip() if isinstance(url, str) else ""
             if not clean_url:
                 clean_url = "#"
-                
-            # Create HTML link that opens in new tab
-            link_html = f'<a href="{clean_url}" target="_blank" rel="noopener noreferrer">Apply</a>'
+            # Add tracking functionality if authenticated
+            if is_authenticated():
+                job_id = df_jobs.iloc[i]["id"]
+                link_html = f'<a href="{clean_url}" target="_blank">Apply</a> | <a href="#" onclick="trackJob({job_id})">Track</a>'
+            else:
+                link_html = f'<a href="{clean_url}" target="_blank">Apply</a>'
             apply_links.append(link_html)
         
-        df_display["Apply"] = apply_links
+        df_display["Actions"] = apply_links
         
-        # Display the table with recent jobs highlighted
+        # Set a height for the scrollable area
         st.markdown("""
         <style>
-        /* Style for Today/Yesterday highlights */
-        td:contains('Today') { 
-            background-color: #e6f7e6 !important; 
-            font-weight: bold;
-        }
-        td:contains('Yesterday') { 
-            background-color: #f7f7e6 !important;
+        /* Fix spacing between heading and table */
+        h3 {
+            margin-bottom: 10px !important;
+            padding-bottom: 0 !important;
         }
 
-        /* Adjust column widths */
+        .dataframe-container {
+            height: 600px;
+            overflow-y: auto;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        /* Table styling */
         table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed; /* Add fixed layout for better column control */
-        }
-        th, td {
-            padding: 12px; /* Adjust padding for spacing */
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-            overflow: hidden; /* Hide overflow text */
-            text-overflow: ellipsis; /* Add ellipsis for overflow */
-            white-space: nowrap; /* Keep text on one line */
-        }
-        th {
-            background-color: #000; /* Change header background color to black */
-            color: #fff; /* Change header text color to white for contrast */
+            margin-top: 0 !important;
         }
 
-        /* Specific column width adjustments */
-        td:nth-child(1) { /* Job Title column */
-            width: 25%; /* Adjust width as needed */
+        /* Cell styling */
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
         }
-        td:nth-child(2) { /* Company column */
-            width: 15%; /* Adjust width as needed */
+
+        /* Header styling - make sure text is clearly visible */
+        th {
+            background-color: #1E1E1E !important;
+            color: white !important;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: bold;
         }
-        td:nth-child(3) { /* Location column */
-            width: 15%; /* Reduced width for location column */
+
+        /* Alternating row colors */
+        tr:nth-child(even) {
+            background-color: rgba(240, 240, 240, 0.1);
         }
-        td:nth-child(4) { /* Posted column */
-            width: 10%; /* Adjust width as needed */
+        tr:nth-child(odd) {
+            background-color: rgba(255, 255, 255, 0.05);
         }
-        td:nth-child(5) { /* Type column */
-            width: 10%; /* Adjust width as needed */
+
+        /* Hover effect */
+        tr:hover {
+            background-color: rgba(200, 200, 200, 0.2);
         }
-        td:nth-child(6) { /* Roles column */
-            width: 20%; /* Adjust width as needed */
+
+        /* Ensure text in cells is visible against dark background */
+        td {
+            color: white;
         }
-        td:nth-child(7) { /* Apply column */
-            width: 5%; /* Adjust width as needed */
+
+        /* Remove extra spacing */
+        .stMarkdown {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
         }
         </style>
+        <div class="dataframe-container">
         """, unsafe_allow_html=True)
         
-        # Display each job with tracking buttons if authenticated
-        for index, row in df_jobs.iterrows():
-            with st.container():
-                col1, col2 = st.columns([4, 1])
+        # Display the table
+        st.write(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+        
+        # Close the scrollable container
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Add tracking functionality below in a more compact form
+        if is_authenticated():
+            with st.expander("Track Multiple Jobs"):
+                st.write("Select jobs to track or mark as applied:")
+                # Display as a grid of checkboxes
+                job_count = len(df_jobs)
+                cols_per_row = 3
+                rows = (job_count + cols_per_row - 1) // cols_per_row
                 
-                with col1:
-                    job_title = row["job_title"]
-                    company = row["company"]
-                    location = row.get("location", "")
-                    posted = format_job_date(row["date_posted"])
-                    employment_type = row.get("employment_type", "")
-                    job_url = row["job_url"]
-                    
-                    st.markdown(f"### [{job_title}]({job_url})")
-                    st.markdown(f"**{company}** | {location} | {employment_type}")
-                    st.markdown(f"Posted: {posted}")
-                    
-                    # Show roles if available
-                    if "roles" in row and row["roles"]:
-                        roles_text = ", ".join(row["roles"]) if isinstance(row["roles"], list) else row["roles"]
-                        st.markdown(f"**Roles:** {roles_text}")
-                
-                with col2:
-                    # Add tracking buttons if authenticated
-                    if is_authenticated():
-                        add_job_tracking_buttons(row["id"])
-                    else:
-                        st.markdown(f"[Apply]({job_url})")
-                
-                st.markdown("---")
+                for row in range(rows):
+                    cols = st.columns(cols_per_row)
+                    for col in range(cols_per_row):
+                        idx = row * cols_per_row + col
+                        if idx < job_count:
+                            job = df_jobs.iloc[idx]
+                            with cols[col]:
+                                if st.checkbox(f"{job['job_title']} ({job['company']})", key=f"track_{job['id']}"):
+                                    add_job_tracking_buttons(job['id'])
     else:
         st.warning("No data available to display.")
