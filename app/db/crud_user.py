@@ -319,3 +319,67 @@ def get_tracked_jobs(db: Session, user_id: int, applied_only: bool = False) -> L
     except Exception as e:
         logger.error(f"Error getting tracked jobs for user {user_id}: {str(e)}")
         return []
+
+def delete_user(db: Session, user_id: int) -> bool:
+    """
+    Delete a user from the database.
+    
+    Args:
+        db: Database session
+        user_id: ID of the user to delete
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        user = get_user_by_id(db, user_id)
+        if not user:
+            logger.warning(f"Attempted to delete non-existent user with ID {user_id}")
+            return False
+        
+        # First delete related UserJob records
+        db.query(UserJob).filter(UserJob.user_id == user_id).delete()
+        
+        # Then delete the user
+        db.delete(user)
+        db.commit()
+        logger.info(f"Successfully deleted user ID {user_id}")
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting user ID {user_id}: {str(e)}")
+        return False
+
+def get_database_stats(db: Session) -> Dict[str, Any]:
+    """
+    Get statistics about the database.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        Dictionary with statistics
+    """
+    try:
+        stats = {
+            "users": {
+                "total": db.query(User).count(),
+                "active": db.query(User).filter(User.is_active == True).count(),
+                "roles": {
+                    "regular": db.query(User).filter(User.role == UserRole.REGULAR).count(),
+                    "premium": db.query(User).filter(User.role == UserRole.PREMIUM).count(),
+                    "admin": db.query(User).filter(User.role == UserRole.ADMIN).count(),
+                },
+                "recent": db.query(User).order_by(User.registration_date.desc()).limit(5).all()
+            },
+            "jobs": {
+                "total": db.query(Job).count(),
+                "active": db.query(Job).filter(Job.is_active == True).count(),
+                "tracked": db.query(UserJob).count()
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting database stats: {str(e)}")
+        return {"error": str(e)}

@@ -11,7 +11,7 @@ from datetime import datetime
 # Set up logger
 logger = logging.getLogger("job_tracker.auth.dependencies")
 from app.db.database import get_db
-from app.db import crud
+from app.db import crud_user as crud
 from app.auth.security import JWT_SECRET_KEY, ALGORITHM
 from app.auth.schemas import TokenPayload, UserRead
 from app.db.models import UserRole

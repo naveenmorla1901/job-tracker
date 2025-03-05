@@ -1,6 +1,6 @@
 # app/api/endpoints/auth/routes.py
 from datetime import timedelta
-from typing import List
+from typing import List, Dict, Any
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -188,3 +188,45 @@ async def update_user(
     # Refresh user data
     user = crud_user.get_user_by_id(db, user_id)
     return user
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a user (admin only)"""
+    # Prevent self-deletion
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot delete your own account"
+        )
+    
+    # Check if user exists
+    user = crud_user.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Delete the user
+    success = crud_user.delete_user(db, user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete user"
+        )
+    
+    logger.info(f"User {current_user.email} (ID: {current_user.id}) deleted user {user.email} (ID: {user_id})")
+    return None
+
+@router.get("/db-stats", response_model=Dict[str, Any])
+async def get_database_statistics(
+    current_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get database statistics (admin only)"""
+    stats = crud_user.get_database_stats(db)
+    return stats
