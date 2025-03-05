@@ -11,6 +11,9 @@ import logging
 import sys
 import os
 
+# Import custom middleware
+from app.api.middleware.rate_limiter import RateLimiter
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -59,6 +62,14 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
+)
+
+# Add rate limiting middleware
+app.add_middleware(
+    RateLimiter,
+    auth_limit=5,        # 5 requests per minute for auth endpoints
+    general_limit=60,    # 60 requests per minute for general endpoints
+    window=60            # 1 minute window
 )
 
 # Include routers
@@ -141,6 +152,22 @@ def read_root():
         "version": "1.0.0",
         "docs_url": "/docs",
         "status": "ok"
+    }
+
+@app.get("/api")
+def api_root():
+    """API root endpoint"""
+    return {
+        "message": "Job Tracker API",
+        "version": "1.0.0",
+        "status": "ok",
+        "endpoints": {
+            "jobs": "/api/jobs",
+            "stats": "/api/stats",
+            "health": "/api/health",
+            "auth": "/api/auth",
+            "user_jobs": "/api/user/jobs"
+        }
     }
 
 if __name__ == "__main__":

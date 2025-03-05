@@ -1,6 +1,6 @@
 # Authentication System Documentation
 
-This document describes the authentication system implemented for the Job Tracker application.
+This document describes the optimized authentication system implemented for the Job Tracker application.
 
 ## Overview
 
@@ -8,8 +8,10 @@ The authentication system provides:
 
 - User registration and login
 - Role-based access control (regular, premium, admin)
+- Token refresh mechanism
 - Job tracking functionality (save jobs, mark as applied)
-- Protected API routes
+- Protected API routes with detailed error messages
+- Rate limiting to prevent brute force attacks
 - Streamlit dashboard integration
 
 ## User Roles
@@ -49,6 +51,7 @@ The system supports three user roles:
 - `POST /api/auth/register` - Register a new user
 - `POST /api/auth/login` - Login (form-based)
 - `POST /api/auth/login/json` - Login (JSON-based)
+- `POST /api/auth/refresh` - Refresh authentication token
 - `GET /api/auth/me` - Get current user information
 - `PUT /api/auth/me` - Update current user information
 
@@ -64,6 +67,12 @@ The system supports three user roles:
 - `GET /api/auth/users` - List all users (admin only)
 - `GET /api/auth/users/{user_id}` - Get specific user (admin only)
 - `PUT /api/auth/users/{user_id}` - Update user (admin only)
+
+### Health Endpoints
+
+- `GET /api` - API root with available endpoints
+- `GET /api/health` - Simple health check
+- `GET /api/health/detailed` - Detailed health check with component status
 
 ## Setup Instructions
 
@@ -113,14 +122,18 @@ Access the dashboard at http://localhost:8501 and navigate to the Login page to 
 3. Dashboard stores token in session state
 4. Subsequent API requests include token in Authorization header
 5. Protected routes validate token and user permissions
+6. Token can be refreshed using the /api/auth/refresh endpoint
 
 ### Security Considerations
 
 - Passwords are hashed using bcrypt
-- JWT tokens expire after a configurable time period
+- JWT tokens expire after 24 hours (configurable)
+- Token refresh mechanism to extend sessions
+- Rate limiting to prevent brute force attacks (5 auth requests per minute)
+- Detailed error messages for better troubleshooting
 - Admin features are protected by role-based access control
-- API endpoints include proper rate limiting
-- All operations are properly logged for security auditing
+- Comprehensive logging for security auditing
+- JWT secret key management through environment variables
 
 ## Development Guidelines
 
@@ -132,6 +145,17 @@ When adding new features:
 4. Add proper error handling for authentication failures
 5. Ensure proper access control on all new API endpoints
 
+## Environment Variables
+
+The authentication system relies on the following environment variables:
+
+- `JWT_SECRET_KEY`: Secret key used for signing JWT tokens (IMPORTANT: set this in production)
+- `ACCESS_TOKEN_EXPIRE_MINUTES`: Token lifetime in minutes (default: 1440 - 24 hours)
+- `DATABASE_URL`: Database connection string
+- `ENVIRONMENT`: Application environment (development, production, test)
+
+These variables should be set in the `.env` file at the project root or in the environment where the application is running.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -139,7 +163,19 @@ When adding new features:
 1. **Login Failures**: Verify correct email/password and check API connection
 2. **Access Denied**: Check if your user has the required role
 3. **API Connection Issues**: Ensure the API server is running at the expected URL
-4. **Token Expiration**: Re-login if your session has expired
+4. **Token Expiration**: Use the refresh endpoint or re-login if your session has expired
+5. **Rate Limiting**: If you receive 429 responses, wait before retrying
+6. **Database Connection**: Verify database credentials and connection
+
+### Authentication Errors
+
+The system provides detailed error messages to help diagnose issues:
+
+- "Authentication token has expired" - Use the refresh endpoint or login again
+- "Invalid authentication token" - Token is malformed or signature is invalid
+- "User no longer exists" - The user associated with the token has been deleted
+- "This account has been deactivated" - Contact an administrator to reactivate
+- "Rate limit exceeded" - Too many requests, wait and try again
 
 ### Accessing System Logs
 

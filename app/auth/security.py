@@ -2,17 +2,31 @@
 from datetime import datetime, timedelta
 from typing import Optional, Union, Any
 import os
+import logging
 from jose import jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
+
+# Set up logger
+logger = logging.getLogger("job_tracker.auth.security")
 
 # Load environment variables
 load_dotenv()
 
 # Get JWT secret key from environment or use a default (for development only)
-JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "temporary_secret_key_replace_in_production")
+default_jwt_key = "temporary_secret_key_replace_in_production"
+JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", default_jwt_key)
+
+# Log a warning if using the default JWT secret in production
+if JWT_SECRET_KEY == default_jwt_key and os.environ.get("ENVIRONMENT") == "production":
+    logger.warning(
+        "WARNING: Using default JWT secret key in production environment. "
+        "This is a security risk. Please set JWT_SECRET_KEY in your environment variables."
+    )
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+# Increase token expiration time to 24 hours for better user experience
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
 # Password hashing setup
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

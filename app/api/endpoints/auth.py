@@ -1,9 +1,17 @@
 # app/api/endpoints/auth.py
+# DEPRECATED: This file is no longer used. Authentication endpoints are defined in auth/routes.py
+# Keeping this file for reference only. Any changes should be made to auth/routes.py instead.
+
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import List
+
+# Set up logger
+logger = logging.getLogger("job_tracker.api.auth.deprecated")
+logger.warning("The deprecated auth.py file is being imported. Use auth/routes.py instead.")
 
 from app.db.database import get_db
 from app.db import crud_user

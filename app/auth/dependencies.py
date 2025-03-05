@@ -1,11 +1,15 @@
 # app/auth/dependencies.py
 from typing import Optional
+import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
+from jose import jwt, JWTError, ExpiredSignatureError
 from sqlalchemy.orm import Session
 from pydantic import ValidationError
 from datetime import datetime
+
+# Set up logger
+logger = logging.getLogger("job_tracker.auth.dependencies")
 from app.db.database import get_db
 from app.db import crud
 from app.auth.security import JWT_SECRET_KEY, ALGORITHM
@@ -38,31 +42,59 @@ async def get_current_user(
         
         # Verify token hasn't expired
         if token_data.exp < datetime.utcnow().timestamp():
+            logger.warning(f"Token expired for user ID: {token_data.sub}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired",
+                detail="Authentication token has expired. Please log in again.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-    except (JWTError, ValidationError):
+    except ExpiredSignatureError:
+        logger.warning("Expired JWT token received")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Authentication token has expired. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except ValidationError:
+        logger.warning("Invalid token payload format")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token format. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except JWTError:
+        logger.warning("Invalid JWT token received")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
     # Get the user from the database
-    user = crud.get_user_by_id(db, int(token_data.sub))
+    try:
+        user_id = int(token_data.sub)
+    except (TypeError, ValueError):
+        logger.error(f"Invalid user ID in token: {token_data.sub}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user identifier in token. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    user = crud.get_user_by_id(db, user_id)
     if not user:
+        logger.warning(f"User not found: ID {user_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            detail="User no longer exists. Please contact support.",
         )
     
     # Check if user is active
     if not user.is_active:
+        logger.warning(f"Inactive user attempted login: ID {user_id}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated. Please contact support."
         )
     
     return user

@@ -1,9 +1,13 @@
 # app/api/endpoints/auth/routes.py
 from datetime import timedelta
 from typing import List
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+
+# Set up logger
+logger = logging.getLogger("job_tracker.api.auth")
 
 from app.db.database import get_db
 from app.db import crud_user
@@ -56,6 +60,7 @@ async def login_json(login_data: UserLogin, db: Session = Depends(get_db)):
     """Alternative login endpoint that accepts JSON instead of form data"""
     user = crud_user.authenticate_user(db, login_data.email, login_data.password)
     if not user:
+        logger.warning(f"Failed login attempt for email: {login_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -68,6 +73,20 @@ async def login_json(login_data: UserLogin, db: Session = Depends(get_db)):
         subject=user.id, expires_delta=access_token_expires
     )
     
+    logger.info(f"Successful login for user: {user.email}")
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(current_user: User = Depends(get_current_user)):
+    """Refresh access token for current user"""
+    
+    # Create new access token with fresh expiration time
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        subject=current_user.id, expires_delta=access_token_expires
+    )
+    
+    logger.info(f"Token refreshed for user: {current_user.email}")
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserRead)
