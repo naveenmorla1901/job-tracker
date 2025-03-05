@@ -120,7 +120,7 @@ def main():
         else:
             st.error("You don't have permission to view this page")
             st.session_state.page = 'jobs'
-            st.experimental_rerun()
+            st.rerun()
     elif current_page == 'login':
         login_page()
     elif current_page == 'settings':

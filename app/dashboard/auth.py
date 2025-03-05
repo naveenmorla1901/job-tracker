@@ -98,6 +98,7 @@ def login(email: str, password: str) -> bool:
         st.write(f"Login error: {str(e)}")
         logger.error(f"Login error: {str(e)}")
         return False
+
 def logout():
     """Log the user out by clearing the session state."""
     if hasattr(st.session_state, "auth_status"):
@@ -274,6 +275,10 @@ def login_page():
     """Show login form and handle login/registration"""
     st.title("Login")
     
+    # Initialize tab state if not already set
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = "login"
+        
     # Create tabs for login and registration
     tab1, tab2 = st.tabs(["Login", "Register"])
     
@@ -287,7 +292,7 @@ def login_page():
         if submit:
             if login(email, password):
                 st.success("Login successful!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Login failed. Please check your email and password.")
     
@@ -307,9 +312,9 @@ def login_page():
             else:
                 if register(new_email, new_password):
                     st.success("Registration successful! Please log in.")
-                    # Automatically switch to login tab
-                    st.experimental_set_query_params(tab="login")
-                    st.experimental_rerun()
+                    # Switch to login tab
+                    st.session_state.active_tab = "login"
+                    st.rerun()
 
 def user_settings_page():
     """Show user settings page"""
@@ -355,11 +360,11 @@ def user_menu():
         with col1:
             if st.button("Settings"):
                 st.session_state.page = "settings"
-                st.experimental_rerun()
+                st.rerun()
         with col2:
             if st.button("Logout"):
                 logout()
-                st.experimental_rerun()
+                st.rerun()
                 
         # Admin section
         if is_admin():
@@ -367,7 +372,7 @@ def user_menu():
             st.sidebar.markdown("### Admin")
             if st.sidebar.button("User Management"):
                 st.session_state.page = "admin_users"
-                st.experimental_rerun()
+                st.rerun()
             if st.sidebar.button("System Logs"):
                 st.session_state.page = "system_logs"
-                st.experimental_rerun()
+                st.rerun()
