@@ -23,94 +23,59 @@ def display_custom_jobs_table(df_jobs):
         except Exception as e:
             st.error(f"Error fetching tracked jobs: {str(e)}")
     
-    # Create a simplified DataFrame for display
-    display_columns = ["job_title", "company", "location", "date_posted", "employment_type"]
+    # Display table header
+    st.write("### Job Listings")
     
-    # Make sure DataFrame has all needed columns
-    for col in display_columns:
-        if col not in df_jobs.columns:
-            df_jobs[col] = ""  # Add empty column if missing
+    # Define common CSS for both tables
+    common_css = """
+    <style>
+    .job-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 14px;
+    }
+    .job-table th {
+        background-color: #1E1E1E;
+        padding: 10px;
+        text-align: left;
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        font-weight: bold;
+    }
+    .job-table td {
+        padding: 8px;
+        border-bottom: 1px solid #ddd;
+        color: white;
+    }
+    .job-table tr:nth-child(even) {
+        background-color: rgba(240, 240, 240, 0.1);
+    }
+    .job-table tr:nth-child(odd) {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    .job-table tr:hover {
+        background-color: rgba(200, 200, 200, 0.2);
+    }
+    .apply-btn {
+        padding: 5px 10px;
+        background-color: #4CAF50;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        display: inline-block;
+    }
+    </style>
+    """
     
-    # Create a clean DataFrame for Streamlit's native table
-    clean_df = df_jobs[display_columns].copy()
-    
-    # Format date posted
-    if "date_posted" in clean_df.columns:
-        clean_df["date_posted"] = clean_df["date_posted"].apply(
-            lambda x: format_job_date(x) if not pd.isna(x) else ""
-        )
-    
-    # Rename columns for display
-    clean_df = clean_df.rename(columns={
-        "job_title": "Job Title",
-        "company": "Company",
-        "location": "Location",
-        "date_posted": "Posted",
-        "employment_type": "Type"
-    })
-    
-    # Display standard table using Streamlit's native table
-    if not is_authenticated():
-        # Add Apply URL column for non-authenticated users
-        clean_df["Apply"] = df_jobs.apply(
-            lambda row: f"<a href='{row.get('job_url', '#')}' target='_blank'>Apply</a>" 
-            if pd.notna(row.get('job_url')) else "", 
-            axis=1
-        )
+    # Different implementations for authenticated vs non-authenticated users
+    if is_authenticated():
+        # For authenticated users: HTML table with checkboxes
         
-        st.write("### Job Listings")
-        st.dataframe(clean_df, use_container_width=True)
-    else:
-        # For authenticated users, we'll use a custom HTML table to handle the checkboxes properly
-        st.write("### Job Listings")
-        
-        # Add buttons in Streamlit
-        col1, col2 = st.columns([1, 5])
-        with col1:
-            if st.button("Save Job Status"):
-                st.success("Job statuses saved!")
-                st.rerun()
-        
-        # Create HTML table
-        html = """
-        <style>
-        .job-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        .job-table th {
-            background-color: #1E1E1E;
-            padding: 10px;
-            text-align: left;
-            color: white;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .job-table td {
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
-            color: white;
-        }
-        .job-table tr:nth-child(even) {
-            background-color: rgba(240, 240, 240, 0.1);
-        }
-        .job-table tr:nth-child(odd) {
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-        .job-table tr:hover {
-            background-color: rgba(200, 200, 200, 0.2);
-        }
-        .apply-btn {
-            padding: 5px 10px;
-            background-color: #4CAF50;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-        }
-        </style>
-        
+        # Table headers
+        html = common_css + """
         <div style="max-height: 600px; overflow-y: auto;">
         <table class="job-table">
             <thead>
@@ -225,6 +190,63 @@ def display_custom_jobs_table(df_jobs):
             }});
         }}
         </script>
+        """
+        
+        # Display the HTML table
+        st.components.v1.html(html, height=700, scrolling=True)
+        
+        # Show message if we limited the number of rows
+        if len(df_jobs) > 100:
+            st.info(f"Showing 100 of {len(df_jobs)} jobs. Use filters to narrow results.")
+    else:
+        # For non-authenticated users: HTML table without checkboxes
+        
+        # Table headers
+        html = common_css + """
+        <div style="max-height: 600px; overflow-y: auto;">
+        <table class="job-table">
+            <thead>
+                <tr>
+                    <th>Job Title</th>
+                    <th>Company</th>
+                    <th>Location</th>
+                    <th>Posted</th>
+                    <th>Type</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        # Add table rows
+        for i, row in df_jobs.iterrows():
+            # Get basic job info
+            job_title = str(row.get('job_title', '')).replace('<', '&lt;').replace('>', '&gt;')
+            company = str(row.get('company', '')).replace('<', '&lt;').replace('>', '&gt;')
+            location = str(row.get('location', '')).replace('<', '&lt;').replace('>', '&gt;')
+            date_posted = format_job_date(row.get('date_posted', ''))
+            job_type = str(row.get('employment_type', '')).replace('<', '&lt;').replace('>', '&gt;')
+            job_url = row.get('job_url', '#')
+            
+            # Create HTML row
+            html += f"""
+            <tr>
+                <td>{job_title}</td>
+                <td>{company}</td>
+                <td>{location}</td>
+                <td>{date_posted}</td>
+                <td>{job_type}</td>
+                <td align="center">
+                    <a href="{job_url}" target="_blank" class="apply-btn">Apply</a>
+                </td>
+            </tr>
+            """
+        
+        # Close table
+        html += """
+            </tbody>
+        </table>
+        </div>
         """
         
         # Display the HTML table
