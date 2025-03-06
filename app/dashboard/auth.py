@@ -91,6 +91,18 @@ def login(email: str, password: str) -> bool:
             "token": token
         }
         
+        # Store token in session cookie for JavaScript to access
+        # This is used by the JavaScript to make authenticated API calls
+        st.markdown(
+            f"""
+            <script>
+            // Store authentication token for API calls
+            localStorage.setItem('job_tracker_token', '{token}');
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
+        
         logger.info(f"User authenticated: {user_data.get('email')}")
         return True
         

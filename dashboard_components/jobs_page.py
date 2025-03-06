@@ -287,7 +287,8 @@ def display_jobs_page():
 
 def _display_jobs_table(df_jobs):
     """Helper function to display jobs table with formatting"""
-    st.markdown("### Job Listings", unsafe_allow_html=True)
+    # Use a more direct approach to eliminate the gap
+    st.markdown("<h3 style='margin-bottom:0px; padding-bottom:0px;'>Job Listings</h3>", unsafe_allow_html=True)
     
     # Prepare display columns
     display_columns = []
@@ -332,8 +333,8 @@ def _display_jobs_table(df_jobs):
                 job_id = row['id']
                 job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
                 
-                # Create a checkbox for applied status
-                checkbox_html = f'<input type="checkbox" id="applied_{job_id}" name="applied_{job_id}" value="applied" {"checked" if job_status["is_applied"] else ""}/>'
+                # Create a checkbox for applied status with onclick handler
+                checkbox_html = f'<input type="checkbox" id="applied_{job_id}" name="applied_{job_id}" value="applied" {"checked" if job_status["is_applied"] else ""} onclick="handleCheckboxChange({job_id}, this.checked)"/>'
                 applied_status.append(checkbox_html)
             
             df_display["Applied"] = applied_status
@@ -347,14 +348,8 @@ def _display_jobs_table(df_jobs):
             # Check if job is tracked
             job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
             
-            # Create HTML for actions with buttons instead of links
+            # Create HTML for actions - only include Apply button
             action_html = f'<a href="{job_url}" target="_blank" class="action-btn apply-btn">Apply</a>'
-            
-            if is_authenticated():
-                if job_status['is_tracked']:
-                    action_html = f'<a href="{job_url}" target="_blank" class="action-btn apply-btn">Apply</a> <button class="action-btn track-btn" onclick="removeJob({job_id})">Untrack</button>'
-                else:
-                    action_html = f'<a href="{job_url}" target="_blank" class="action-btn apply-btn">Apply</a> <button class="action-btn track-btn" onclick="trackJob({job_id})">Track</button>'
             
             actions.append(action_html)
         
@@ -365,8 +360,8 @@ def _display_jobs_table(df_jobs):
         <style>
         /* Fix spacing between heading and table */
         h3 {
-            margin-bottom: 5px !important;
-            padding-bottom: 0 !important;
+            margin-bottom: 0px !important;
+            padding-bottom: 0px !important;
         }
 
         .dataframe-container {
@@ -375,6 +370,17 @@ def _display_jobs_table(df_jobs):
             margin-top: 0;
             margin-bottom: 10px;
             padding-top: 0 !important;
+        }
+        
+        /* Force content together with no gaps */
+        .stMarkdown > div > p {
+            margin-bottom: 0px !important;
+            padding-bottom: 0px !important;
+        }
+        
+        /* Streamlit adds this element that causes spacing */
+        .stMarkdown + div {
+            margin-top: 0px !important;
         }
 
         /* Table styling */
@@ -481,6 +487,91 @@ def _display_jobs_table(df_jobs):
         # Add JavaScript for interactive elements
         js_code = """
         <script>
+        // Run this code when page loads to ensure checkboxes sync with database
+        document.addEventListener('DOMContentLoaded', function() {
+            // Find all applied checkboxes
+            const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="applied_"]');
+            
+            // Fetch user's tracked jobs data to ensure checkboxes accurately reflect database state
+            fetch('/api/user/jobs', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${getAuthToken()}`
+                }
+            })
+            .then(response => response.json())
+            .then(jobs => {
+                if (jobs && Array.isArray(jobs)) {
+                    // Create a map of job IDs to application status
+                    const jobStatusMap = {};
+                    jobs.forEach(job => {
+                        jobStatusMap[job.id] = job.tracking && job.tracking.is_applied || false;
+                    });
+                    
+                    // Update checkboxes to match database state
+                    checkboxes.forEach(checkbox => {
+                        const jobId = checkbox.id.split('_')[1];
+                        if (jobStatusMap.hasOwnProperty(jobId)) {
+                            checkbox.checked = jobStatusMap[jobId];
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching jobs:', error);
+            });
+        });
+        // Get the authentication token from localStorage, which was set during login
+        function getAuthToken() {
+            return localStorage.getItem('job_tracker_token') || '';
+        }
+        
+        // Function to handle checkbox changes (applied/not applied)
+        function handleCheckboxChange(jobId, isChecked) {
+            console.log(`Job ${jobId} application status changed to ${isChecked}`);
+            
+            // First ensure job is tracked
+            ensureJobTracked(jobId).then(isTracked => {
+                if (isTracked) {
+                    // Now update the applied status
+                    updateAppliedStatus(jobId, isChecked);
+                } else {
+                    console.error('Job must be tracked before marking as applied');
+                }
+            });
+        }
+        
+        // Ensure a job is tracked before updating applied status
+        async function ensureJobTracked(jobId) {
+            // Check if job is already tracked
+            try {
+                const response = await fetch(`/api/user/jobs/${jobId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    }
+                });
+                
+                if (response.ok) {
+                    return true; // Job is already tracked
+                }
+                
+                // If not found/tracked, track it now
+                const trackResponse = await fetch(`/api/user/jobs/${jobId}/track`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    }
+                });
+                
+                return trackResponse.ok;
+            } catch (error) {
+                console.error('Error ensuring job is tracked:', error);
+                return false;
+            }
+        }
+        
         // Function to track a job
         function trackJob(jobId) {
             // Use fetch API to track the job
@@ -488,7 +579,7 @@ def _display_jobs_table(df_jobs):
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    'Authorization': `Bearer ${getAuthToken()}`
                 }
             })
             .then(response => {
@@ -511,7 +602,7 @@ def _display_jobs_table(df_jobs):
             fetch(`/api/user/jobs/${jobId}/track`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    'Authorization': `Bearer ${getAuthToken()}`
                 }
             })
             .then(response => {
@@ -528,17 +619,6 @@ def _display_jobs_table(df_jobs):
             });
         }
         
-        // Add event listeners to applied checkboxes
-        document.addEventListener('DOMContentLoaded', function() {
-            const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="applied_"]');
-            checkboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    const jobId = this.id.split('_')[1];
-                    updateAppliedStatus(jobId, this.checked);
-                });
-            });
-        });
-        
         // Function to update applied status
         function updateAppliedStatus(jobId, isApplied) {
             // Use fetch API to update applied status
@@ -546,7 +626,7 @@ def _display_jobs_table(df_jobs):
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    'Authorization': `Bearer ${getAuthToken()}`
                 },
                 body: JSON.stringify({ applied: isApplied })
             })
@@ -573,8 +653,11 @@ def _display_jobs_table(df_jobs):
         </script>
         """
         
-        # Display the table with JavaScript
-        st.write(df_display.to_html(escape=False, index=False) + js_code, unsafe_allow_html=True)
+        # Display the table with JavaScript and no extra spacing
+        # First, close the container div that holds previous content
+        st.markdown("</div>\n<div style='margin-top:-50px; padding-top:0;'>\n" + 
+                   df_display.to_html(escape=False, index=False) + js_code + "\n</div>", 
+                   unsafe_allow_html=True)
         
         # Close the scrollable container
         st.markdown("</div>", unsafe_allow_html=True)
