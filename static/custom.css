@@ -53,3 +53,35 @@ input[type="checkbox"] {
     height: 18px;
     cursor: pointer;
 }
+
+/* Fix display issues for logged in users */
+.stElement > div:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Fix for table visibility */
+.table-container table {
+    width: 100% !important;
+    visibility: visible !important;
+    display: table !important;
+}
+
+/* Fix for Safari/Chrome rendering issues */
+.element-container div[data-testid="stVerticalBlock"] > div {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Debug styles */
+.debug-marker {
+    background-color: #333;
+    color: white;
+    padding: 8px;
+    margin: 8px 0;
+    border-radius: 4px;
+    font-weight: bold;
+    text-align: center;
+}

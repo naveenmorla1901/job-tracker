@@ -42,7 +42,14 @@ def inject_google_analytics():
 # Read API URL from environment or use default
 def get_api_url():
     """Get API URL from environment variable or use default localhost"""
-    return os.environ.get('JOB_TRACKER_API_URL', 'http://localhost:8000/api')
+    api_url = os.environ.get('JOB_TRACKER_API_URL', 'http://localhost:8000/api')
+    
+    # Remove trailing slash if present
+    if api_url.endswith('/'):
+        api_url = api_url[:-1]
+    
+    logger.info(f"Using API URL: {api_url}")
+    return api_url
 
 # Constants
 API_URL = get_api_url()
@@ -137,11 +144,12 @@ def check_api_status():
     try:
         # Get current API URL
         api_url = get_api_url()
-        api_status = requests.get(api_url, timeout=2)
-        if api_status.status_code == 200:
+        response = requests.get(f"{api_url}/health", timeout=2)
+        if response.status_code == 200:
             return True, f"✅ API Connection: Good ({api_url})"
         else:
-            return False, f"⚠️ API Connection: Issue (Status {api_status.status_code})"
-    except:
+            return False, f"⚠️ API Connection: Issue (Status {response.status_code})"
+    except Exception as e:
         api_url = get_api_url()
+        logger.error(f"API Connection Failed: {str(e)}")
         return False, f"❌ API Connection Failed: Could not connect to {api_url}"

@@ -13,7 +13,8 @@ from dashboard_components.utils import (
     fetch_data, 
     fetch_data_with_params, 
     format_job_date,
-    check_api_status
+    check_api_status,
+    get_api_url
 )
 from app.dashboard.auth import is_authenticated, api_request
 from app.dashboard.user_jobs import add_job_tracking_buttons

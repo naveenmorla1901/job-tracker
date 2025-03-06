@@ -3,11 +3,14 @@ Custom jobs table component for the dashboard - fixes spacing and checkbox issue
 """
 import streamlit as st
 import pandas as pd
-from dashboard_components.utils import format_job_date
+from dashboard_components.utils import format_job_date, get_api_url
 from app.dashboard.auth import is_authenticated, api_request
 
 def display_custom_jobs_table(df_jobs):
     """A custom implementation of the jobs table with better spacing and working checkboxes"""
+    
+    # Debugging - show authentication status
+    st.write(f"Authentication status: {is_authenticated()}")
     
     # Inject custom CSS to fix spacing issues
     st.markdown("""
@@ -50,6 +53,10 @@ def display_custom_jobs_table(df_jobs):
     # Display the job listings header with zero margin
     st.markdown("<h3 class='job-listings-header'>Job Listings</h3>", unsafe_allow_html=True)
     
+    # Add server info for debugging
+    api_url = get_api_url()
+    st.markdown(f"<p class='debug-marker'>API URL: {api_url}</p>", unsafe_allow_html=True)
+    
     # Prepare display columns
     display_columns = []
     for col in ["job_title", "company", "location", "date_posted", "employment_type"]:
@@ -77,12 +84,21 @@ def display_custom_jobs_table(df_jobs):
         # Get user's tracked jobs if authenticated
         tracked_jobs = {}
         if is_authenticated():
-            user_jobs = api_request("user/jobs") or []
-            for job in user_jobs:
-                tracked_jobs[job['id']] = {
-                    'is_tracked': True,
-                    'is_applied': job['tracking'].get('is_applied', False)
-                }
+            try:
+                user_jobs = api_request("user/jobs") or []
+                if user_jobs and isinstance(user_jobs, list):
+                    for job in user_jobs:
+                        job_id = job.get('id')
+                        if job_id:
+                            tracked_jobs[job_id] = {
+                                'is_tracked': True,
+                                'is_applied': job.get('tracking', {}).get('is_applied', False)
+                            }
+                # Debug info
+                st.write(f"Debug - Found {len(tracked_jobs)} tracked jobs")
+            except Exception as e:
+                st.error(f"Error fetching tracked jobs: {str(e)}")
+                # Continue without tracked jobs
         
         # Add Applied column if user is authenticated
         if is_authenticated():
@@ -93,9 +109,9 @@ def display_custom_jobs_table(df_jobs):
         df_display["Actions"] = ""  # Placeholder
         
         # HTML table generation with direct styling
-        html_table = """
+        html_table = f"""
         <div class="table-container" style="height:600px; overflow-y:auto; margin-top:0; padding-top:0;">
-            <table style="width:100%; border-collapse:collapse;">
+            <table id="job-listings-table" style="width:100%; border-collapse:collapse;">
                 <thead>
                     <tr>
         """
@@ -154,118 +170,164 @@ def display_custom_jobs_table(df_jobs):
         """
         
         # Add JavaScript for checkbox functionality
-        js_code = """
+        api_url = get_api_url()
+        js_code = f"""
         <script>
         // Function to update job application status
-        function updateJobApplication(jobId, isApplied) {
-            console.log(`Updating job ${jobId} application status to ${isApplied}`);
+        function updateJobApplication(jobId, isApplied) {{
+            console.log(`Updating job ${{jobId}} application status to ${{isApplied}}`);
             
             // Get auth token from localStorage
             const token = localStorage.getItem('job_tracker_token');
-            if (!token) {
+            if (!token) {{
                 console.error('No authentication token found');
                 alert('Please log in again to track jobs');
                 return;
-            }
+            }}
             
             // We need to ensure that we modify the checkbox appearance immediately so the user gets feedback
-            const checkbox = document.getElementById(`applied_${jobId}`);
-            if (checkbox) {
+            const checkbox = document.getElementById(`applied_${{jobId}}`);
+            if (checkbox) {{
                 checkbox.disabled = true; // Disable during processing
-            }
+            }}
             
             // First ensure the job is tracked
-            fetch(`/api/user/jobs/${jobId}/track`, {
+            const apiUrl = "{api_url}";
+            const trackUrl = `${{apiUrl}}/user/jobs/${{jobId}}/track`;
+            console.log(`API URL: ${{apiUrl}}`);
+            console.log(`Tracking job at: ${{trackUrl}}`);
+            
+            fetch(trackUrl, {{
                 method: 'POST',
-                headers: {
+                headers: {{
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => {
-                if (response.ok) {
+                    'Authorization': `Bearer ${{token}}`
+                }}
+            }})
+            .then(response => {{
+                console.log(`Track job response status: ${{response.status}}`);
+                if (response.ok) {{
                     // Now update applied status
-                    return fetch(`/api/user/jobs/${jobId}/applied`, {
+                    const updateUrl = `${{apiUrl}}/user/jobs/${{jobId}}/applied`;
+                    console.log(`Updating applied status at: ${{updateUrl}}`);
+                    
+                    return fetch(updateUrl, {{
                         method: 'PUT',
-                        headers: {
+                        headers: {{
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ applied: isApplied })
-                    });
-                } else {
-                    throw new Error('Failed to track job');
-                }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to update application status');
-                }
+                            'Authorization': `Bearer ${{token}}`
+                        }},
+                        body: JSON.stringify({{ applied: isApplied }})
+                    }});
+                }} else {{
+                    throw new Error(`Failed to track job: ${{response.statusText}}`);
+                }}
+            }})
+            .then(response => {{
+                console.log(`Update applied status response: ${{response.status}}`);
+                if (!response.ok) {{
+                    throw new Error(`Failed to update application status: ${{response.statusText}}`);
+                }}
                 console.log('Successfully updated application status');
                 
                 // Re-enable the checkbox
-                if (checkbox) {
+                if (checkbox) {{
                     checkbox.disabled = false;
-                }
-            })
-            .catch(error => {
+                }}
+                
+                // Refresh the page to show the updated state
+                setTimeout(() => {{
+                    window.location.reload();
+                }}, 1000);
+            }})
+            .catch(error => {{
                 console.error('Error:', error);
-                alert('Failed to update job status. Please try again.');
+                alert(`Failed to update job status: ${{error.message}}`);
                 
                 // Revert checkbox state and re-enable it
-                const checkbox = document.getElementById(`applied_${jobId}`);
-                if (checkbox) {
+                if (checkbox) {{
                     checkbox.checked = !isApplied;
                     checkbox.disabled = false;
-                }
-            });
-        }
+                }}
+            }});
+        }}
         
         // Initialize checkboxes on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function() {{
             console.log('Initializing job application checkboxes');
+            
+            // Add debug message to console
+            console.log('Table rendered and DOM loaded');
             
             // Get auth token from localStorage
             const token = localStorage.getItem('job_tracker_token');
-            if (!token) {
+            if (!token) {{
                 console.error('No authentication token found');
                 return;
-            }
+            }}
             
-            // Fetch current tracked jobs to sync checkboxes
-            fetch('/api/user/jobs', {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(jobs => {
-                if (Array.isArray(jobs)) {
-                    // Create a map of job IDs to application status
-                    const jobStatusMap = {};
-                    jobs.forEach(job => {
-                        jobStatusMap[job.id] = job.tracking && job.tracking.is_applied || false;
-                    });
-                    
-                    // Update checkbox states
-                    const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="applied_"]');
-                    checkboxes.forEach(checkbox => {
-                        const jobId = checkbox.id.split('_')[1];
-                        if (jobStatusMap.hasOwnProperty(jobId)) {
-                            checkbox.checked = jobStatusMap[jobId];
-                        }
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Error syncing checkboxes:', error);
-            });
-        });
+            // Wait a short delay to ensure the DOM is fully rendered
+            setTimeout(function() {{
+                // Verify if checkboxes exist
+                const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="applied_"]');
+                console.log(`Found ${{checkboxes.length}} checkboxes in the table`);
+                
+                // Make sure table exists
+                const table = document.getElementById('job-listings-table');
+                console.log(`Table element found: ${{!!table}}`);
+                
+                // Fetch current tracked jobs to sync checkboxes
+                fetch(`${{apiUrl}}/user/jobs`, {{
+                    method: 'GET',
+                    headers: {{
+                        'Authorization': `Bearer ${{token}}`
+                    }}
+                }})
+                .then(response => {{
+                    console.log('API response status:', response.status);
+                    return response.json();
+                }})
+                .then(jobs => {{
+                    console.log('Received jobs data:', jobs);
+                    if (Array.isArray(jobs)) {{
+                        // Create a map of job IDs to application status
+                        const jobStatusMap = {{}};
+                        jobs.forEach(job => {{
+                            if (job && job.id) {{
+                                jobStatusMap[job.id] = job.tracking && job.tracking.is_applied || false;
+                            }}
+                        }});
+                        
+                        console.log('Job status map:', jobStatusMap);
+                        
+                        // Update checkbox states
+                        checkboxes.forEach(checkbox => {{
+                            const jobId = checkbox.id.split('_')[1];
+                            if (jobStatusMap.hasOwnProperty(jobId)) {{
+                                checkbox.checked = jobStatusMap[jobId];
+                                console.log(`Set checkbox ${{jobId}} to ${{jobStatusMap[jobId]}}`);
+                            }}
+                        }});
+                    }}
+                }})
+                .catch(error => {{
+                    console.error('Error syncing checkboxes:', error);
+                }});
+            }}, 500); // Short delay to ensure DOM is ready
+        }});
         </script>
         """
         
+        # Add a debug marker to visually see where the table should be
+        st.markdown("<div class='debug-marker'>Table should appear below this line</div>", unsafe_allow_html=True)
+        
         # Display the complete HTML with JavaScript
-        st.markdown(html_table + js_code, unsafe_allow_html=True)
+        try:
+            st.markdown(html_table + js_code, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Error rendering table: {str(e)}")
+            
+        # Add another debug marker
+        st.markdown("<div class='debug-marker'>Table should appear above this line</div>", unsafe_allow_html=True)
     else:
         st.warning("No data available to display.")

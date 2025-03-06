@@ -233,16 +233,19 @@ def api_request(endpoint: str, method: str = "GET", data: Dict = None, params: D
         Response data if successful, None otherwise
     """
     if not is_authenticated():
+        logger.error(f"API request failed: User not authenticated")
         return None
         
     token = get_token()
     if not token:
+        logger.error(f"API request failed: No token available")
         return None
         
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{API_URL}/{endpoint.lstrip('/')}"
     
     try:
+        logger.info(f"Making {method} request to {url}")
         if method.upper() == "GET":
             response = requests.get(url, headers=headers, params=params)
         elif method.upper() == "POST":
@@ -252,8 +255,10 @@ def api_request(endpoint: str, method: str = "GET", data: Dict = None, params: D
         elif method.upper() == "DELETE":
             response = requests.delete(url, headers=headers, params=params)
         else:
+            logger.error(f"Invalid method: {method}")
             return None
             
+        logger.info(f"Response status: {response.status_code}")
         if response.status_code not in (200, 201, 204):
             logger.error(f"API request failed: {response.status_code} - {response.text}")
             return None
