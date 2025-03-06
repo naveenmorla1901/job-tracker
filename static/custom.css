@@ -1,0 +1,55 @@
+/* Custom CSS to fix spacing issues */
+.job-listing-header {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Fix table container */
+.table-container {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Streamlit spacing overrides */
+.stMarkdown {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+div.stMarkdown > div > p {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* For dataframe */
+.dataframe-container {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Button styling */
+.action-btn {
+    padding: 3px 8px;
+    margin: 2px;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+    cursor: pointer;
+    font-size: 0.8em;
+    border: none;
+}
+
+.apply-btn {
+    background-color: #4CAF50;
+    color: white !important;
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}

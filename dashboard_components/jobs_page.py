@@ -17,6 +17,7 @@ from dashboard_components.utils import (
 )
 from app.dashboard.auth import is_authenticated, api_request
 from app.dashboard.user_jobs import add_job_tracking_buttons
+from dashboard_components.custom_jobs_table import display_custom_jobs_table
 
 # Configure logging
 logger = logging.getLogger('job_tracker.dashboard.jobs_page')
@@ -157,7 +158,7 @@ def display_jobs_page():
     
     # Show total job count with improved styling
     total_jobs = jobs_data.get("total", 0)
-    st.markdown(f"<div style='margin-bottom:0; padding-bottom:0;'><h4>Found {total_jobs} jobs matching your criteria</h4></div>", unsafe_allow_html=True)
+    st.markdown(f"<h4 class='job-listing-header' style='margin-bottom:0; padding-bottom:0;'>Found {total_jobs} jobs matching your criteria</h4>", unsafe_allow_html=True)
     
     # Process data for visualization and display
     if jobs_data.get("jobs"):
@@ -262,8 +263,8 @@ def display_jobs_page():
                     else:
                         st.info("Company data not available for visualization")
             
-            # Display job listings table
-            _display_jobs_table(df_jobs)
+            # Display job listings table using our custom component
+            display_custom_jobs_table(df_jobs)
         except Exception as e:
             st.error(f"Error processing job data: {str(e)}")
             logger.error(f"Error processing job data: {str(e)}")
@@ -288,7 +289,7 @@ def display_jobs_page():
 def _display_jobs_table(df_jobs):
     """Helper function to display jobs table with formatting"""
     # Use a more direct approach to eliminate the gap
-    st.markdown("<h3 style='margin-bottom:0px; padding-bottom:0px;'>Job Listings</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 class='job-listing-header' style='margin-bottom:0; padding-bottom:0;'>Job Listings</h3>", unsafe_allow_html=True)
     
     # Prepare display columns
     display_columns = []

@@ -98,6 +98,7 @@ def login(email: str, password: str) -> bool:
             <script>
             // Store authentication token for API calls
             localStorage.setItem('job_tracker_token', '{token}');
+            console.log('Authentication token stored in localStorage');
             </script>
             """,
             unsafe_allow_html=True
@@ -123,6 +124,18 @@ def logout():
             "user": None,
             "token": None
         }
+        
+        # Clear token from localStorage
+        st.markdown(
+            """
+            <script>
+            // Clear authentication token on logout
+            localStorage.removeItem('job_tracker_token');
+            console.log('Authentication token removed from localStorage');
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
         
         if user_email:
             logger.info(f"User logged out: {user_email}")

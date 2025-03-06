@@ -29,6 +29,46 @@ async def get_user_tracked_jobs(
     )
     return jobs
 
+@router.get("/{job_id}", response_model=Dict[str, Any])
+async def get_user_tracked_job(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a specific job tracked by the current user.
+    
+    Path parameters:
+    - job_id: The ID of the job to retrieve
+    """
+    # First check if job is tracked
+    user_job = crud_user.get_user_job(
+        db=db,
+        user_id=current_user.id,
+        job_id=job_id
+    )
+    
+    if not user_job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found or not tracked by user"
+        )
+    
+    # Get the job details
+    jobs = crud_user.get_tracked_jobs(
+        db=db,
+        user_id=current_user.id,
+        job_id=job_id
+    )
+    
+    if not jobs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found"
+        )
+    
+    return jobs[0]
+
 @router.post("/{job_id}/track", status_code=status.HTTP_201_CREATED)
 async def track_job(
     job_id: int,

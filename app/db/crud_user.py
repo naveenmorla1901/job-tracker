@@ -262,7 +262,24 @@ def mark_job_applied(db: Session, user_id: int, job_id: int, applied: bool = Tru
         logger.error(f"Error marking job {job_id} as {'applied' if applied else 'not applied'} for user {user_id}: {str(e)}")
         return False
 
-def get_tracked_jobs(db: Session, user_id: int, applied_only: bool = False) -> List[Dict[str, Any]]:
+def get_user_job(db: Session, user_id: int, job_id: int) -> Optional[UserJob]:
+    """
+    Get a specific user-job relationship.
+    
+    Args:
+        db: Database session
+        user_id: User ID
+        job_id: Job ID
+        
+    Returns:
+        UserJob object if found, None otherwise
+    """
+    return db.query(UserJob).filter(
+        UserJob.user_id == user_id,
+        UserJob.job_id == job_id
+    ).first()
+
+def get_tracked_jobs(db: Session, user_id: int, applied_only: bool = False, job_id: int = None) -> List[Dict[str, Any]]:
     """
     Get jobs tracked by a user.
     
@@ -270,6 +287,7 @@ def get_tracked_jobs(db: Session, user_id: int, applied_only: bool = False) -> L
         db: Database session
         user_id: User ID
         applied_only: If True, only return jobs marked as applied
+        job_id: If provided, only return the specific job
         
     Returns:
         List of job dictionaries with tracking status
@@ -290,6 +308,10 @@ def get_tracked_jobs(db: Session, user_id: int, applied_only: bool = False) -> L
         # Apply additional filters if needed
         if applied_only:
             query = query.filter(UserJob.is_applied == True)
+        
+        # Filter by specific job ID if provided
+        if job_id is not None:
+            query = query.filter(Job.id == job_id)
         
         # Execute query
         results = query.order_by(Job.date_posted.desc()).all()
