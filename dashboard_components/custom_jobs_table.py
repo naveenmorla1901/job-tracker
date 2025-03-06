@@ -4,7 +4,7 @@ Custom jobs table component for the dashboard - fixes spacing and checkbox issue
 import streamlit as st
 import pandas as pd
 from dashboard_components.utils import format_job_date, get_api_url
-from app.dashboard.auth import is_authenticated, api_request
+from app.dashboard.auth import is_authenticated, api_request, get_token
 
 def display_custom_jobs_table(df_jobs):
     """A clean, simplified implementation of the jobs table with proper checkbox handling"""
@@ -139,54 +139,87 @@ def display_custom_jobs_table(df_jobs):
         
         # Add JavaScript for tracking job applications
         api_url = get_api_url()
+        token = get_token() or ""  # Get token from session state
+        
         html += f"""
         <script>
-        // Create a map to track changes
-        const jobChanges = {{}};
+        // Store the auth token directly in a variable
+        const AUTH_TOKEN = "{token}";
+        const API_URL = "{api_url}";
         
         // Function to update job application status
         function updateJob(jobId, isApplied) {{
             console.log(`Job ${{jobId}} application status: ${{isApplied}}`);
-            jobChanges[jobId] = isApplied;
             
-            // Get auth token
-            const token = localStorage.getItem('job_tracker_token');
-            if (!token) {{
-                alert('Please log in again to track jobs');
-                return;
+            // Disable checkbox during update
+            const checkbox = document.getElementById(`job_${{jobId}}`);
+            if (checkbox) {{
+                checkbox.disabled = true;
             }}
             
-            // Submit the change immediately
-            const apiUrl = "{api_url}";
-            
-            // First make sure job is tracked
-            fetch(`${{apiUrl}}/user/jobs/${{jobId}}/track`, {{
+            // First ensure job is tracked
+            fetch(`${{API_URL}}/user/jobs/${{jobId}}/track`, {{
                 method: 'POST',
                 headers: {{
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${{token}}`
+                    'Authorization': `Bearer ${{AUTH_TOKEN}}`
                 }}
             }})
             .then(response => {{
-                if (!response.ok) throw new Error('Failed to track job');
+                if (!response.ok) {{
+                    console.error(`Error tracking job: ${{response.status}}`, response);
+                    throw new Error('Failed to track job');
+                }}
+                console.log('Successfully tracked job');
                 
                 // Now update applied status
-                return fetch(`${{apiUrl}}/user/jobs/${{jobId}}/applied`, {{
+                return fetch(`${{API_URL}}/user/jobs/${{jobId}}/applied`, {{
                     method: 'PUT',
                     headers: {{
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${{token}}`
+                        'Authorization': `Bearer ${{AUTH_TOKEN}}`
                     }},
                     body: JSON.stringify({{ applied: isApplied }})
                 }});
             }})
             .then(response => {{
-                if (!response.ok) throw new Error('Failed to update application status');
-                console.log('Job application status updated successfully');
+                if (!response.ok) {{
+                    console.error(`Error updating application status: ${{response.status}}`, response);
+                    throw new Error('Failed to update application status');
+                }}
+                console.log('Successfully updated job application status');
+                
+                // Re-enable checkbox
+                if (checkbox) {{
+                    checkbox.disabled = false;
+                }}
             }})
             .catch(error => {{
-                console.error('Error updating job:', error);
-                // Don't show alert as it's annoying - just log error
+                console.error('Error:', error);
+                
+                // Re-enable checkbox and revert state
+                if (checkbox) {{
+                    checkbox.disabled = false;
+                    checkbox.checked = !isApplied;
+                }}
+                
+                // Display subtle notification instead of alert
+                const notification = document.createElement('div');
+                notification.style.position = 'fixed';
+                notification.style.bottom = '20px';
+                notification.style.right = '20px';
+                notification.style.backgroundColor = '#f44336';
+                notification.style.color = 'white';
+                notification.style.padding = '10px';
+                notification.style.borderRadius = '5px';
+                notification.style.zIndex = '1000';
+                notification.textContent = 'Error updating job status. Please try again.';
+                document.body.appendChild(notification);
+                
+                // Remove notification after 3 seconds
+                setTimeout(() => {{
+                    document.body.removeChild(notification);
+                }}, 3000);
             }});
         }}
         </script>
