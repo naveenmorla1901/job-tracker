@@ -155,9 +155,9 @@ def display_jobs_page():
     # Fetch job listings with custom params
     jobs_data = fetch_data_with_params("jobs", request_params) or {"jobs": [], "total": 0}
     
-    # Show total job count
+    # Show total job count with improved styling
     total_jobs = jobs_data.get("total", 0)
-    st.subheader(f"Found {total_jobs} jobs matching your criteria")
+    st.markdown(f"<div style='margin-bottom:0; padding-bottom:0;'><h4>Found {total_jobs} jobs matching your criteria</h4></div>", unsafe_allow_html=True)
     
     # Process data for visualization and display
     if jobs_data.get("jobs"):
@@ -287,7 +287,7 @@ def display_jobs_page():
 
 def _display_jobs_table(df_jobs):
     """Helper function to display jobs table with formatting"""
-    st.markdown("### Job Listings")
+    st.markdown("### Job Listings", unsafe_allow_html=True)
     
     # Prepare display columns
     display_columns = []
@@ -331,7 +331,10 @@ def _display_jobs_table(df_jobs):
             for i, row in df_jobs.iterrows():
                 job_id = row['id']
                 job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
-                applied_status.append("✅" if job_status['is_applied'] else "")
+                
+                # Create a checkbox for applied status
+                checkbox_html = f'<input type="checkbox" id="applied_{job_id}" name="applied_{job_id}" value="applied" {"checked" if job_status["is_applied"] else ""}/>'
+                applied_status.append(checkbox_html)
             
             df_display["Applied"] = applied_status
         
@@ -344,14 +347,14 @@ def _display_jobs_table(df_jobs):
             # Check if job is tracked
             job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
             
-            # Create HTML for actions
-            action_html = f'<a href="{job_url}" target="_blank">Apply</a>'
+            # Create HTML for actions with buttons instead of links
+            action_html = f'<a href="{job_url}" target="_blank" class="action-btn apply-btn">Apply</a>'
             
             if is_authenticated():
                 if job_status['is_tracked']:
-                    action_html += f' | <a href="#" onclick="removeJob({job_id})">Untrack</a>'
+                    action_html = f'<a href="{job_url}" target="_blank" class="action-btn apply-btn">Apply</a> <button class="action-btn track-btn" onclick="removeJob({job_id})">Untrack</button>'
                 else:
-                    action_html += f' | <a href="#" onclick="trackJob({job_id})">Track</a>'
+                    action_html = f'<a href="{job_url}" target="_blank" class="action-btn apply-btn">Apply</a> <button class="action-btn track-btn" onclick="trackJob({job_id})">Track</button>'
             
             actions.append(action_html)
         
@@ -362,7 +365,7 @@ def _display_jobs_table(df_jobs):
         <style>
         /* Fix spacing between heading and table */
         h3 {
-            margin-bottom: 10px !important;
+            margin-bottom: 5px !important;
             padding-bottom: 0 !important;
         }
 
@@ -370,7 +373,8 @@ def _display_jobs_table(df_jobs):
             height: 600px;
             overflow-y: auto;
             margin-top: 0;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+            padding-top: 0 !important;
         }
 
         /* Table styling */
@@ -418,18 +422,159 @@ def _display_jobs_table(df_jobs):
         td {
             color: white;
         }
+        
+        /* Style action buttons */
+        .action-btn {
+            padding: 3px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.8em;
+            border: none;
+        }
+        
+        .apply-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .track-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+        
+        /* Style for checkboxes */
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
 
         /* Remove extra spacing */
         .stMarkdown {
             margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        
+        /* Eliminate spacing between elements */
+        .block-container {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+        }
+        
+        /* Reduce spacing for all elements */
+        div.element-container {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-top: 0 !important;
             padding-bottom: 0 !important;
         }
         </style>
         <div class="dataframe-container">
         """, unsafe_allow_html=True)
         
-        # Display the table
-        st.write(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+        # Add JavaScript for interactive elements
+        js_code = """
+        <script>
+        // Function to track a job
+        function trackJob(jobId) {
+            // Use fetch API to track the job
+            fetch(`/api/user/jobs/${jobId}/track`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Reload the page to reflect changes
+                    window.location.reload();
+                } else {
+                    alert('Failed to track job. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
+        
+        // Function to remove job tracking
+        function removeJob(jobId) {
+            // Use fetch API to remove tracking
+            fetch(`/api/user/jobs/${jobId}/track`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Reload the page to reflect changes
+                    window.location.reload();
+                } else {
+                    alert('Failed to untrack job. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
+        
+        // Add event listeners to applied checkboxes
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="applied_"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const jobId = this.id.split('_')[1];
+                    updateAppliedStatus(jobId, this.checked);
+                });
+            });
+        });
+        
+        // Function to update applied status
+        function updateAppliedStatus(jobId, isApplied) {
+            // Use fetch API to update applied status
+            fetch(`/api/user/jobs/${jobId}/applied`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                },
+                body: JSON.stringify({ applied: isApplied })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    alert('Failed to update applied status. Please try again.');
+                    // Revert checkbox if update failed
+                    const checkbox = document.getElementById(`applied_${jobId}`);
+                    if (checkbox) {
+                        checkbox.checked = !isApplied;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+                // Revert checkbox on error
+                const checkbox = document.getElementById(`applied_${jobId}`);
+                if (checkbox) {
+                    checkbox.checked = !isApplied;
+                }
+            });
+        }
+        </script>
+        """
+        
+        # Display the table with JavaScript
+        st.write(df_display.to_html(escape=False, index=False) + js_code, unsafe_allow_html=True)
         
         # Close the scrollable container
         st.markdown("</div>", unsafe_allow_html=True)
