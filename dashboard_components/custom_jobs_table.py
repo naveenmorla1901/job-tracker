@@ -9,9 +9,6 @@ from app.dashboard.auth import is_authenticated, api_request
 def display_custom_jobs_table(df_jobs):
     """A custom implementation of the jobs table with better spacing and working checkboxes"""
     
-    # Only show authentication status during debugging
-    # st.write(f"Authentication status: {is_authenticated()}")
-    
     # Inject custom CSS to fix spacing issues
     st.markdown("""
     <style>
@@ -99,32 +96,6 @@ def display_custom_jobs_table(df_jobs):
             # Just log the error but continue
             st.error(f"Error fetching tracked jobs: {str(e)}")
     
-    # Create a clean, simplified DataFrame directly for display
-    display_df = pd.DataFrame()
-    
-    # Add columns from original data
-    columns_to_display = ["job_title", "company", "location", "date_posted", "employment_type"]
-    
-    for col in columns_to_display:
-        if col in df_jobs.columns:
-            # Clean any HTML from the column
-            if df_jobs[col].dtype == 'object':
-                display_df[col] = df_jobs[col].astype(str).apply(
-                    lambda x: x.replace('<', '&lt;').replace('>', '&gt;') if isinstance(x, str) else x
-                )
-            else:
-                display_df[col] = df_jobs[col]
-    
-    # Format date for better display
-    if "date_posted" in display_df.columns:
-        display_df["date_posted"] = display_df["date_posted"].apply(
-            lambda x: format_job_date(x) if not pd.isna(x) else ""
-        )
-    
-    # Get job IDs and URLs for apply links
-    job_ids = df_jobs["id"].tolist() if "id" in df_jobs.columns else []
-    job_urls = df_jobs["job_url"].tolist() if "job_url" in df_jobs.columns else ["#"] * len(job_ids)
-    
     # Display the table using clean HTML
     st.markdown("<h3>Job Listings</h3>", unsafe_allow_html=True)
     
@@ -152,7 +123,7 @@ def display_custom_jobs_table(df_jobs):
     row_count = 0
     max_rows = 100
     
-    for i, (_, row) in enumerate(display_df.iterrows()):
+    for i, row in df_jobs.iterrows():
         if row_count >= max_rows:
             break
             
@@ -160,24 +131,37 @@ def display_custom_jobs_table(df_jobs):
         row_class = "even" if i % 2 == 0 else "odd"
         
         # Get the job ID and URL for this row
-        job_id = job_ids[i] if i < len(job_ids) else ""
-        job_url = job_urls[i] if i < len(job_urls) else "#"
+        job_id = row.get("id", "")
+        job_url = row.get("job_url", "#")
+        if isinstance(job_url, str):
+            job_url = job_url.strip()
         
         # Start the row
         table_html += f'<tr class="{row_class}">'
         
-        # Add basic columns
-        for col in columns_to_display:
-            if col in display_df.columns:
-                value = row[col] if not pd.isna(row[col]) else ""
+        # Add basic columns with proper escaping
+        for col in ["job_title", "company", "location", "date_posted", "employment_type"]:
+            if col in df_jobs.columns:
+                value = row.get(col, "")
+                
+                # Format date if needed
+                if col == "date_posted":
+                    value = format_job_date(value)
+                
+                # Escape HTML in string values
+                if isinstance(value, str) and ('<' in value or '>' in value):
+                    value = value.replace('<', '&lt;').replace('>', '&gt;')
+                
                 table_html += f'<td>{value}</td>'
             else:
                 table_html += '<td></td>'  # Empty cell if column doesn't exist
         
         # Add Applied checkbox if authenticated
         if is_authenticated():
-            job_status = tracked_jobs.get(job_id, {'is_tracked': False, 'is_applied': False})
-            checked = "checked" if job_status['is_applied'] else ""
+            # Get the checked status based on tracked_jobs
+            job_status = tracked_jobs.get(str(job_id), {})
+            is_applied = job_status.get('is_applied', False)
+            checked = "checked" if is_applied else ""
             
             checkbox_html = f'''
             <input 
@@ -189,7 +173,7 @@ def display_custom_jobs_table(df_jobs):
             '''
             table_html += f'<td style="text-align: center;">{checkbox_html}</td>'
         
-        # Always add Apply button
+        # Add Apply button
         apply_btn = f'<a href="{job_url}" target="_blank" class="apply-btn">Apply</a>'
         table_html += f'<td style="text-align: center;">{apply_btn}</td>'
         
@@ -204,6 +188,56 @@ def display_custom_jobs_table(df_jobs):
         api_url = get_api_url()
         js_code = f"""
         <script>
+        // Load tracked jobs on page load
+        document.addEventListener('DOMContentLoaded', function() {{
+            syncCheckboxes();
+        }});
+        
+        // Function to sync checkboxes with server state
+        function syncCheckboxes() {{
+            // Get auth token from localStorage
+            const token = localStorage.getItem('job_tracker_token');
+            if (!token) {{
+                console.error('No authentication token found');
+                return;
+            }}
+            
+            // API endpoint
+            const apiUrl = "{api_url}";
+            
+            // Fetch user's tracked jobs
+            fetch(`${{apiUrl}}/user/jobs`, {{
+                method: 'GET',
+                headers: {{
+                    'Authorization': `Bearer ${{token}}`
+                }}
+            }})
+            .then(response => response.json())
+            .then(jobs => {{
+                if (Array.isArray(jobs)) {{
+                    // Create a map of job IDs to application status
+                    const jobStatusMap = {{}};
+                    jobs.forEach(job => {{
+                        if (job && job.id) {{
+                            jobStatusMap[job.id] = job.tracking && job.tracking.is_applied || false;
+                        }}
+                    }});
+                    
+                    // Update checkboxes to match database state
+                    const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="applied_"]');
+                    checkboxes.forEach(checkbox => {{
+                        const jobId = checkbox.id.split('_')[1];
+                        if (jobStatusMap.hasOwnProperty(jobId)) {{
+                            checkbox.checked = jobStatusMap[jobId];
+                        }}
+                    }});
+                }}
+            }})
+            .catch(error => {{
+                console.error('Error syncing checkboxes:', error);
+            }});
+        }}
+        
         function updateJobApplication(jobId, isApplied) {{
             console.log(`Updating job ${{jobId}} application status to ${{isApplied}}`);
             
@@ -257,9 +291,6 @@ def display_custom_jobs_table(df_jobs):
                 if (checkbox) {{
                     checkbox.disabled = false;
                 }}
-                
-                // Optional: refresh the page to reflect changes
-                // window.location.reload();
             }})
             .catch(error => {{
                 console.error('Error:', error);
@@ -280,5 +311,5 @@ def display_custom_jobs_table(df_jobs):
     st.markdown(table_html, unsafe_allow_html=True)
     
     # Add a message if we limited the number of displayed rows
-    if row_count < len(display_df):
-        st.info(f"Showing {row_count} of {len(display_df)} jobs. Use filters to narrow results.")
+    if row_count < len(df_jobs):
+        st.info(f"Showing {row_count} of {len(df_jobs)} jobs. Use filters to narrow results.")
