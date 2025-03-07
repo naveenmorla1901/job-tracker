@@ -45,7 +45,11 @@ Commands:
             print(f"Port 8000 is not available. Using port {port} instead.")
         
         # Start the API server
-        subprocess.run(["uvicorn", "main:app", "--reload", "--port", str(port)])
+        try:
+            subprocess.run(["uvicorn", "main:app", "--host", "0.0.0.0", "--port", str(port)])
+        except FileNotFoundError:
+            # If uvicorn is not in PATH, try using the module approach
+            subprocess.run([sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", str(port)])
         
     elif command == "dashboard":
         # Start the dashboard
