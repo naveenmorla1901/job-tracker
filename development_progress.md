@@ -12,6 +12,8 @@ The Job Tracker is a personal tool for monitoring job listings from various comp
 - **Automation**: Python scripts for database maintenance
 - **Scraping**: Requests, BeautifulSoup4
 - **Monitoring**: psutil for system monitoring
+- **Authentication**: JWT tokens, bcrypt password hashing
+- **User Management**: Role-based access control, user job tracking
 
 ## Development Timeline & Progress
 
@@ -64,6 +66,40 @@ The Job Tracker is a personal tool for monitoring job listings from various comp
 - ✅ Added custom error pages for better user experience
 - ✅ Created basic caching strategy for API endpoints
 
+### Authentication & User Management (Recent Updates)
+- ✅ Fixed authentication error with dependencies and imports
+- ✅ Enhanced token management with 24-hour expiration
+- ✅ Added token refresh functionality for longer sessions
+- ✅ Integrated job application tracking directly in job listings
+- ✅ Added visual checkmarks for applied jobs in main table
+- ✅ Streamlined navigation by consolidating tracked jobs in main view
+- ✅ Implemented admin user management interface
+- ✅ Added detailed error handling and logging for auth issues
+- ✅ Implemented rate limiting for authentication endpoints
+- ✅ Created CLI tools for user management and database viewing
+- ✅ Fixed Streamlit experimental function deprecations
+
+### UI/UX Optimizations (Recent Updates)
+- ✅ Reorganized job listings table to appear at the top of the dashboard
+- ✅ Added clear visual indicators for applied jobs (green checkmarks)
+- ✅ Improved table styling and readability
+- ✅ Simplified sidebar user menu
+- ✅ Added "Mark Jobs as Applied" expander section below table
+- ✅ Added better help text for user interactions
+- ✅ Enhanced navigation using dashboard sections
+
+### Authentication & User Management
+- ✅ Implemented JWT-based authentication system
+- ✅ Added user registration and login functionality
+- ✅ Created role-based access control (regular, premium, admin)
+- ✅ Implemented job tracking for users (save/apply status)
+- ✅ Added user management interface for admins
+- ✅ Integrated applied status directly in job listings
+- ✅ Enhanced security with password hashing using bcrypt
+- ✅ Added token refresh functionality
+- ✅ Improved error handling for authentication failures
+- ✅ Added rate limiting for authentication endpoints
+
 ### Expanded Coverage
 - ✅ Added 30+ company scrapers
 - ✅ Implemented auto-discovery of scrapers
@@ -72,6 +108,17 @@ The Job Tracker is a personal tool for monitoring job listings from various comp
 
 ## Key Features Implemented
 
+### Authentication & User Management
+- **User Registration/Login**: Email and password based authentication
+- **Role-Based Access**: Regular, premium, and admin user types
+- **JWT Implementation**: Secure token-based authentication
+- **Token Management**: Automatic refresh for long sessions
+- **Job Tracking**: Save jobs and mark as applied
+- **Admin Dashboard**: User management interface for admins
+- **Application Tracking**: Visual checkmarks for applied jobs
+- **Security Features**: Bcrypt password hashing, rate limiting
+- **Error Handling**: Detailed error messages for auth issues
+
 ### API Functionality
 - **Job Filtering**: By role, company, date, location, and type
 - **Multi-select Support**: For roles and companies
@@ -79,13 +126,16 @@ The Job Tracker is a personal tool for monitoring job listings from various comp
 - **Error Handling**: Robust error handling and logging
 - **API Pagination**: Clean pagination with navigation links
 - **Rate Limiting**: Protection against excessive requests
+- **Protected Endpoints**: Authentication required for certain operations
 
 ### Dashboard Interface
 - **Time Period Selection**: 24h, 3-day, and 7-day views
 - **Role Checkboxes**: Visual selection of multiple roles
 - **Company Multi-select**: Choose multiple companies
 - **Dual Visualizations**: Jobs by role and employment type
-- **Interactive Table**: With direct application links
+- **Interactive Table**: With direct application links and apply status
+- **Application Tracking**: Checkmarks for applied jobs directly in table
+- **Admin Dashboard**: User management interface for administrators
 - **System Monitoring**: Resource usage, process tracking, and log viewing
 - **Directory Analysis**: Breakdown of project structure and disk usage
 - **Dark Mode**: User-selectable dark/light themes
@@ -98,6 +148,7 @@ The Job Tracker is a personal tool for monitoring job listings from various comp
 - **Log Viewer**: View and filter application logs in real-time
 - **Directory Analysis**: Size breakdown of project folders
 - **Database Statistics**: Job counts, active records, and success rates
+- **User Activity**: Monitor user logins and actions
 
 ### Database Management
 - **Automatic Cleanup**: Twice-daily removal of old records
@@ -106,6 +157,7 @@ The Job Tracker is a personal tool for monitoring job listings from various comp
 - **Database Reset**: Complete reset capability for fresh starts
 - **Log Rotation**: Automatic log rotation and cleanup
 - **Database Indexing**: Optimized performance for common queries
+- **User Data**: Storage of user accounts and job tracking data
 
 ### Scraper Capabilities
 - **Extensive Company Support**: 30+ company career sites
@@ -128,14 +180,7 @@ The Job Tracker is a personal tool for monitoring job listings from various comp
 - **Detailed Logging**: For debugging and monitoring
 - **Dynamic Module Loading**: Automatic scraper detection
 - **Code Organization**: Clean separation of concerns
-
-## Technical Challenges Overcome
-
-### Date Filtering Issues
-We addressed challenges with the 24-hour filter not showing today's jobs by:
-- Adding timezone handling with buffer time
-- Special-casing 24-hour filter to ensure it includes everything from start of day
-- Improved date comparison logic in database queries
+- **Authentication Workflow**: Proper JWT token handling and validation
 
 ### Multi-Select Parameter Handling
 We solved the challenge of sending multiple role and company selections by:
@@ -192,7 +237,7 @@ We improved mobile support:
 - Optimized table display for small screens
 - Included scrollable containers for role selection
 
-## Command-line Interface Reference
+# Command-line Interface Reference
 
 We created a comprehensive CLI for managing the application:
 
@@ -206,6 +251,21 @@ python run.py reset_db      # RESET DATABASE - Delete ALL data and start fresh
 python run.py purge         # Manually delete job records older than 7 days
 python run.py cleanup       # Clean up database (remove duplicates, fix issues)
 python run.py update_db     # Update database schema after model changes
+
+# User Management (New)
+python manage_users.py list               # List all users
+python manage_users.py create <email> <password> [--role admin|premium|regular]  # Create new user
+python manage_users.py info <user_id>     # View user details
+python manage_users.py delete <user_id>   # Delete a user
+python manage_users.py change-password <user_id> <new_password>  # Change user password
+python manage_users.py change-role <user_id> <new_role>  # Change user role
+
+# Database Viewing (New)
+python view_database.py tables            # List all database tables
+python view_database.py users [--limit N] # View users in database
+python view_database.py jobs [--limit N] [--company COMPANY]  # View jobs
+python view_database.py roles             # View roles and job counts
+python view_database.py stats             # View database statistics
 
 # Utilities
 python run.py quick_clean   # Remove test files
@@ -243,34 +303,32 @@ sudo tail -f /var/log/nginx/access.log
 ## Current Limitations & Future Improvements
 
 ### Current Limitations
-- Limited to 7-day job history
-- No user authentication or personalization
-- No email notifications for new listings
-- Limited to specific role categories
+- No email notifications for new listings (still planned)
+- Limited to 7-day job history to keep database manageable
+- No integration with external job boards (only company career sites)
+- Limited to specific role categories focused on tech
 
-### Recent Improvements
-- **Expanded Company Coverage**: Added 30+ company career site scrapers
-- **Auto-Discovery**: Automatic integration of new scrapers without configuration
-- **Company Name Display**: Proper capitalization and formatting of company names
-- **Focused Role Set**: Optimization for data science and ML positions
-- **System Monitoring**: Added detailed system monitoring and log viewing
-- **Deployment Process**: Improved GitHub Actions workflow and service management
-- **Directory Analysis**: Detailed breakdown of project structure and disk usage
-- **Dark Mode**: Added toggleable dark theme for better night-time viewing
-- **Mobile Support**: Enhanced responsiveness for mobile devices
-- **Pagination**: Added controls for navigating through large result sets
-- **Performance**: Optimized database with proper indexing
-- **API Enhancement**: Added proper pagination and rate limiting
+### Recent Improvements (Last Update)
+- **Authentication System**: Fixed and enhanced authentication with JWT tokens
+- **User Management**: Added admin interface for managing users
+- **Job Application Tracking**: Integrated directly in main job table with checkmarks
+- **User Experience**: Streamlined UI with better information organization
+- **Command-line Tools**: New tools for user management and database viewing
+- **Security Enhancements**: Rate limiting and better error handling
+- **Modern UI Components**: Updated for latest Streamlit compatibility
+- **Code Quality**: Fixed dependency issues and improved error handling
+- **Documentation**: Updated with all new features and improvements
 
 ### Potential Future Enhancements
 - Email notifications for new job matches
-- Application tracking functionality
-- User accounts and preferences
-- Mobile app version
+- Integration with external job boards (LinkedIn, Indeed, etc.)
 - AI-powered job matching and recommendations
-- Additional role categories
+- Additional role categories beyond tech
 - Enhanced analytics and reporting
 - Performance optimizations for larger datasets
+- Mobile app version
+- Export feature for tracked jobs
+- Integration with calendar for interview scheduling
 
 ## Getting Started
 
@@ -298,8 +356,18 @@ To continue development on this project:
 
 ### Frontend Components
 - `dashboard.py`: Streamlit dashboard
+- `dashboard_components/jobs_page.py`: Job listings and visualization
+- `app/dashboard/auth.py`: Authentication and user session management
+- `app/dashboard/admin.py`: Admin user management interface
 - `app/dashboard/logs.py`: System monitoring and log viewer
-- Various visualization and filtering components
+
+### Authentication & User Management
+- `app/auth/security.py`: JWT token handling and password hashing
+- `app/auth/dependencies.py`: Authentication middleware and guards
+- `app/auth/schemas.py`: User and token data models
+- `app/db/crud_user.py`: User database operations
+- `manage_users.py`: Command-line user management tool
+- `view_database.py`: Database viewing and inspection tool
 
 ### System Monitoring
 - `system_info.py`: System resource monitoring utilities
@@ -324,7 +392,7 @@ To continue development on this project:
 
 The Job Tracker project has successfully evolved into a comprehensive system for tracking job postings across numerous company career pages. With the addition of 30+ scrapers, automatic discovery capabilities, and detailed system monitoring, it now provides a much broader view of the job market, particularly for data science and machine learning roles.
 
-Recent enhancements including dark mode, mobile responsiveness, pagination, database indexing, and API improvements have significantly improved the user experience and system performance. The addition of custom error pages and rate limiting has made the application more robust for production use.
+Recent enhancements including authentication, user management, job application tracking, command-line tools, and streamlined UI have significantly improved the user experience and system performance. The addition of security features like rate limiting and better error handling has made the application more robust for production use.
 
 The system offers flexible filtering, visualization, and a clean user interface. It is designed to be maintainable with automatic data cleanup, log rotation, and a focus on recent job postings (last 7 days). The foundation is now in place for further enhancements and customizations to meet specific needs and preferences.
 

@@ -17,9 +17,12 @@ def display_custom_jobs_table(df_jobs):
             if isinstance(user_jobs, list):
                 for job in user_jobs:
                     if job and isinstance(job, dict) and 'id' in job:
-                        job_id = job['id']
+                        job_id = str(job['id'])
                         is_applied = job.get('tracking', {}).get('is_applied', False)
-                        tracked_jobs[str(job_id)] = is_applied
+                        tracked_jobs[job_id] = is_applied
+            
+            # Debug info - show how many tracked jobs were found
+            st.write(f"Tracked jobs found: {len(tracked_jobs)}")
         except Exception as e:
             st.error(f"Error fetching tracked jobs: {str(e)}")
     
@@ -67,6 +70,24 @@ def display_custom_jobs_table(df_jobs):
         border-radius: 4px;
         display: inline-block;
     }
+    
+    /* Status notification */
+    .status-notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 5px;
+        color: white;
+        z-index: 1000;
+        display: none;
+    }
+    .success-notification {
+        background-color: #4CAF50;
+    }
+    .error-notification {
+        background-color: #f44336;
+    }
     </style>
     """
     
@@ -76,6 +97,7 @@ def display_custom_jobs_table(df_jobs):
         
         # Table headers
         html = common_css + """
+        <div id="status-notification" class="status-notification"></div>
         <div style="max-height: 600px; overflow-y: auto;">
         <table class="job-table">
             <thead>
@@ -121,8 +143,8 @@ def display_custom_jobs_table(df_jobs):
                 <td>{job_type}</td>
                 <td align="center">
                     <input type="checkbox" id="job_{job_id}" {checked} 
-                           onchange="updateJob('{job_id}', this.checked)" 
-                           style="width:20px; height:20px;">
+                           onclick="updateJob('{job_id}', this.checked)" 
+                           style="width:20px; height:20px; cursor:pointer;">
                 </td>
                 <td align="center">
                     <a href="{job_url}" target="_blank" class="apply-btn">Apply</a>
@@ -143,21 +165,29 @@ def display_custom_jobs_table(df_jobs):
         
         html += f"""
         <script>
-        // Store the auth token directly in a variable
         const AUTH_TOKEN = "{token}";
         const API_URL = "{api_url}";
         
+        // Function to show notification
+        function showNotification(message, isSuccess) {{
+            const notification = document.getElementById('status-notification');
+            notification.textContent = message;
+            notification.className = 'status-notification ' + 
+                                    (isSuccess ? 'success-notification' : 'error-notification');
+            notification.style.display = 'block';
+            
+            // Hide after 3 seconds
+            setTimeout(() => {{
+                notification.style.display = 'none';
+            }}, 3000);
+        }}
+        
         // Function to update job application status
         function updateJob(jobId, isApplied) {{
-            console.log(`Job ${{jobId}} application status: ${{isApplied}}`);
-            
-            // Disable checkbox during update
+            // Prevent the default checkbox behavior temporarily
             const checkbox = document.getElementById(`job_${{jobId}}`);
-            if (checkbox) {{
-                checkbox.disabled = true;
-            }}
             
-            // First ensure job is tracked
+            // First make sure job is tracked
             fetch(`${{API_URL}}/user/jobs/${{jobId}}/track`, {{
                 method: 'POST',
                 headers: {{
@@ -167,10 +197,8 @@ def display_custom_jobs_table(df_jobs):
             }})
             .then(response => {{
                 if (!response.ok) {{
-                    console.error(`Error tracking job: ${{response.status}}`, response);
-                    throw new Error('Failed to track job');
+                    throw new Error(`Failed to track job (Status: ${{response.status}})`)
                 }}
-                console.log('Successfully tracked job');
                 
                 // Now update applied status
                 return fetch(`${{API_URL}}/user/jobs/${{jobId}}/applied`, {{
@@ -180,46 +208,25 @@ def display_custom_jobs_table(df_jobs):
                         'Authorization': `Bearer ${{AUTH_TOKEN}}`
                     }},
                     body: JSON.stringify({{ applied: isApplied }})
-                }});
+                }})
             }})
             .then(response => {{
                 if (!response.ok) {{
-                    console.error(`Error updating application status: ${{response.status}}`, response);
-                    throw new Error('Failed to update application status');
+                    throw new Error(`Failed to update application status (Status: ${{response.status}})`)
                 }}
-                console.log('Successfully updated job application status');
                 
-                // Re-enable checkbox
-                if (checkbox) {{
-                    checkbox.disabled = false;
-                }}
+                console.log(`Job ${{jobId}} status updated: ${{isApplied}}`);
+                showNotification("Job status updated successfully", true);
             }})
             .catch(error => {{
-                console.error('Error:', error);
+                console.error('Error updating job:', error);
                 
-                // Re-enable checkbox and revert state
+                // Revert checkbox state since the operation failed
                 if (checkbox) {{
-                    checkbox.disabled = false;
                     checkbox.checked = !isApplied;
                 }}
                 
-                // Display subtle notification instead of alert
-                const notification = document.createElement('div');
-                notification.style.position = 'fixed';
-                notification.style.bottom = '20px';
-                notification.style.right = '20px';
-                notification.style.backgroundColor = '#f44336';
-                notification.style.color = 'white';
-                notification.style.padding = '10px';
-                notification.style.borderRadius = '5px';
-                notification.style.zIndex = '1000';
-                notification.textContent = 'Error updating job status. Please try again.';
-                document.body.appendChild(notification);
-                
-                // Remove notification after 3 seconds
-                setTimeout(() => {{
-                    document.body.removeChild(notification);
-                }}, 3000);
+                showNotification("Error updating job status: " + error.message, false);
             }});
         }}
         </script>
