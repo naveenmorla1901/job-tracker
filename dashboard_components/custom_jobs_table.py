@@ -3,6 +3,8 @@ Custom jobs table component for the dashboard - fixes spacing and checkbox issue
 """
 import streamlit as st
 import pandas as pd
+import requests
+import json
 from dashboard_components.utils import format_job_date, get_api_url
 from app.dashboard.auth import is_authenticated, api_request, get_token
 
@@ -28,6 +30,59 @@ def display_custom_jobs_table(df_jobs):
     
     # Display table header
     st.write("### Job Listings")
+    
+    # Create a direct form for testing API calls
+    with st.expander("Direct API Testing"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            test_job_id = st.text_input("Job ID", "1")
+        with col2:
+            test_applied = st.checkbox("Mark as Applied")
+        with col3:
+            if st.button("Test API Call"):
+                # Get necessary info
+                api_url = get_api_url()
+                token = get_token()
+                
+                if not token:
+                    st.error("Not authenticated")
+                else:
+                    # First track the job
+                    st.write("Tracking job...")
+                    track_url = f"{api_url}/user/jobs/{test_job_id}/track"
+                    track_headers = {"Authorization": f"Bearer {token}"}
+                    
+                    try:
+                        track_response = requests.post(track_url, headers=track_headers)
+                        st.write(f"Track response: {track_response.status_code} - {track_response.text}")
+                        
+                        # Now mark as applied/unapplied
+                        apply_url = f"{api_url}/user/jobs/{test_job_id}/applied"
+                        apply_headers = {
+                            "Authorization": f"Bearer {token}",
+                            "Content-Type": "application/json"
+                        }
+                        apply_data = {"applied": test_applied}
+                        
+                        st.write(f"Marking job as {'applied' if test_applied else 'not applied'}...")
+                        st.write(f"URL: {apply_url}")
+                        st.write(f"Data: {json.dumps(apply_data)}")
+                        
+                        apply_response = requests.put(
+                            apply_url, 
+                            headers=apply_headers, 
+                            data=json.dumps(apply_data)
+                        )
+                        
+                        st.write(f"Apply response: {apply_response.status_code} - {apply_response.text}")
+                        
+                        if apply_response.status_code in (200, 201):
+                            st.success("API call successful")
+                            st.rerun()
+                        else:
+                            st.error("API call failed")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
     
     # Define columns for the job table
     if is_authenticated():
@@ -82,23 +137,43 @@ def display_custom_jobs_table(df_jobs):
                     # Update the status in the database
                     with st.spinner(f"Updating job status for {job_title}..."):
                         try:
-                            # First track the job
-                            track_result = api_request(f"user/jobs/{job_id}/track", method="POST")
+                            # Get necessary info
+                            api_url = get_api_url()
+                            token = get_token()
                             
-                            # Then mark it as applied
-                            apply_result = api_request(
-                                f"user/jobs/{job_id}/applied", 
-                                method="PUT", 
-                                data={"applied": applied_status}
+                            # First track the job
+                            track_url = f"{api_url}/user/jobs/{job_id}/track"
+                            track_headers = {"Authorization": f"Bearer {token}"}
+                            
+                            track_response = requests.post(track_url, headers=track_headers)
+                            st.write(f"Track response: {track_response.status_code}")
+                            
+                            # Now mark as applied/unapplied
+                            apply_url = f"{api_url}/user/jobs/{job_id}/applied"
+                            apply_headers = {
+                                "Authorization": f"Bearer {token}",
+                                "Content-Type": "application/json"
+                            }
+                            apply_data = {"applied": applied_status}
+                            
+                            st.write(f"Marking job as {'applied' if applied_status else 'not applied'}")
+                            
+                            apply_response = requests.put(
+                                apply_url, 
+                                headers=apply_headers, 
+                                json=apply_data
                             )
                             
-                            if track_result and apply_result:
+                            st.write(f"Apply response: {apply_response.status_code}")
+                            
+                            if apply_response.status_code in (200, 201, 204):
                                 # Update the local tracking dict
                                 tracked_jobs[job_id] = applied_status
-                                st.success(f"Updated job status: {job_title}")
+                                st.success(f"Updated job status: {job_title} - {'Applied' if applied_status else 'Not Applied'}")
+                                # Force refresh to update UI
+                                st.rerun()
                             else:
                                 st.error(f"Failed to update job status: {job_title}")
-                                # Reset checkbox to original state next time
                         except Exception as e:
                             st.error(f"Error updating job status: {str(e)}")
                 
