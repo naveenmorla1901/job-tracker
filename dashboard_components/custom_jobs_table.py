@@ -136,7 +136,7 @@ def display_custom_jobs_table(df_jobs):
         # Add applied status if user is authenticated
         if user_email:
             job_data["Applied"] = tracked_jobs.get(job_id, False)
-            job_data["job_id"] = job_id
+            job_data["ID"] = job_id  # renamed from job_id to avoid confusion
         
         table_data.append(job_data)
     
@@ -145,64 +145,65 @@ def display_custom_jobs_table(df_jobs):
     
     # Display table based on authentication status
     if is_authenticated():
-        # Create the data editor with the applied column
+        # Create column configuration without using the 'visible' parameter
+        column_config = {
+            "No.": st.column_config.NumberColumn(
+                "No.",
+                width="small",
+                help="Job number"
+            ),
+            "Job Title": st.column_config.TextColumn(
+                "Job Title",
+                width="large"
+            ),
+            "Company": st.column_config.TextColumn(
+                "Company", 
+                width="medium"
+            ),
+            "Location": st.column_config.TextColumn(
+                "Location",
+                width="medium"
+            ),
+            "Posted": st.column_config.TextColumn(
+                "Posted", 
+                width="small"
+            ),
+            "Type": st.column_config.TextColumn(
+                "Type",
+                width="small"
+            ),
+            "Applied": st.column_config.CheckboxColumn(
+                "Applied",
+                help="Check to mark as applied",
+                width="small"
+            ),
+            "Apply": st.column_config.LinkColumn(
+                "Apply",
+                display_text="Apply",
+                width="small"
+            )
+        }
+        
+        # Exclude ID from displayed columns
         editor = st.data_editor(
-            df_display,
+            df_display.drop(columns=["ID"], errors="ignore"),  # Drop ID from display
             column_order=["No.", "Job Title", "Company", "Location", "Posted", "Type", "Applied", "Apply"],
-            column_config={
-                "No.": st.column_config.NumberColumn(
-                    "No.",
-                    width="small",
-                    help="Job number"
-                ),
-                "job_id": st.column_config.Column(
-                    "ID",
-                    help="Job ID",
-                    visible=False
-                ),
-                "Job Title": st.column_config.TextColumn(
-                    "Job Title",
-                    width="large"
-                ),
-                "Company": st.column_config.TextColumn(
-                    "Company", 
-                    width="medium"
-                ),
-                "Location": st.column_config.TextColumn(
-                    "Location",
-                    width="medium"
-                ),
-                "Posted": st.column_config.TextColumn(
-                    "Posted", 
-                    width="small"
-                ),
-                "Type": st.column_config.TextColumn(
-                    "Type",
-                    width="small"
-                ),
-                "Applied": st.column_config.CheckboxColumn(
-                    "Applied",
-                    help="Check to mark as applied",
-                    width="small"
-                ),
-                "Apply": st.column_config.LinkColumn(
-                    "Apply",
-                    display_text="Apply",
-                    width="small"
-                )
-            },
+            column_config=column_config,
             disabled=["No.", "Job Title", "Company", "Location", "Posted", "Type", "Apply"],
             hide_index=True,
             use_container_width=True,
             key="job_table"
         )
         
+        # We need to keep the ID for tracking changes
+        df_with_id = df_display
+        
         # Check for changes in the edited_rows
         if "edited_rows" in st.session_state:
             for row_idx, edits in st.session_state.edited_rows.items():
-                if "Applied" in edits and row_idx < len(table_data):
+                if "Applied" in edits and int(row_idx) < len(table_data):
                     # Get the job ID and new status
-                    job_id = table_data[int(row_idx)]["job_id"]
+                    job_id = table_data[int(row_idx)]["ID"]  # Using the renamed field
                     new_status = edits["Applied"]
                     
                     # Show a status message
@@ -219,8 +220,14 @@ def display_custom_jobs_table(df_jobs):
                             st.error(f"Failed to update job {job_id}")
     else:
         # For non-logged-in users, show a simple table without the Applied column
+        columns_to_drop = ["ID", "Applied"]
+        display_df = df_display.copy()
+        for col in columns_to_drop:
+            if col in display_df.columns:
+                display_df = display_df.drop(columns=[col])
+                
         st.dataframe(
-            df_display.drop(columns=["job_id", "Applied"], errors="ignore"),
+            display_df,
             use_container_width=True,
             column_config={
                 "No.": st.column_config.NumberColumn(
