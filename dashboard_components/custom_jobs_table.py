@@ -1,218 +1,227 @@
 """
-Custom jobs table component for the dashboard - fixes spacing and checkbox issues
-Uses direct database access to ensure job status updates work reliably
+Simple jobs table with direct database updates
 """
 import streamlit as st
 import pandas as pd
 import time
-from dashboard_components.utils import format_job_date, get_api_url
+import os
+import sys
+from dashboard_components.utils import format_job_date
 from app.dashboard.auth import is_authenticated, get_current_user
-from dashboard_components.direct_job_actions import (
-    mark_job_applied_direct,
-    get_user_tracked_jobs_direct
-)
+from app.db.database import get_db
+from app.db.models import UserJob, Job, User
+from datetime import datetime
+import logging
+
+# Configure logging
+logger = logging.getLogger("job_tracker.dashboard.custom_jobs_table")
+
+def get_user_by_email(db, email):
+    """Get user by email"""
+    return db.query(User).filter(User.email == email).first()
+
+def get_tracked_jobs(user_email):
+    """Get all jobs tracked by a user with their applied status"""
+    result = {}
+    try:
+        # Get database session
+        db = next(get_db())
+        
+        # Get user
+        user = get_user_by_email(db, user_email)
+        if not user:
+            return {}
+        
+        # Get all tracked jobs
+        tracked_jobs = db.query(UserJob).filter(UserJob.user_id == user.id).all()
+        
+        # Create dictionary mapping job_id to applied status
+        for job in tracked_jobs:
+            result[str(job.job_id)] = job.is_applied
+        
+        db.close()
+    except Exception as e:
+        st.error(f"Error getting tracked jobs: {e}")
+    
+    return result
+
+def update_job_status(user_email, job_id, applied):
+    """Update a job's applied status directly in the database"""
+    try:
+        # Get database session
+        db = next(get_db())
+        
+        # Get user
+        user = get_user_by_email(db, user_email)
+        if not user:
+            return False
+        
+        # Check if job exists
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return False
+        
+        # Get or create UserJob record
+        user_job = db.query(UserJob).filter(
+            UserJob.user_id == user.id,
+            UserJob.job_id == job_id
+        ).first()
+        
+        if user_job:
+            # Update existing record
+            user_job.is_applied = applied
+            user_job.date_updated = datetime.utcnow()
+        else:
+            # Create new record
+            user_job = UserJob(
+                user_id=user.id,
+                job_id=job_id,
+                is_applied=applied,
+                date_saved=datetime.utcnow()
+            )
+            db.add(user_job)
+        
+        # Commit changes
+        db.commit()
+        db.close()
+        return True
+    except Exception as e:
+        st.error(f"Error updating job status: {e}")
+        try:
+            db.rollback()
+            db.close()
+        except:
+            pass
+        return False
 
 def display_custom_jobs_table(df_jobs):
-    """A clean, simplified implementation of the jobs table with proper checkbox handling"""
+    """Display a simple, reliable jobs table with status tracking"""
     
-    # Store tracking changes in session state to prevent loss on errors
-    if "tracked_jobs_status" not in st.session_state:
-        st.session_state.tracked_jobs_status = {}
-    
-    # Get current user if authenticated
+    # Get user information if authenticated
     user_email = None
     if is_authenticated():
-        user_data = get_current_user()
-        if user_data and "email" in user_data:
-            user_email = user_data["email"]
+        user = get_current_user()
+        if user and "email" in user:
+            user_email = user["email"]
     
-    # Get tracked jobs directly from the database
-    tracked_jobs = {}
-    if user_email:
-        # Get tracked jobs directly from database
-        tracked_jobs = get_user_tracked_jobs_direct(user_email)
-        st.session_state.tracked_jobs_status = tracked_jobs
-        
-        # Show debug info
-        st.write(f"User: {user_email} | Tracked jobs: {len(tracked_jobs)}")
-    
-    # Display table header
+    # Display header
     st.header("Job Listings")
     
-    # Add direct job status management tool
-    with st.expander("Job Application Status Tool"):
-        st.write("Use this tool to directly update your job application status")
-        
-        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    # Show direct job status tool for manual updates
+    with st.expander("Job Status Update Tool"):
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            job_id = st.text_input("Job ID", "1")
+            job_id = st.text_input("Job ID")
         
         with col2:
-            applied = st.checkbox("Applied")
+            applied_status = st.checkbox("Mark as Applied")
         
         with col3:
             if st.button("Update Status"):
                 if not user_email:
-                    st.error("You must be logged in to use this feature")
+                    st.error("You must be logged in to update job status")
+                elif not job_id:
+                    st.error("Please enter a job ID")
                 else:
-                    # Update job status directly in the database
-                    success = mark_job_applied_direct(user_email, int(job_id), applied)
+                    success = update_job_status(user_email, int(job_id), applied_status)
                     if success:
-                        st.success(f"Job {job_id} marked as {'applied' if applied else 'not applied'}")
-                        # Update cached status
-                        tracked_jobs[job_id] = applied
-                        st.session_state.tracked_jobs_status = tracked_jobs
+                        st.success(f"Job {job_id} marked as {'applied' if applied_status else 'not applied'}")
+                        # Force reload after 1 second
                         time.sleep(1)
                         st.rerun()
                     else:
-                        st.error("Failed to update job status")
-        
-        with col4:
-            if st.button("Refresh Status"):
-                if user_email:
-                    tracked_jobs = get_user_tracked_jobs_direct(user_email)
-                    st.session_state.tracked_jobs_status = tracked_jobs
-                    st.success("Refreshed job status")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("You must be logged in to use this feature")
+                        st.error(f"Failed to update job {job_id}")
     
-    # Custom table with row numbers and apply button column
+    # Get tracked jobs for current user
+    tracked_jobs = {}
+    if user_email:
+        tracked_jobs = get_tracked_jobs(user_email)
+        st.write(f"You have {len(tracked_jobs)} tracked jobs")
+    
+    # Add a simple form for each job
     if is_authenticated():
-        # Convert dataframe to list for simple display
-        job_data = []
         for i, row in df_jobs.iterrows():
-            job_id = str(row['id'])
-            job_data.append({
-                "Number": i + 1, 
-                "Job ID": job_id,
-                "Job Title": row['job_title'],
-                "Company": row['company'],
-                "Location": row['location'],
-                "Posted": format_job_date(row['date_posted']),
-                "Type": row.get('employment_type', ''),
-                "Applied": tracked_jobs.get(job_id, False),
-                "URL": row['job_url']
-            })
+            # Limit display to 100 jobs for performance
+            if i >= 100:
+                break
             
-        # Create DataFrame for display
-        jobs_df = pd.DataFrame(job_data)
-        
-        # Add checkboxes for applied status - each with a callback
-        for index, job in enumerate(job_data):
-            with st.container():
-                cols = st.columns([1, 6, 3, 3, 2, 2, 1])
+            job_id = str(row['id'])
+            job_title = row['job_title']
+            company = row['company']
+            location = row['location']
+            date_posted = format_job_date(row['date_posted'])
+            job_url = row['job_url']
+            
+            # Is this job tracked and applied?
+            is_applied = tracked_jobs.get(job_id, False)
+            
+            # Create job card with columns
+            with st.form(key=f"job_form_{job_id}_{i}"):
+                cols = st.columns([1, 4, 3, 3, 2, 2])
                 
-                # Row number
-                cols[0].write(f"#{job['Number']}")
+                # Column 1: Number
+                cols[0].write(f"#{i+1}")
                 
-                # Job title with URL
-                cols[1].markdown(f"**[{job['Job Title']}]({job['URL']})**")
+                # Column 2: Job Title and Company
+                cols[1].markdown(f"**{job_title}**")
+                cols[1].write(f"{company}")
                 
-                # Company
-                cols[2].write(job['Company'])
+                # Column 3: Location
+                cols[2].write(location)
                 
-                # Location
-                cols[3].write(job['Location'])
+                # Column 4: Date Posted
+                cols[3].write(f"Posted: {date_posted}")
                 
-                # Posted date
-                cols[4].write(job['Posted'])
+                # Column 5: Applied Status
+                applied = cols[4].checkbox("Applied", value=is_applied, key=f"applied_{job_id}_{i}")
                 
-                # Current status
-                is_applied = job['Applied']
+                # Column 6: Submit Button
+                submit = cols[5].form_submit_button("Save")
                 
-                # Applied checkbox - directly update on change
-                new_status = cols[5].checkbox(
-                    "Applied", 
-                    value=is_applied,
-                    key=f"job_{job['Job ID']}_{int(time.time())}"  # Unique key with timestamp
-                )
-                
-                # Handle status change
-                if new_status != is_applied:
-                    if user_email:
-                        with st.spinner(f"Updating job {job['Job ID']}..."):
-                            # Directly update in database
-                            success = mark_job_applied_direct(
-                                user_email, 
-                                int(job['Job ID']), 
-                                new_status
-                            )
-                            
-                            if success:
-                                # Update tracked jobs in memory
-                                tracked_jobs[job['Job ID']] = new_status
-                                st.session_state.tracked_jobs_status[job['Job ID']] = new_status
-                                
-                                # Show success message
-                                if new_status:
-                                    st.success(f"Job {job['Job ID']} marked as applied")
-                                else:
-                                    st.success(f"Job {job['Job ID']} marked as not applied")
-                            else:
-                                st.error(f"Failed to update job {job['Job ID']}")
-                
-                # Apply button
-                cols[6].markdown(f"[Apply]({job['URL']})")
-                
+                # Process form submission
+                if submit:
+                    # Only update if status changed
+                    if applied != is_applied:
+                        success = update_job_status(user_email, int(job_id), applied)
+                        if success:
+                            st.success(f"Job {job_id} marked as {'applied' if applied else 'not applied'}")
+                            # Force reload after 1 second
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"Failed to update job {job_id}")
+            
+            # Add apply button outside the form
+            st.markdown(f"[Apply to this job]({job_url})")
+            
             # Add separator
             st.markdown("---")
+        
+        # Show message if limiting results
+        if len(df_jobs) > 100:
+            st.info(f"Showing 100 of {len(df_jobs)} jobs. Use filters to narrow results.")
     else:
-        # Simpler table for unauthenticated users
+        # Display simple table for non-authenticated users
         st.warning("Please log in to track job applications")
         
-        # Convert dataframe to list for simple display
-        job_data = []
+        # Create table data
+        table_data = []
         for i, row in df_jobs.iterrows():
-            job_data.append({
-                "Number": i + 1, 
+            table_data.append({
+                "No.": i+1,
                 "Job Title": row['job_title'],
                 "Company": row['company'],
                 "Location": row['location'],
                 "Posted": format_job_date(row['date_posted']),
-                "Type": row.get('employment_type', ''),
-                "URL": row['job_url']
+                "Apply": row['job_url']
             })
-            
-        # Create DataFrame for display
-        jobs_df = pd.DataFrame(job_data)
         
-        # Display jobs table without applied column
+        # Display as dataframe
         st.dataframe(
-            jobs_df,
+            pd.DataFrame(table_data),
             column_config={
-                "Number": st.column_config.NumberColumn(
-                    "No.",
-                    width="small"
-                ),
-                "Job Title": st.column_config.TextColumn(
-                    "Job Title",
-                    width="large"
-                ),
-                "Company": st.column_config.TextColumn(
-                    "Company",
-                    width="medium"
-                ),
-                "Location": st.column_config.TextColumn(
-                    "Location",
-                    width="medium"
-                ),
-                "Posted": st.column_config.TextColumn(
-                    "Posted",
-                    width="small"
-                ),
-                "Type": st.column_config.TextColumn(
-                    "Type",
-                    width="small"
-                ),
-                "URL": st.column_config.LinkColumn(
-                    "Apply",
-                    width="small",
-                    display_text="Apply"
-                )
+                "Apply": st.column_config.LinkColumn("Apply", display_text="Apply")
             },
-            hide_index=True,
-            use_container_width=True
+            hide_index=True
         )
