@@ -11,6 +11,14 @@ from datetime import datetime
 import pandas as pd
 import streamlit.components.v1 as components
 
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("Loaded environment variables from .env file")
+except ImportError:
+    print("dotenv package not found, skipping .env loading")
+
 # Configure logging
 logger = logging.getLogger('job_tracker.dashboard.utils')
 

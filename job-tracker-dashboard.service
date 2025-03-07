@@ -1,0 +1,16 @@
+[Unit]
+Description=Job Tracker Dashboard
+After=network.target job-tracker-api.service
+Wants=job-tracker-api.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/job-tracker
+ExecStart=/home/ubuntu/job-tracker/venv/bin/python /home/ubuntu/job-tracker/run.py dashboard
+Restart=on-failure
+RestartSec=5s
+Environment="PYTHONPATH=/home/ubuntu/job-tracker"
+
+[Install]
+WantedBy=multi-user.target

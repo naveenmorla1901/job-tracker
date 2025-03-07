@@ -53,7 +53,11 @@ Commands:
         
     elif command == "dashboard":
         # Start the dashboard
-        subprocess.run(["streamlit", "run", "dashboard.py"])
+        try:
+            subprocess.run(["streamlit", "run", "dashboard.py"])
+        except FileNotFoundError:
+            # If streamlit is not in PATH, try using the module approach
+            subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard.py"])
         
     elif command == "purge":
         # Purge old records
