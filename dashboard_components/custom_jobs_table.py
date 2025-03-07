@@ -5,11 +5,16 @@ import streamlit as st
 import pandas as pd
 import requests
 import json
+import time
 from dashboard_components.utils import format_job_date, get_api_url
 from app.dashboard.auth import is_authenticated, api_request, get_token
 
 def display_custom_jobs_table(df_jobs):
     """A clean, simplified implementation of the jobs table with proper checkbox handling"""
+    
+    # Store tracking changes in session state to prevent loss on errors
+    if "tracked_jobs_status" not in st.session_state:
+        st.session_state.tracked_jobs_status = {}
     
     # Get user's tracked jobs if authenticated
     tracked_jobs = {}
@@ -22,11 +27,15 @@ def display_custom_jobs_table(df_jobs):
                         job_id = str(job['id'])
                         is_applied = job.get('tracking', {}).get('is_applied', False)
                         tracked_jobs[job_id] = is_applied
+                        # Update session state
+                        st.session_state.tracked_jobs_status[job_id] = is_applied
             
             # Debug info - show how many tracked jobs were found
             st.write(f"Tracked jobs found: {len(tracked_jobs)}")
         except Exception as e:
             st.error(f"Error fetching tracked jobs: {str(e)}")
+            # If API error, use cached status
+            tracked_jobs = st.session_state.tracked_jobs_status
     
     # Display table header
     st.write("### Job Listings")
@@ -78,7 +87,10 @@ def display_custom_jobs_table(df_jobs):
                         
                         if apply_response.status_code in (200, 201):
                             st.success("API call successful")
-                            st.rerun()
+                            # Update the status in memory
+                            st.session_state.tracked_jobs_status[test_job_id] = test_applied
+                            # Wait a moment to ensure API processes the change
+                            time.sleep(1)
                         else:
                             st.error("API call failed")
                     except Exception as e:
@@ -101,8 +113,8 @@ def display_custom_jobs_table(df_jobs):
             job_type = str(row.get('employment_type', ''))
             job_url = row.get('job_url', '#')
             
-            # Check if job is applied
-            is_applied = tracked_jobs.get(job_id, False)
+            # Check if job is applied - first from session state, then from API data
+            is_applied = st.session_state.tracked_jobs_status.get(job_id, tracked_jobs.get(job_id, False))
             
             # Create a container for each job with columns
             with st.container():
@@ -126,14 +138,18 @@ def display_custom_jobs_table(df_jobs):
                 # Job type
                 cols[5].write(job_type)
                 
-                # Applied status
-                applied_status = cols[6].checkbox("Applied", value=is_applied, key=f"applied_{job_id}")
+                # Applied status - use unique key to prevent interaction between jobs
+                checkbox_key = f"applied_{job_id}_{int(time.time())}"
+                applied_status = cols[6].checkbox("Applied", value=is_applied, key=checkbox_key)
                 
                 # Apply button
                 cols[7].markdown(f"[Apply]({job_url})")
                 
                 # Handle checkbox change
                 if applied_status != is_applied:
+                    # Cache the change immediately to maintain UI consistency
+                    st.session_state.tracked_jobs_status[job_id] = applied_status
+                    
                     # Update the status in the database
                     with st.spinner(f"Updating job status for {job_title}..."):
                         try:
@@ -141,39 +157,69 @@ def display_custom_jobs_table(df_jobs):
                             api_url = get_api_url()
                             token = get_token()
                             
-                            # First track the job
-                            track_url = f"{api_url}/user/jobs/{job_id}/track"
-                            track_headers = {"Authorization": f"Bearer {token}"}
+                            # First track the job with retry logic
+                            max_retries = 3
+                            retries = 0
+                            track_success = False
                             
-                            track_response = requests.post(track_url, headers=track_headers)
-                            st.write(f"Track response: {track_response.status_code}")
+                            while retries < max_retries and not track_success:
+                                try:
+                                    track_url = f"{api_url}/user/jobs/{job_id}/track"
+                                    track_headers = {"Authorization": f"Bearer {token}"}
+                                    
+                                    track_response = requests.post(track_url, headers=track_headers, timeout=5)
+                                    st.write(f"Track response: {track_response.status_code}")
+                                    
+                                    if track_response.status_code in (200, 201, 204):
+                                        track_success = True
+                                    else:
+                                        retries += 1
+                                        time.sleep(1)  # Wait a second before retrying
+                                except Exception:
+                                    retries += 1
+                                    time.sleep(1)
                             
-                            # Now mark as applied/unapplied
-                            apply_url = f"{api_url}/user/jobs/{job_id}/applied"
-                            apply_headers = {
-                                "Authorization": f"Bearer {token}",
-                                "Content-Type": "application/json"
-                            }
-                            apply_data = {"applied": applied_status}
+                            # Now mark as applied/unapplied with retry logic
+                            apply_success = False
+                            retries = 0
                             
-                            st.write(f"Marking job as {'applied' if applied_status else 'not applied'}")
+                            while retries < max_retries and not apply_success:
+                                try:
+                                    apply_url = f"{api_url}/user/jobs/{job_id}/applied"
+                                    apply_headers = {
+                                        "Authorization": f"Bearer {token}",
+                                        "Content-Type": "application/json"
+                                    }
+                                    apply_data = {"applied": applied_status}
+                                    
+                                    st.write(f"Marking job as {'applied' if applied_status else 'not applied'}")
+                                    
+                                    apply_response = requests.put(
+                                        apply_url, 
+                                        headers=apply_headers, 
+                                        json=apply_data,
+                                        timeout=5
+                                    )
+                                    
+                                    st.write(f"Apply response: {apply_response.status_code}")
+                                    
+                                    if apply_response.status_code in (200, 201, 204):
+                                        apply_success = True
+                                        break
+                                    else:
+                                        retries += 1
+                                        time.sleep(1)
+                                except Exception:
+                                    retries += 1
+                                    time.sleep(1)
                             
-                            apply_response = requests.put(
-                                apply_url, 
-                                headers=apply_headers, 
-                                json=apply_data
-                            )
-                            
-                            st.write(f"Apply response: {apply_response.status_code}")
-                            
-                            if apply_response.status_code in (200, 201, 204):
-                                # Update the local tracking dict
-                                tracked_jobs[job_id] = applied_status
+                            if track_success and apply_success:
                                 st.success(f"Updated job status: {job_title} - {'Applied' if applied_status else 'Not Applied'}")
-                                # Force refresh to update UI
-                                st.rerun()
+                                # Don't rerun to avoid potential API errors
+                            elif not track_success:
+                                st.error(f"Failed to track job: {job_title}")
                             else:
-                                st.error(f"Failed to update job status: {job_title}")
+                                st.error(f"Failed to update application status: {job_title}")
                         except Exception as e:
                             st.error(f"Error updating job status: {str(e)}")
                 

@@ -11,6 +11,9 @@ from datetime import datetime
 import pandas as pd
 import streamlit.components.v1 as components
 
+# Configure logging
+logger = logging.getLogger('job_tracker.dashboard.utils')
+
 # Load environment variables
 try:
     from dotenv import load_dotenv
@@ -18,9 +21,6 @@ try:
     print("Loaded environment variables from .env file")
 except ImportError:
     print("dotenv package not found, skipping .env loading")
-
-# Configure logging
-logger = logging.getLogger('job_tracker.dashboard.utils')
 
 def inject_google_analytics():
     """Inject Google Analytics tracking code using a dedicated HTML file"""
@@ -38,8 +38,7 @@ def inject_google_analytics():
         with open(analytics_path, 'r') as f:
             html_content = f.read()
         
-        # Use streamlit component to insert the HTML and sandbox='allow-scripts allow-same-origin'
-        # to allow script execution with same-origin permissions
+        # Use streamlit component to insert the HTML
         st.components.v1.html(html_content, height=1, width=1, scrolling=False)
         logger.info("Google Analytics tracking code injected successfully")
         
@@ -50,7 +49,7 @@ def inject_google_analytics():
 # Read API URL from environment or use default
 def get_api_url():
     """Get API URL from environment variable or use default localhost"""
-    api_url = os.environ.get('JOB_TRACKER_API_URL', 'http://localhost:8000/api')
+    api_url = os.environ.get('JOB_TRACKER_API_URL', 'http://localhost:8001/api')
     
     # Remove trailing slash if present
     if api_url.endswith('/'):
@@ -62,7 +61,7 @@ def get_api_url():
 # Constants
 API_URL = get_api_url()
 
-@st.cache_data(ttl=300)  # Cache data for 5 minutes
+@st.cache_data(ttl=60)  # Cache data for 1 minute only - reduced from 5 minutes
 def fetch_data(endpoint, params=None):
     """Fetch data from API with optional parameters"""
     # Ensure endpoint doesn't have trailing slash for consistent URLs
@@ -81,7 +80,7 @@ def fetch_data(endpoint, params=None):
     try:
         logger.info(f"Fetching data from: {url}")
         fetch_start = time.time()
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)  # Added timeout
         
         # Check for redirect and log it (but still proceed)
         if response.history:
@@ -113,7 +112,7 @@ def fetch_data_with_params(endpoint, params_list):
         
         # Use requests with params as a list of tuples
         # This ensures multiple values for the same key are properly encoded
-        response = requests.get(url, params=params_list)
+        response = requests.get(url, params=params_list, timeout=10)  # Added timeout
         
         # Log the actual URL for debugging
         logger.info(f"Actual request URL: {response.url}")
@@ -152,11 +151,24 @@ def check_api_status():
     try:
         # Get current API URL
         api_url = get_api_url()
-        response = requests.get(f"{api_url}/health", timeout=2)
-        if response.status_code == 200:
-            return True, f"✅ API Connection: Good ({api_url})"
-        else:
-            return False, f"⚠️ API Connection: Issue (Status {response.status_code})"
+        
+        # First try the health endpoint
+        try:
+            response = requests.get(f"{api_url}/health", timeout=2)
+            if response.status_code == 200:
+                return True, f"✅ API Connection: Good ({api_url})"
+        except Exception:
+            # If health endpoint fails, try the root endpoint
+            try:
+                response = requests.get(f"{api_url}", timeout=2)
+                if response.status_code in [200, 307, 404]:  # Accept 404 as the server is running
+                    return True, f"✅ API Connection: Available ({api_url})"
+            except Exception as e:
+                logger.error(f"API Connection Failed: {str(e)}")
+                return False, f"❌ API Connection Failed: Could not connect to {api_url}"
+        
+        # If we got here, the health endpoint returned non-200
+        return False, f"⚠️ API Connection: Issue (Status {response.status_code})"
     except Exception as e:
         api_url = get_api_url()
         logger.error(f"API Connection Failed: {str(e)}")
