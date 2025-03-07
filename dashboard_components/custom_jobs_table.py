@@ -102,6 +102,7 @@ def display_custom_jobs_table(df_jobs):
         <table class="job-table">
             <thead>
                 <tr>
+                    <th>#</th>
                     <th>Job Title</th>
                     <th>Company</th>
                     <th>Location</th>
@@ -136,6 +137,7 @@ def display_custom_jobs_table(df_jobs):
             # Create HTML row
             html += f"""
             <tr>
+                <td>{i+1}</td>
                 <td>{job_title}</td>
                 <td>{company}</td>
                 <td>{location}</td>
@@ -187,7 +189,7 @@ def display_custom_jobs_table(df_jobs):
             // Prevent the default checkbox behavior temporarily
             const checkbox = document.getElementById(`job_${{jobId}}`);
             
-            // First make sure job is tracked
+            // First ensure job is tracked
             fetch(`${{API_URL}}/user/jobs/${{jobId}}/track`, {{
                 method: 'POST',
                 headers: {{
@@ -196,7 +198,8 @@ def display_custom_jobs_table(df_jobs):
                 }}
             }})
             .then(response => {{
-                if (!response.ok) {{
+                // Continue even if response is 400 (job might already be tracked)
+                if (!response.ok && response.status !== 400) {{
                     throw new Error(`Failed to track job (Status: ${{response.status}})`)
                 }}
                 
@@ -247,6 +250,7 @@ def display_custom_jobs_table(df_jobs):
         <table class="job-table">
             <thead>
                 <tr>
+                    <th>#</th>
                     <th>Job Title</th>
                     <th>Company</th>
                     <th>Location</th>
@@ -271,6 +275,7 @@ def display_custom_jobs_table(df_jobs):
             # Create HTML row
             html += f"""
             <tr>
+                <td>{i+1}</td>
                 <td>{job_title}</td>
                 <td>{company}</td>
                 <td>{location}</td>

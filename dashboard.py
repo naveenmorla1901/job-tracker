@@ -86,7 +86,7 @@ def main():
     
     # Different navigation options based on auth status
     if is_authenticated():
-        pages = ["Jobs Dashboard", "My Tracked Jobs"]
+        pages = ["Jobs Dashboard"]
         
         # Add admin pages if user is admin
         if is_admin():
@@ -97,8 +97,6 @@ def main():
         # Map selected page to session state
         if page == "Jobs Dashboard":
             st.session_state.page = 'jobs'
-        elif page == "My Tracked Jobs":
-            st.session_state.page = 'tracked_jobs'
         elif page == "User Management" and is_admin():
             st.session_state.page = 'admin_users'
         elif page == "System Logs" and is_admin():

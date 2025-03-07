@@ -291,12 +291,12 @@ def setup_scheduler():
         replace_existing=True
     )
     
-    # Run all scrapers immediately on startup
-    scheduler.add_job(
-        run_all_scrapers,
-        'date',
-        id="startup_scraper_run"
-    )
+    # Commented out to prevent scraping on every startup
+    # scheduler.add_job(
+    #     run_all_scrapers,
+    #     'date',
+    #     id="startup_scraper_run"
+    # )
     
     scheduler.start()
     logger.info(f"Scheduler started with {len(available_scrapers)} scrapers running hourly from 7 AM to 5 PM")
