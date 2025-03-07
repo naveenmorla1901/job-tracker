@@ -31,7 +31,7 @@ def display_custom_jobs_table(df_jobs):
                         st.session_state.tracked_jobs_status[job_id] = is_applied
             
             # Debug info - show how many tracked jobs were found
-            st.write(f"Tracked jobs found: {len(tracked_jobs)}")
+            st.info(f"Tracked jobs found: {len(tracked_jobs)}")
         except Exception as e:
             st.error(f"Error fetching tracked jobs: {str(e)}")
             # If API error, use cached status
@@ -41,69 +41,49 @@ def display_custom_jobs_table(df_jobs):
     st.write("### Job Listings")
     
     # Create a direct form for testing API calls
-    with st.expander("Direct API Testing"):
+    with st.expander("Direct Job Status Management"):
+        st.write("Use this form to directly mark jobs as applied or not applied.")
+        
         col1, col2, col3 = st.columns(3)
         with col1:
             test_job_id = st.text_input("Job ID", "1")
         with col2:
             test_applied = st.checkbox("Mark as Applied")
         with col3:
-            if st.button("Test API Call"):
-                # Get necessary info
-                api_url = get_api_url()
-                token = get_token()
-                
-                if not token:
-                    st.error("Not authenticated")
-                else:
-                    # First track the job
-                    st.write("Tracking job...")
-                    track_url = f"{api_url}/user/jobs/{test_job_id}/track"
-                    track_headers = {"Authorization": f"Bearer {token}"}
+            if st.button("Update Status"):
+                try:
+                    # Use the API directly
+                    applied_result = api_request(
+                        f"user/jobs/{test_job_id}/applied",
+                        method="PUT",
+                        data={"applied": test_applied}
+                    )
                     
-                    try:
-                        track_response = requests.post(track_url, headers=track_headers)
-                        st.write(f"Track response: {track_response.status_code} - {track_response.text}")
-                        
-                        # Now mark as applied/unapplied
-                        apply_url = f"{api_url}/user/jobs/{test_job_id}/applied"
-                        apply_headers = {
-                            "Authorization": f"Bearer {token}",
-                            "Content-Type": "application/json"
-                        }
-                        apply_data = {"applied": test_applied}
-                        
-                        st.write(f"Marking job as {'applied' if test_applied else 'not applied'}...")
-                        st.write(f"URL: {apply_url}")
-                        st.write(f"Data: {json.dumps(apply_data)}")
-                        
-                        apply_response = requests.put(
-                            apply_url, 
-                            headers=apply_headers, 
-                            data=json.dumps(apply_data)
-                        )
-                        
-                        st.write(f"Apply response: {apply_response.status_code} - {apply_response.text}")
-                        
-                        if apply_response.status_code in (200, 201):
-                            st.success("API call successful")
-                            # Update the status in memory
-                            st.session_state.tracked_jobs_status[test_job_id] = test_applied
-                            # Wait a moment to ensure API processes the change
-                            time.sleep(1)
-                        else:
-                            st.error("API call failed")
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
+                    if applied_result:
+                        st.success(f"Successfully marked job {test_job_id} as {'applied' if test_applied else 'not applied'}")
+                        # Update local cache
+                        st.session_state.tracked_jobs_status[test_job_id] = test_applied
+                        tracked_jobs[test_job_id] = test_applied
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Failed to update status. Make sure the job exists and you have permissions.")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
     
-    # Define columns for the job table
+    # Add a job counter
+    total_jobs = len(df_jobs)
+    applied_jobs = sum(1 for job_id in tracked_jobs if tracked_jobs[job_id])
+    
+    col1, col2 = st.columns(2)
+    col1.metric("Total Jobs", f"{total_jobs}")
+    col2.metric("Applied Jobs", f"{applied_jobs}")
+    
+    # Create a simple table with selection
     if is_authenticated():
-        # Create a form for every job to handle applying
+        # Convert dataframe to a list of jobs with applied status
+        job_rows = []
         for i, row in df_jobs.iterrows():
-            # Limit rows for performance
-            if i >= 100:
-                break
-                
             # Get job info
             job_id = str(row.get('id', ''))
             job_title = str(row.get('job_title', ''))
@@ -113,124 +93,121 @@ def display_custom_jobs_table(df_jobs):
             job_type = str(row.get('employment_type', ''))
             job_url = row.get('job_url', '#')
             
-            # Check if job is applied - first from session state, then from API data
-            is_applied = st.session_state.tracked_jobs_status.get(job_id, tracked_jobs.get(job_id, False))
+            # Check if job is tracked
+            is_applied = tracked_jobs.get(job_id, False)
             
-            # Create a container for each job with columns
-            with st.container():
-                cols = st.columns([1, 10, 3, 3, 3, 2, 2, 2])
-                
-                # Job number
-                cols[0].write(f"#{i+1}")
-                
-                # Job title
-                cols[1].markdown(f"**[{job_title}]({job_url})**")
-                
-                # Company
-                cols[2].write(company)
-                
-                # Location
-                cols[3].write(location)
-                
-                # Date posted
-                cols[4].write(date_posted)
-                
-                # Job type
-                cols[5].write(job_type)
-                
-                # Applied status - use unique key to prevent interaction between jobs
-                checkbox_key = f"applied_{job_id}_{int(time.time())}"
-                applied_status = cols[6].checkbox("Applied", value=is_applied, key=checkbox_key)
-                
-                # Apply button
-                cols[7].markdown(f"[Apply]({job_url})")
-                
-                # Handle checkbox change
-                if applied_status != is_applied:
-                    # Cache the change immediately to maintain UI consistency
-                    st.session_state.tracked_jobs_status[job_id] = applied_status
-                    
-                    # Update the status in the database
-                    with st.spinner(f"Updating job status for {job_title}..."):
-                        try:
-                            # Get necessary info
-                            api_url = get_api_url()
-                            token = get_token()
-                            
-                            # First track the job with retry logic
-                            max_retries = 3
-                            retries = 0
-                            track_success = False
-                            
-                            while retries < max_retries and not track_success:
-                                try:
-                                    track_url = f"{api_url}/user/jobs/{job_id}/track"
-                                    track_headers = {"Authorization": f"Bearer {token}"}
-                                    
-                                    track_response = requests.post(track_url, headers=track_headers, timeout=5)
-                                    st.write(f"Track response: {track_response.status_code}")
-                                    
-                                    if track_response.status_code in (200, 201, 204):
-                                        track_success = True
-                                    else:
-                                        retries += 1
-                                        time.sleep(1)  # Wait a second before retrying
-                                except Exception:
-                                    retries += 1
-                                    time.sleep(1)
-                            
-                            # Now mark as applied/unapplied with retry logic
-                            apply_success = False
-                            retries = 0
-                            
-                            while retries < max_retries and not apply_success:
-                                try:
-                                    apply_url = f"{api_url}/user/jobs/{job_id}/applied"
-                                    apply_headers = {
-                                        "Authorization": f"Bearer {token}",
-                                        "Content-Type": "application/json"
-                                    }
-                                    apply_data = {"applied": applied_status}
-                                    
-                                    st.write(f"Marking job as {'applied' if applied_status else 'not applied'}")
-                                    
-                                    apply_response = requests.put(
-                                        apply_url, 
-                                        headers=apply_headers, 
-                                        json=apply_data,
-                                        timeout=5
-                                    )
-                                    
-                                    st.write(f"Apply response: {apply_response.status_code}")
-                                    
-                                    if apply_response.status_code in (200, 201, 204):
-                                        apply_success = True
-                                        break
-                                    else:
-                                        retries += 1
-                                        time.sleep(1)
-                                except Exception:
-                                    retries += 1
-                                    time.sleep(1)
-                            
-                            if track_success and apply_success:
-                                st.success(f"Updated job status: {job_title} - {'Applied' if applied_status else 'Not Applied'}")
-                                # Don't rerun to avoid potential API errors
-                            elif not track_success:
-                                st.error(f"Failed to track job: {job_title}")
-                            else:
-                                st.error(f"Failed to update application status: {job_title}")
-                        except Exception as e:
-                            st.error(f"Error updating job status: {str(e)}")
-                
-                # Add a separator
-                st.markdown("---")
+            job_rows.append({
+                "number": i+1,
+                "id": job_id,
+                "title": job_title,
+                "company": company,
+                "location": location,
+                "date_posted": date_posted,
+                "type": job_type,
+                "url": job_url,
+                "applied": is_applied
+            })
         
-        # Show message if we limited the number of rows
-        if len(df_jobs) > 100:
-            st.info(f"Showing 100 of {len(df_jobs)} jobs. Use filters to narrow results.")
+        # Convert to dataframe for display
+        display_df = pd.DataFrame(job_rows)
+        
+        # Add applied status column with checkboxes
+        st.data_editor(
+            display_df,
+            column_order=["number", "title", "company", "location", "date_posted", "type", "applied"],
+            column_config={
+                "number": st.column_config.NumberColumn(
+                    "No.",
+                    width="small"
+                ),
+                "id": st.column_config.NumberColumn(
+                    "ID",
+                    width="small",
+                    disabled=True
+                ),
+                "title": st.column_config.TextColumn(
+                    "Job Title",
+                    width="large"
+                ),
+                "company": st.column_config.TextColumn(
+                    "Company",
+                    width="medium"
+                ),
+                "location": st.column_config.TextColumn(
+                    "Location",
+                    width="medium"
+                ),
+                "date_posted": st.column_config.TextColumn(
+                    "Posted",
+                    width="small"
+                ),
+                "type": st.column_config.TextColumn(
+                    "Type",
+                    width="small"
+                ),
+                "url": st.column_config.LinkColumn(
+                    "URL",
+                    width="small",
+                    display_text="Apply"
+                ),
+                "applied": st.column_config.CheckboxColumn(
+                    "Applied",
+                    width="small",
+                    help="Check to mark as applied"
+                )
+            },
+            hide_index=True,
+            use_container_width=True,
+            disabled=["number", "title", "company", "location", "date_posted", "type"]
+        )
+        
+        # Check for changes in the applied status
+        if "edited_rows" in st.session_state:
+            for idx, edits in st.session_state["edited_rows"].items():
+                if "applied" in edits:
+                    # Get the job that was changed
+                    job_idx = int(idx)
+                    job_id = job_rows[job_idx]["id"]
+                    new_status = edits["applied"]
+                    
+                    # Show updating status
+                    with st.spinner(f"Updating job {job_id} to {'applied' if new_status else 'not applied'}..."):
+                        try:
+                            # First track the job
+                            track_result = api_request(
+                                f"user/jobs/{job_id}/track", 
+                                method="POST"
+                            )
+                            
+                            # Then update applied status
+                            applied_result = api_request(
+                                f"user/jobs/{job_id}/applied",
+                                method="PUT",
+                                data={"applied": new_status}
+                            )
+                            
+                            if applied_result:
+                                st.success(f"Updated job {job_id} to {'applied' if new_status else 'not applied'}")
+                                # Update local tracking
+                                st.session_state.tracked_jobs_status[job_id] = new_status
+                            else:
+                                st.error(f"Failed to update job {job_id}")
+                        except Exception as e:
+                            st.error(f"Error updating job: {str(e)}")
+        
+        # Add links to apply
+        st.write("### Apply to Jobs")
+        st.write("Click the links below to apply to jobs:")
+        
+        cols = st.columns(3)
+        for i, job in enumerate(job_rows):
+            col_idx = i % 3
+            with cols[col_idx]:
+                st.markdown(f"[{job['title']} @ {job['company']}]({job['url']})")
+    
     else:
-        # For non-authenticated users: simplified table
+        # For non-authenticated users, show a simpler table
+        job_rows = []
         for i, row in df_jobs.iterrows():
             # Get job info
             job_title = str(row.get('job_title', ''))
@@ -240,30 +217,54 @@ def display_custom_jobs_table(df_jobs):
             job_type = str(row.get('employment_type', ''))
             job_url = row.get('job_url', '#')
             
-            # Create a container for each job with columns
-            with st.container():
-                cols = st.columns([1, 10, 3, 3, 3, 2, 2])
-                
-                # Job number
-                cols[0].write(f"#{i+1}")
-                
-                # Job title
-                cols[1].markdown(f"**[{job_title}]({job_url})**")
-                
-                # Company
-                cols[2].write(company)
-                
-                # Location
-                cols[3].write(location)
-                
-                # Date posted
-                cols[4].write(date_posted)
-                
-                # Job type
-                cols[5].write(job_type)
-                
-                # Apply button
-                cols[6].markdown(f"[Apply]({job_url})")
-                
-                # Add a separator
-                st.markdown("---")
+            job_rows.append({
+                "number": i+1,
+                "title": job_title,
+                "company": company,
+                "location": location,
+                "date_posted": date_posted,
+                "type": job_type,
+                "url": job_url
+            })
+        
+        # Convert to dataframe for display
+        display_df = pd.DataFrame(job_rows)
+        
+        # Display the table
+        st.dataframe(
+            display_df,
+            column_order=["number", "title", "company", "location", "date_posted", "type"],
+            column_config={
+                "number": st.column_config.NumberColumn(
+                    "No.",
+                    width="small"
+                ),
+                "title": st.column_config.TextColumn(
+                    "Job Title",
+                    width="large"
+                ),
+                "company": st.column_config.TextColumn(
+                    "Company",
+                    width="medium"
+                ),
+                "location": st.column_config.TextColumn(
+                    "Location",
+                    width="medium"
+                ),
+                "date_posted": st.column_config.TextColumn(
+                    "Posted",
+                    width="small"
+                ),
+                "type": st.column_config.TextColumn(
+                    "Type",
+                    width="small"
+                ),
+                "url": st.column_config.LinkColumn(
+                    "Apply",
+                    width="small",
+                    display_text="Apply"
+                )
+            },
+            hide_index=True,
+            use_container_width=True
+        )
