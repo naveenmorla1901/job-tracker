@@ -23,6 +23,8 @@ def display_custom_jobs_table(df_jobs):
             
             # Debug info - show how many tracked jobs were found
             st.write(f"Tracked jobs found: {len(tracked_jobs)}")
+            if tracked_jobs:
+                st.write(f"Example of tracked job: {list(tracked_jobs.items())[0]}")
         except Exception as e:
             st.error(f"Error fetching tracked jobs: {str(e)}")
     
@@ -172,6 +174,7 @@ def display_custom_jobs_table(df_jobs):
         <script>
         const AUTH_TOKEN = "{token}";
         const API_URL = "{api_url}";
+        const trackedJobs = {tracked_jobs};
         
         // Function to show notification
         function showNotification(message, isSuccess) {{
@@ -187,62 +190,121 @@ def display_custom_jobs_table(df_jobs):
             }}, 3000);
         }}
         
-        // Function to update job application status
-        function updateJob(jobId, isApplied) {{
+        // Set up cookie logic to help debugging
+        function setCookie(name, value, days) {{
+            let expires = '';
+            if (days) {{
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = '; expires=' + date.toUTCString();
+            }}
+            document.cookie = name + '=' + (value || '') + expires + '; path=/';
+        }}
+        
+        // Function to directly use API to track job
+        async function trackAndMarkJob(jobId, isApplied) {{
             console.log(`Updating job ${{jobId}} to applied=${{isApplied}}`);
             console.log(`Using API URL: ${{API_URL}}`);
             
-            // Prevent the default checkbox behavior temporarily
-            const checkbox = document.getElementById(`job_${{jobId}}`);
-            
-            // First ensure job is tracked
-            fetch(`${{API_URL}}/user/jobs/${{jobId}}/track`, {{
-                method: 'POST',
-                headers: {{
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${{AUTH_TOKEN}}`
-                }}
-            }})
-            .then(response => {{
-                // Continue even if response is 400 (job might already be tracked)
-                if (!response.ok && response.status !== 400) {{
-                    throw new Error(`Failed to track job (Status: ${{response.status}})`)
-                }}
-                
-                // Now update applied status
-                return fetch(`${{API_URL}}/user/jobs/${{jobId}}/applied`, {{
-                    method: 'PUT',
+            // Directly use API call through the window
+            try {{
+                // First track the job
+                const trackResponse = await fetch('${{window.location.origin}}/api/track_job', {{
+                    method: 'POST',
                     headers: {{
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${{AUTH_TOKEN}}`
                     }},
-                    body: JSON.stringify({{ applied: isApplied }})
-                }})
-            }})
-            .then(response => {{
-                if (!response.ok) {{
-                    throw new Error(`Failed to update application status (Status: ${{response.status}})`)
+                    body: JSON.stringify({{ job_id: jobId }})
+                }});
+                
+                if (!trackResponse.ok) {{
+                    throw new Error(`Failed to track job (Status: ${{trackResponse.status}})`);
                 }}
                 
-                console.log(`Job ${{jobId}} status updated: ${{isApplied}}`);
-                showNotification("Job status updated successfully", true);
-            }})
-            .catch(error => {{
+                // Then mark it as applied
+                const markResponse = await fetch('${{window.location.origin}}/api/mark_job_applied', {{
+                    method: 'POST',
+                    headers: {{
+                        'Content-Type': 'application/json',
+                    }},
+                    body: JSON.stringify({{ job_id: jobId, applied: isApplied }})
+                }});
+                
+                if (!markResponse.ok) {{
+                    throw new Error(`Failed to mark job as applied (Status: ${{markResponse.status}})`);
+                }}
+                
+                showNotification("Job status updated successfully!", true);
+                
+                // Store in cookie for debugging
+                setCookie(`job_${{jobId}}_applied`, isApplied ? "true" : "false", 7);
+                
+                // Need to reload the page to see the changes
+                setTimeout(() => {{
+                    window.location.reload();
+                }}, 1000);
+                
+                return true;
+            }} catch (error) {{
                 console.error('Error updating job:', error);
-                
-                // Revert checkbox state since the operation failed
-                if (checkbox) {{
-                    checkbox.checked = !isApplied;
-                }}
-                
-                showNotification("Error updating job status: " + error.message, false);
-            }});
+                showNotification("Error: " + error.message, false);
+                return false;
+            }}
+        }}
+        
+        // Function to update job application status
+        function updateJob(jobId, isApplied) {{
+            // Update UI first
+            const checkbox = document.getElementById(`job_${{jobId}}`);
+            if (checkbox) {{
+                checkbox.disabled = true; // Disable while processing
+            }}
+            
+            // Use the Streamlit route for API calls
+            trackAndMarkJob(jobId, isApplied)
+                .then(success => {{
+                    if (checkbox) {{
+                        checkbox.disabled = false;
+                        // If failed, revert the checkbox
+                        if (!success) {{
+                            checkbox.checked = !isApplied;
+                        }}
+                    }}
+                }});
         }}
         </script>
         """
         
         # Display the HTML table
         st.components.v1.html(html, height=700, scrolling=True)
+        
+        # Add simple form for direct API interaction
+        with st.expander("Direct API Form (for testing)"):
+            col1, col2 = st.columns(2)
+            with col1:
+                test_job_id = st.text_input("Job ID")
+            with col2:
+                test_applied = st.checkbox("Mark as Applied")
+            
+            if st.button("Update Job Status"):
+                try:
+                    # First track the job
+                    track_result = api_request(f"user/jobs/{test_job_id}/track", method="POST")
+                    
+                    # Then mark it as applied
+                    apply_result = api_request(
+                        f"user/jobs/{test_job_id}/applied", 
+                        method="PUT",
+                        data={"applied": test_applied}
+                    )
+                    
+                    if track_result and apply_result:
+                        st.success(f"Successfully updated job {test_job_id} (Applied: {test_applied})")
+                        st.rerun()
+                    else:
+                        st.error("Failed to update job status")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
         
         # Show message if we limited the number of rows
         if len(df_jobs) > 100:
