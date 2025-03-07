@@ -1,5 +1,5 @@
 """
-Simple, clean jobs table with automatic saving of job application status
+Jobs table with save button for application status changes
 """
 import streamlit as st
 import pandas as pd
@@ -93,7 +93,7 @@ def update_job_status(user_email, job_id, applied):
         return False
 
 def display_custom_jobs_table(df_jobs):
-    """Display a simple, clean jobs table with automatic saving of status changes"""
+    """Display a clean jobs table with save button for application status changes"""
     
     # Get user information if authenticated
     user_email = None
@@ -110,158 +110,118 @@ def display_custom_jobs_table(df_jobs):
     if user_email:
         tracked_jobs = get_tracked_jobs(user_email)
     
-    # Create table data
-    table_data = []
-    
-    for i, row in df_jobs.iterrows():
-        job_id = str(row['id'])
-        job_title = row['job_title']
-        company = row['company']
-        location = row['location']
-        date_posted = format_job_date(row['date_posted'])
-        job_type = row.get('employment_type', '')
-        job_url = row['job_url']
-        
-        # Create dictionary for this job
-        job_data = {
-            "No.": i+1,
-            "Job Title": job_title,
-            "Company": company,
-            "Location": location,
-            "Posted": date_posted,
-            "Type": job_type,
-            "Apply": job_url,
-        }
-        
-        # Add applied status if user is authenticated
-        if user_email:
-            job_data["Applied"] = tracked_jobs.get(job_id, False)
-            job_data["ID"] = job_id  # renamed from job_id to avoid confusion
-        
-        table_data.append(job_data)
-    
-    # Create DataFrame for display
-    df_display = pd.DataFrame(table_data)
-    
-    # Display table based on authentication status
+    # Display jobs table
     if is_authenticated():
-        # Create column configuration without using the 'visible' parameter
-        column_config = {
-            "No.": st.column_config.NumberColumn(
-                "No.",
-                width="small",
-                help="Job number"
-            ),
-            "Job Title": st.column_config.TextColumn(
-                "Job Title",
-                width="large"
-            ),
-            "Company": st.column_config.TextColumn(
-                "Company", 
-                width="medium"
-            ),
-            "Location": st.column_config.TextColumn(
-                "Location",
-                width="medium"
-            ),
-            "Posted": st.column_config.TextColumn(
-                "Posted", 
-                width="small"
-            ),
-            "Type": st.column_config.TextColumn(
-                "Type",
-                width="small"
-            ),
-            "Applied": st.column_config.CheckboxColumn(
-                "Applied",
-                help="Check to mark as applied",
-                width="small"
-            ),
-            "Apply": st.column_config.LinkColumn(
-                "Apply",
-                display_text="Apply",
-                width="small"
-            )
-        }
+        # Store checkbox states in session state
+        if "job_checkboxes" not in st.session_state:
+            st.session_state.job_checkboxes = {}
         
-        # Exclude ID from displayed columns
-        editor = st.data_editor(
-            df_display.drop(columns=["ID"], errors="ignore"),  # Drop ID from display
-            column_order=["No.", "Job Title", "Company", "Location", "Posted", "Type", "Applied", "Apply"],
-            column_config=column_config,
-            disabled=["No.", "Job Title", "Company", "Location", "Posted", "Type", "Apply"],
-            hide_index=True,
-            use_container_width=True,
-            key="job_table"
-        )
+        # Initialize checkbox states with tracked jobs
+        for job_id, is_applied in tracked_jobs.items():
+            if job_id not in st.session_state.job_checkboxes:
+                st.session_state.job_checkboxes[job_id] = is_applied
         
-        # We need to keep the ID for tracking changes
-        df_with_id = df_display
-        
-        # Check for changes in the edited_rows
-        if "edited_rows" in st.session_state:
-            for row_idx, edits in st.session_state.edited_rows.items():
-                if "Applied" in edits and int(row_idx) < len(table_data):
-                    # Get the job ID and new status
-                    job_id = table_data[int(row_idx)]["ID"]  # Using the renamed field
-                    new_status = edits["Applied"]
+        # Display each job with columns
+        for i, row in df_jobs.iterrows():
+            # Limit to 100 jobs for performance
+            if i >= 100:
+                break
+                
+            # Get job details
+            job_id = str(row['id'])
+            job_title = row['job_title']
+            company = row['company']
+            location = row['location']
+            date_posted = format_job_date(row['date_posted'])
+            job_type = row.get('employment_type', '')
+            job_url = row['job_url']
+            
+            # Default to False if not in tracked jobs
+            is_tracked = job_id in tracked_jobs
+            is_applied = tracked_jobs.get(job_id, False)
+            
+            # Add job to session state if not present
+            if job_id not in st.session_state.job_checkboxes:
+                st.session_state.job_checkboxes[job_id] = is_applied
+            
+            # Create job card with columns
+            with st.container():
+                cols = st.columns([1, 4, 3, 3, 2, 2, 2, 2])
+                
+                # Column 1: Number
+                cols[0].write(f"#{i+1}")
+                
+                # Column 2: Job Title and Company
+                cols[1].markdown(f"**{job_title}**")
+                cols[1].write(f"{company}")
+                
+                # Column 3: Location
+                cols[2].write(location)
+                
+                # Column 4: Date Posted and Type
+                cols[3].write(f"Posted: {date_posted}")
+                cols[3].write(f"Type: {job_type}")
+                
+                # Column 5: Applied Status
+                # Use session state to maintain checkbox values between renders
+                checkbox_key = f"applied_{job_id}"
+                is_checked = cols[4].checkbox("Applied", value=st.session_state.job_checkboxes[job_id], key=checkbox_key)
+                
+                # Update session state if checkbox changed
+                if is_checked != st.session_state.job_checkboxes[job_id]:
+                    st.session_state.job_checkboxes[job_id] = is_checked
+                
+                # Column 6: Save Button
+                if cols[5].button("Save", key=f"save_{job_id}"):
+                    new_status = st.session_state.job_checkboxes[job_id]
                     
-                    # Show a status message
-                    with st.spinner(f"Updating job {job_id}..."):
+                    # Show saving indicator
+                    with st.spinner(f"Updating job status..."):
                         success = update_job_status(user_email, int(job_id), new_status)
                         
                         if success:
-                            # Show brief success message that auto-dismisses
-                            message = st.empty()
-                            message.success(f"Job {job_id} status updated")
-                            time.sleep(1)
-                            message.empty()
+                            st.success(f"Job status updated: {'Applied' if new_status else 'Not Applied'}")
+                            
+                            # Update tracked jobs dictionary for display
+                            tracked_jobs[job_id] = new_status
                         else:
-                            st.error(f"Failed to update job {job_id}")
-    else:
-        # For non-logged-in users, show a simple table without the Applied column
-        columns_to_drop = ["ID", "Applied"]
-        display_df = df_display.copy()
-        for col in columns_to_drop:
-            if col in display_df.columns:
-                display_df = display_df.drop(columns=[col])
+                            st.error("Failed to update job status")
                 
+                # Column 7: Apply Button
+                cols[6].markdown(f"[Apply]({job_url})")
+            
+            # Add separator
+            st.markdown("---")
+        
+        # Show message if limiting results
+        if len(df_jobs) > 100:
+            st.info(f"Showing 100 of {len(df_jobs)} jobs. Use filters to narrow results.")
+    else:
+        # For non-logged-in users, show a simple table
+        table_data = []
+        for i, row in df_jobs.iterrows():
+            table_data.append({
+                "No.": i+1,
+                "Job Title": row['job_title'],
+                "Company": row['company'],
+                "Location": row['location'],
+                "Posted": format_job_date(row['date_posted']),
+                "Type": row.get('employment_type', ''),
+                "Apply": row['job_url']
+            })
+        
+        # Convert to DataFrame for display
+        df_display = pd.DataFrame(table_data)
+        
+        # Display table
         st.dataframe(
-            display_df,
-            use_container_width=True,
+            df_display,
             column_config={
-                "No.": st.column_config.NumberColumn(
-                    "No.",
-                    width="small"
-                ),
-                "Job Title": st.column_config.TextColumn(
-                    "Job Title",
-                    width="large"
-                ),
-                "Company": st.column_config.TextColumn(
-                    "Company",
-                    width="medium"
-                ),
-                "Location": st.column_config.TextColumn(
-                    "Location",
-                    width="medium"
-                ),
-                "Posted": st.column_config.TextColumn(
-                    "Posted",
-                    width="small"
-                ),
-                "Type": st.column_config.TextColumn(
-                    "Type",
-                    width="small"
-                ),
-                "Apply": st.column_config.LinkColumn(
-                    "Apply",
-                    display_text="Apply",
-                    width="small"
-                )
+                "Apply": st.column_config.LinkColumn("Apply", display_text="Apply")
             },
-            height=600,
-            hide_index=True
+            hide_index=True,
+            use_container_width=True,
+            height=600
         )
         
         # Show login message
