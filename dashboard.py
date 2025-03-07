@@ -40,6 +40,10 @@ def main():
     if args.api_url:
         os.environ['JOB_TRACKER_API_URL'] = args.api_url
         logger.info(f"Using API URL from command line: {args.api_url}")
+    else:
+        # Force API URL to port 8001 if not explicitly set
+        os.environ['JOB_TRACKER_API_URL'] = 'http://localhost:8001/api'
+        logger.info(f"Setting default API URL to: http://localhost:8001/api")
     
     # Setup page configuration - MUST be the first Streamlit command
     st.set_page_config(

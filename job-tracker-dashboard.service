@@ -11,6 +11,7 @@ ExecStart=/home/ubuntu/job-tracker/venv/bin/python /home/ubuntu/job-tracker/run.
 Restart=on-failure
 RestartSec=5s
 Environment="PYTHONPATH=/home/ubuntu/job-tracker"
+Environment="JOB_TRACKER_API_URL=http://localhost:8001/api"
 
 [Install]
 WantedBy=multi-user.target

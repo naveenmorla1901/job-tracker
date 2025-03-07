@@ -54,9 +54,12 @@ Commands:
     elif command == "dashboard":
         # Start the dashboard
         try:
+            # Set the API URL explicitly
+            os.environ['JOB_TRACKER_API_URL'] = 'http://localhost:8001/api'
             subprocess.run(["streamlit", "run", "dashboard.py"])
         except FileNotFoundError:
             # If streamlit is not in PATH, try using the module approach
+            os.environ['JOB_TRACKER_API_URL'] = 'http://localhost:8001/api'
             subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard.py"])
         
     elif command == "purge":

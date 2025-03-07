@@ -162,8 +162,11 @@ def display_custom_jobs_table(df_jobs):
         """
         
         # Add JavaScript for tracking job applications
-        api_url = get_api_url()
+        api_url = get_api_url() or 'http://localhost:8001/api'
         token = get_token() or ""  # Get token from session state
+        
+        # Debug info
+        st.write(f"API URL: {api_url}")
         
         html += f"""
         <script>
@@ -186,6 +189,9 @@ def display_custom_jobs_table(df_jobs):
         
         // Function to update job application status
         function updateJob(jobId, isApplied) {{
+            console.log(`Updating job ${{jobId}} to applied=${{isApplied}}`);
+            console.log(`Using API URL: ${{API_URL}}`);
+            
             // Prevent the default checkbox behavior temporarily
             const checkbox = document.getElementById(`job_${{jobId}}`);
             
