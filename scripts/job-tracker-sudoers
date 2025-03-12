@@ -1,0 +1,4 @@
+ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl restart job-tracker-api.service
+ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl restart job-tracker-dashboard.service
+ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl start job-tracker-api.service
+ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl start job-tracker-dashboard.service

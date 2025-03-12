@@ -43,3 +43,4 @@ jobs:
       run: |
         rsync -avz -e "ssh -o StrictHostKeyChecking=no" --exclude '.git' --exclude 'venv' --exclude '__pycache__' . ubuntu@170.9.227.112:~/job-tracker/
         ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/deploy.sh"
+        ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "chmod +x ~/job-tracker/.git/hooks/post-receive"

@@ -145,7 +145,13 @@ sudo nginx -t
 # Check Nginx logs
 sudo tail -f /var/log/nginx/error.log
 sudo tail -f /var/log/nginx/access.log
+
+# View Git hook execution log (if restart isn't working)
+journalctl -u job-tracker-api.service | grep post-receive
+journalctl -u job-tracker-dashboard.service | grep post-receive
 ```
+
+> **Note:** Services now automatically restart after pushing changes to the repository. See [Auto Restart Documentation](docs/AUTO_RESTART.md) for details.
 
 ## API Reference
 
@@ -190,6 +196,7 @@ python run.py help          # Show all available commands
 
 ## Recent Enhancements
 
+- **Automatic Service Restart**: Added Git hook to automatically restart services after pushing changes
 - **Dark Mode Toggle**: Added user-selectable dark theme for better viewing experience
 - **Mobile Responsiveness**: Optimized layout for mobile devices
 - **Pagination**: Added navigation controls for large result sets
