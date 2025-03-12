@@ -47,7 +47,7 @@ pkill -f "streamlit run dashboard.py" || echo "No dashboard running"
 
 echo "Starting services..."
 # Start services using nohup for initial deployment
-nohup uvicorn main:app --host 0.0.0.0 --port 8000 > api.log 2>&1 &
+nohup uvicorn main:app --host 0.0.0.0 --port 8001 > api.log 2>&1 &
 nohup streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &
 
 echo "Cleaning up old logs..."
