@@ -4,6 +4,7 @@ Simple runner script for the Job Tracker
 import os
 import sys
 import subprocess
+import time
 from port_utils import ensure_port_is_free, find_free_port
 
 def main():
@@ -38,11 +39,18 @@ Commands:
 
     # Execute the appropriate command
     if command == "api":
-        # Free port 8000 or find an alternative
-        port = 8000
+        # Always use port 8001 for API to match dashboard expectations
+        port = 8001
+        # Make sure port 8001 is free
         if not ensure_port_is_free(port):
-            port = find_free_port(8001)
-            print(f"Port 8000 is not available. Using port {port} instead.")
+            print(f"Forcing port {port} to be freed...")
+            # Try harder to free the port
+            for _ in range(3):
+                if ensure_port_is_free(port):
+                    break
+                time.sleep(1)
+            else:
+                print(f"WARNING: Could not free port {port}. Service might fail to start properly.")
         
         # Start the API server
         try:
