@@ -13,6 +13,97 @@ import hashlib
 # Configure logging
 logger = logging.getLogger("job_tracker.dashboard.auth")
 
+# Store session data in file for persistence
+def get_session_storage_path():
+    """Get the path to the session storage file"""
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    storage_dir = os.path.join(base_dir, 'data')
+    
+    # Ensure directory exists
+    os.makedirs(storage_dir, exist_ok=True)
+    
+    return os.path.join(storage_dir, 'sessions.json')
+
+def save_session_data(session_id, token, user_data, expiry):
+    """Save session data to file for persistence"""
+    try:
+        import json
+        import os
+        
+        # Load existing sessions
+        sessions = {}
+        storage_path = get_session_storage_path()
+        
+        if os.path.exists(storage_path):
+            try:
+                with open(storage_path, 'r') as f:
+                    sessions = json.load(f)
+            except:
+                # If file is corrupted, start fresh
+                sessions = {}
+        
+        # Add or update the session
+        sessions[session_id] = {
+            'token': hash_token(token),
+            'user': user_data,
+            'expiry': expiry
+        }
+        
+        # Save back to file
+        with open(storage_path, 'w') as f:
+            json.dump(sessions, f)
+            
+        logger.info(f"Saved session data for user: {user_data.get('email')}")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving session data: {e}")
+        return False
+
+def load_session_data():
+    """Load all session data from file"""
+    try:
+        import json
+        import os
+        
+        storage_path = get_session_storage_path()
+        
+        if os.path.exists(storage_path):
+            with open(storage_path, 'r') as f:
+                return json.load(f)
+        return {}
+    except Exception as e:
+        logger.error(f"Error loading session data: {e}")
+        return {}
+
+def remove_session_data(session_id):
+    """Remove a session from the storage file"""
+    try:
+        import json
+        import os
+        
+        storage_path = get_session_storage_path()
+        
+        if os.path.exists(storage_path):
+            # Load existing sessions
+            with open(storage_path, 'r') as f:
+                sessions = json.load(f)
+            
+            # Remove the session if it exists
+            if session_id in sessions:
+                del sessions[session_id]
+                
+                # Save back to file
+                with open(storage_path, 'w') as f:
+                    json.dump(sessions, f)
+                    
+                logger.info(f"Removed session data for session ID: {session_id}")
+                return True
+        return False
+    except Exception as e:
+        logger.error(f"Error removing session data: {e}")
+        return False
+
 # Add functions for persistent login
 def generate_session_id():
     """Generate a unique session ID"""
@@ -25,7 +116,7 @@ def get_session_cookie_key():
 def hash_token(token):
     """Create a hash of the token for more secure storage"""
     return hashlib.sha256(token.encode()).hexdigest()
-
+    
 def set_auth_cookie(token, user_data):
     """Set a cookie with authentication data"""
     session_id = generate_session_id()
@@ -35,12 +126,15 @@ def set_auth_cookie(token, user_data):
     if "persistent_auth" not in st.session_state:
         st.session_state.persistent_auth = {}
     
-    # Store session info
+    # Store session info in session state
     st.session_state.persistent_auth[session_id] = {
         "token": hash_token(token),
         "user": user_data,
         "expiry": expiry.timestamp()
     }
+    
+    # Save to persistent storage
+    save_session_data(session_id, token, user_data, expiry.timestamp())
     
     # Create cookie via JavaScript
     js_code = f"""
@@ -109,30 +203,41 @@ def check_for_auth_cookie():
     # Inject the JavaScript to check for cookies
     st.markdown(js_code, unsafe_allow_html=True)
     
-    # For simplicity, we'll use a simpler method than components that works with older Streamlit versions
-    # Since we can't directly get data from the browser, we'll check if our session state already has authentication
-    
     # If we're already authenticated in session state, we're done
     if is_authenticated():
         return True
     
-    # If we have a persistent_auth entry in session state, try to use saved sessions
-    if "persistent_auth" in st.session_state and st.session_state.persistent_auth:
-        # In this approach, we can't get the exact session ID from cookies
-        # But we can check all stored sessions for any that are still valid
-        for session_id, session_data in st.session_state.persistent_auth.items():
-            # Check if session is still valid (not expired)
-            if session_data and "expiry" in session_data:
-                current_time = datetime.utcnow().timestamp()
-                if session_data["expiry"] > current_time and "user" in session_data:
-                    # Restore the session
-                    st.session_state.auth_status = {
-                        "is_authenticated": True,
-                        "user": session_data["user"],
-                        "token": session_data["token"]  # This is a hash, not the actual token
-                    }
-                    logger.info(f"Restored session for user: {session_data['user'].get('email')}")
-                    return True
+    # Get sessions from file storage
+    sessions = load_session_data()
+    
+    # First check session state for sessions
+    if "persistent_auth" not in st.session_state or not st.session_state.persistent_auth:
+        # If not in session state, load from file
+        st.session_state.persistent_auth = sessions
+    
+    if sessions:
+        # Find the most recent valid session
+        current_time = datetime.utcnow().timestamp()
+        valid_sessions = [
+            (sid, data) for sid, data in sessions.items()
+            if data.get("expiry", 0) > current_time and "user" in data
+        ]
+        
+        # Sort by expiry time descending (most recent first)
+        valid_sessions.sort(key=lambda x: x[1].get("expiry", 0), reverse=True)
+        
+        if valid_sessions:
+            # Use the most recent session
+            session_id, session_data = valid_sessions[0]
+            
+            # Restore the session
+            st.session_state.auth_status = {
+                "is_authenticated": True,
+                "user": session_data["user"],
+                "token": session_data["token"]  # This is a hash, not the actual token
+            }
+            logger.info(f"Restored session for user: {session_data['user'].get('email')}")
+            return True
     
     return False
 
@@ -253,6 +358,33 @@ def logout():
         if st.session_state.auth_status.get("user"):
             user_email = st.session_state.auth_status.get("user").get("email")
             
+        # Get the session ID from localStorage
+        js_code = """
+        <script>
+        // Get the current session ID
+        const sessionId = localStorage.getItem('job_tracker_session_id');
+        if (sessionId) {
+            // Store it in sessionStorage for retrieval
+            sessionStorage.setItem('logout_session_id', sessionId);
+        }
+        </script>
+        """
+        st.markdown(js_code, unsafe_allow_html=True)
+        
+        # For any session IDs in persistent_auth, try to remove them
+        if "persistent_auth" in st.session_state:
+            # Get existing session data
+            sessions = load_session_data()
+            
+            # Remove all sessions for this user
+            for session_id, session_data in list(sessions.items()):
+                if session_data.get("user", {}).get("email") == user_email:
+                    remove_session_data(session_id)
+            
+            # Clear the session state
+            st.session_state.persistent_auth = {}
+        
+        # Reset auth status
         st.session_state.auth_status = {
             "is_authenticated": False,
             "user": None,

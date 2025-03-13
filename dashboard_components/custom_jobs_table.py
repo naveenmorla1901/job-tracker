@@ -133,8 +133,8 @@ def display_custom_jobs_table(df_jobs):
     
     /* Reduce height for containers */
     div.element-container {
-        margin-top: 0.1rem !important;
-        margin-bottom: 0.1rem !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
         padding-top: 0 !important;
         padding-bottom: 0 !important;
     }
@@ -144,13 +144,14 @@ def display_custom_jobs_table(df_jobs):
         font-size: 1rem !important;
         font-weight: bold;
         margin-bottom: 0 !important;
-        line-height: 1.2 !important;
+        padding-bottom: 0 !important;
+        line-height: 1.1 !important;
     }
     
     /* Smaller text for captions but not too small */
     .caption-text {
         font-size: 0.9rem !important;
-        line-height: 1.1 !important;
+        line-height: 1 !important;
         margin: 0 !important;
         padding: 0 !important;
         color: #888;
@@ -158,8 +159,9 @@ def display_custom_jobs_table(df_jobs):
     
     /* Reduce space between job listings */
     hr {
-        margin: 2px 0 !important;
+        margin: 0 !important;
         padding: 0 !important;
+        border-top: 1px solid rgba(200, 200, 200, 0.1) !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -185,10 +187,6 @@ def display_custom_jobs_table(df_jobs):
         
         # Display each job with columns
         for i, row in df_jobs.iterrows():
-            # Limit to 100 jobs for performance
-            if i >= 100:
-                break
-                
             # Get job details
             job_id = str(row['id'])
             job_title = row['job_title']
@@ -269,7 +267,7 @@ def display_custom_jobs_table(df_jobs):
                     </div>
                     
                     <script>
-                    // Auto-remove the notification after 3 seconds
+                    // Auto-remove the notification after 5 seconds
                     setTimeout(function() {{
                         const notification = document.getElementById('save-notification-{job_id}');
                         if (notification) {{
@@ -284,16 +282,12 @@ def display_custom_jobs_table(df_jobs):
                                 }}
                             }}, 1000);
                         }}
-                    }}, 2000);
+                    }}, 4000);  // Show for 4 seconds before starting fade
                     </script>
                     """, unsafe_allow_html=True)
             
-            # Add a minimal separator
-            st.markdown("<hr style='margin: 1px 0; opacity: 0.2; border-top: 1px solid #ccc;'>", unsafe_allow_html=True)
-        
-        # Show message if limiting results
-        if len(df_jobs) > 100:
-            st.info(f"Showing 100 of {len(df_jobs)} jobs. Use filters to narrow results.")
+            # Add an extremely minimal separator
+            st.markdown("<hr style='margin: 0; opacity: 0.1; border-top: 1px solid #ccc;'>", unsafe_allow_html=True)
     else:
         # For non-logged-in users, show a simple table
         table_data = []
