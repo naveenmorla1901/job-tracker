@@ -102,6 +102,54 @@ def display_custom_jobs_table(df_jobs):
         if user and "email" in user:
             user_email = user["email"]
     
+    # Apply compact styling
+    st.markdown("""
+    <style>
+    /* Compact table styling */
+    .stContainer, .block-container {
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+    }
+    
+    /* Reduce space between elements */
+    div.stMarkdown p {
+        margin-bottom: 0.2rem !important;
+        line-height: 1.2 !important;
+    }
+    
+    /* Make checkboxes and buttons more compact */
+    div.stCheckbox, button {
+        padding: 0.1rem !important;
+        margin: 0.1rem !important;
+    }
+    
+    /* More compact markdown */
+    .stMarkdown {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    
+    /* Reduce height for containers */
+    div.element-container {
+        margin-top: 0.2rem !important;
+        margin-bottom: 0.2rem !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    
+    /* Smaller text for captions */
+    .caption-text {
+        font-size: 0.8rem !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #888;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Display header
     st.header("Job Listings")
     
@@ -146,52 +194,64 @@ def display_custom_jobs_table(df_jobs):
             
             # Create job card with columns
             with st.container():
-                cols = st.columns([1, 4, 3, 3, 2, 2, 2, 2])
+                cols = st.columns([1, 3, 2, 2, 1, 1, 1])
                 
                 # Column 1: Number
                 cols[0].write(f"#{i+1}")
                 
                 # Column 2: Job Title and Company
                 cols[1].markdown(f"**{job_title}**")
-                cols[1].write(f"{company}")
+                cols[1].markdown(f"<span class='caption-text'>{company}</span>", unsafe_allow_html=True)
                 
                 # Column 3: Location
-                cols[2].write(location)
+                cols[2].markdown(f"<span class='caption-text'>{location}</span>", unsafe_allow_html=True)
                 
                 # Column 4: Date Posted and Type
-                cols[3].write(f"Posted: {date_posted}")
-                cols[3].write(f"Type: {job_type}")
+                cols[3].markdown(f"<span class='caption-text'>Posted: {date_posted}</span>", unsafe_allow_html=True)
+                cols[3].markdown(f"<span class='caption-text'>Type: {job_type}</span>", unsafe_allow_html=True)
                 
                 # Column 5: Applied Status
                 # Use session state to maintain checkbox values between renders
                 checkbox_key = f"applied_{job_id}"
-                is_checked = cols[4].checkbox("Applied", value=st.session_state.job_checkboxes[job_id], key=checkbox_key)
+                is_checked = cols[4].checkbox("", value=st.session_state.job_checkboxes[job_id], key=checkbox_key, help="Mark as applied")
                 
                 # Update session state if checkbox changed
                 if is_checked != st.session_state.job_checkboxes[job_id]:
                     st.session_state.job_checkboxes[job_id] = is_checked
                 
                 # Column 6: Save Button
-                if cols[5].button("Save", key=f"save_{job_id}"):
+                save_key = f"save_{job_id}"
+                if cols[5].button("Save", key=save_key):
                     new_status = st.session_state.job_checkboxes[job_id]
                     
-                    # Show saving indicator
-                    with st.spinner(f"Updating job status..."):
-                        success = update_job_status(user_email, int(job_id), new_status)
+                    # Update the job status
+                    success = update_job_status(user_email, int(job_id), new_status)
+                    
+                    if success:
+                        # Store the job ID that was just saved for showing a highlight
+                        st.session_state.last_saved_job = job_id
+                        st.session_state.last_saved_time = time.time()
                         
-                        if success:
-                            st.success(f"Job status updated: {'Applied' if new_status else 'Not Applied'}")
-                            
-                            # Update tracked jobs dictionary for display
-                            tracked_jobs[job_id] = new_status
-                        else:
-                            st.error("Failed to update job status")
+                        # Update tracked jobs dictionary for display
+                        tracked_jobs[job_id] = new_status
+                    else:
+                        st.error("Failed to update job status")
                 
                 # Column 7: Apply Button
                 cols[6].markdown(f"[Apply]({job_url})")
+                
+                # Add highlight effect for recently saved job
+                if hasattr(st.session_state, 'last_saved_job') and \
+                   hasattr(st.session_state, 'last_saved_time') and \
+                   st.session_state.last_saved_job == job_id and \
+                   time.time() - st.session_state.last_saved_time < 5:  # Show for 5 seconds
+                    st.markdown(f"""
+                    <div style="position: relative; padding: 8px; margin-top: -65px; margin-left: 80%; background-color: #4CAF50; 
+                              color: white; border-radius: 4px; font-size: 12px; z-index: 1000;">✓ Saved!</div>
+                    """, unsafe_allow_html=True)
             
-            # Add separator
-            st.markdown("---")
+            # Add a thinner separator
+            st.markdown("<hr style='margin: 5px 0; opacity: 0.3;'>", unsafe_allow_html=True)
         
         # Show message if limiting results
         if len(df_jobs) > 100:

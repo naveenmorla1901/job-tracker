@@ -410,14 +410,3 @@ def user_menu():
             if st.button("Logout"):
                 logout()
                 st.rerun()
-                
-        # Admin section
-        if is_admin():
-            st.sidebar.markdown("---")
-            st.sidebar.markdown("### Admin")
-            if st.sidebar.button("User Management"):
-                st.session_state.page = "admin_users"
-                st.rerun()
-            if st.sidebar.button("System Logs"):
-                st.session_state.page = "system_logs"
-                st.rerun()
