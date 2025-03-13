@@ -103,7 +103,10 @@ sudo systemctl enable job-tracker-dashboard.service
 # Start API service first
 echo "Starting API service..."
 sudo systemctl start job-tracker-api.service
-sleep 5  # Wait longer to ensure API is fully started
+
+# Wait longer to ensure API is fully started
+echo "Waiting 10 seconds for API to fully initialize..."
+sleep 10
 
 # Check if API service is running
 if systemctl is-active --quiet job-tracker-api.service; then
@@ -172,14 +175,15 @@ git pull origin main
 sleep 2
 
 # Restart the API service first
-echo "Restarting API service..."
+echo "Restarting job-tracker-api.service..."
 sudo systemctl restart job-tracker-api.service
 
 # Wait for API to start before dashboard
-sleep 5
+echo "Waiting 10 seconds for API to fully initialize..."
+sleep 10
 
 # Restart the dashboard service
-echo "Restarting dashboard service..."
+echo "Restarting job-tracker-dashboard.service..."
 sudo systemctl restart job-tracker-dashboard.service
 
 echo "Services restarted successfully!"

@@ -2,6 +2,7 @@
 import streamlit as st
 import requests
 import json
+import os
 from typing import Optional, Dict, Any
 from datetime import datetime
 import logging
@@ -9,8 +10,8 @@ import logging
 # Configure logging
 logger = logging.getLogger("job_tracker.dashboard.auth")
 
-# Constants
-API_URL = "http://127.0.0.1:8000/api"
+# Import get_api_url from dashboard_components.utils
+from dashboard_components.utils import get_api_url
 
 def get_auth_status():
     """Get the current authentication status from session state."""
@@ -49,10 +50,14 @@ def login(email: str, password: str) -> bool:
     Authenticate a user with the API.
     """
     try:
+        # Get current API URL
+        api_url = get_api_url()
+        
         # Make API request to login
-        st.write(f"Trying to connect to: {API_URL}/auth/login/json")
+        logger.info(f"Attempting to login at: {api_url}/auth/login/json")
+        st.write(f"Trying to connect to: {api_url}/auth/login/json")
         response = requests.post(
-            f"{API_URL}/auth/login/json",
+            f"{api_url}/auth/login/json",
             json={"email": email, "password": password}
         )
         
@@ -72,7 +77,7 @@ def login(email: str, password: str) -> bool:
             
         # Get user info
         user_response = requests.get(
-            f"{API_URL}/auth/me",
+            f"{api_url}/auth/me",
             headers={"Authorization": f"Bearer {token}"}
         )
         
@@ -152,9 +157,12 @@ def register(email: str, password: str) -> bool:
         True if registration was successful, False otherwise
     """
     try:
+        # Get current API URL
+        api_url = get_api_url()
+        
         # Make API request to register
         response = requests.post(
-            f"{API_URL}/auth/register",
+            f"{api_url}/auth/register",
             json={"email": email, "password": password}
         )
         
@@ -188,9 +196,12 @@ def change_password(current_password: str, new_password: str) -> bool:
         return False
         
     try:
+        # Get current API URL
+        api_url = get_api_url()
+        
         # First verify current password
         verify_response = requests.post(
-            f"{API_URL}/auth/login/json",
+            f"{api_url}/auth/login/json",
             json={
                 "email": get_current_user().get("email"),
                 "password": current_password
@@ -203,7 +214,7 @@ def change_password(current_password: str, new_password: str) -> bool:
             
         # Change password
         response = requests.put(
-            f"{API_URL}/auth/me",
+            f"{api_url}/auth/me",
             headers={"Authorization": f"Bearer {token}"},
             json={"password": new_password}
         )
@@ -242,7 +253,10 @@ def api_request(endpoint: str, method: str = "GET", data: Dict = None, params: D
         return None
         
     headers = {"Authorization": f"Bearer {token}"}
-    url = f"{API_URL}/{endpoint.lstrip('/')}"
+    
+    # Get current API URL
+    api_url = get_api_url()
+    url = f"{api_url}/{endpoint.lstrip('/')}"
     
     try:
         logger.info(f"Making {method} request to {url}")
@@ -325,6 +339,7 @@ def login_page():
                 st.rerun()
             else:
                 st.error("Login failed. Please check your email and password.")
+                st.error("Make sure the API service is running on port 8001.")
     
     # Registration tab
     with tab2:
