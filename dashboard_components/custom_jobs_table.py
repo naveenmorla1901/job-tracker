@@ -114,7 +114,7 @@ def display_custom_jobs_table(df_jobs):
     /* Reduce space between elements */
     div.stMarkdown p {
         margin-bottom: 0.2rem !important;
-        line-height: 1.2 !important;
+        line-height: 1.3 !important;
     }
     
     /* Make checkboxes and buttons more compact */
@@ -133,19 +133,33 @@ def display_custom_jobs_table(df_jobs):
     
     /* Reduce height for containers */
     div.element-container {
-        margin-top: 0.2rem !important;
-        margin-bottom: 0.2rem !important;
+        margin-top: 0.1rem !important;
+        margin-bottom: 0.1rem !important;
         padding-top: 0 !important;
         padding-bottom: 0 !important;
     }
     
-    /* Smaller text for captions */
+    /* Job title and main text */
+    .job-title {
+        font-size: 1rem !important;
+        font-weight: bold;
+        margin-bottom: 0 !important;
+        line-height: 1.2 !important;
+    }
+    
+    /* Smaller text for captions but not too small */
     .caption-text {
-        font-size: 0.8rem !important;
-        line-height: 1 !important;
+        font-size: 0.9rem !important;
+        line-height: 1.1 !important;
         margin: 0 !important;
         padding: 0 !important;
         color: #888;
+    }
+    
+    /* Reduce space between job listings */
+    hr {
+        margin: 2px 0 !important;
+        padding: 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -200,7 +214,7 @@ def display_custom_jobs_table(df_jobs):
                 cols[0].write(f"#{i+1}")
                 
                 # Column 2: Job Title and Company
-                cols[1].markdown(f"**{job_title}**")
+                cols[1].markdown(f"<div class='job-title'>{job_title}</div>", unsafe_allow_html=True)
                 cols[1].markdown(f"<span class='caption-text'>{company}</span>", unsafe_allow_html=True)
                 
                 # Column 3: Location
@@ -244,14 +258,35 @@ def display_custom_jobs_table(df_jobs):
                 if hasattr(st.session_state, 'last_saved_job') and \
                    hasattr(st.session_state, 'last_saved_time') and \
                    st.session_state.last_saved_job == job_id and \
-                   time.time() - st.session_state.last_saved_time < 5:  # Show for 5 seconds
+                   time.time() - st.session_state.last_saved_time < 3:  # Show for 3 seconds
+                    # Create a notification with auto-fadeout using CSS animations
                     st.markdown(f"""
-                    <div style="position: relative; padding: 8px; margin-top: -65px; margin-left: 80%; background-color: #4CAF50; 
-                              color: white; border-radius: 4px; font-size: 12px; z-index: 1000;">✓ Saved!</div>
+                    <style>
+                    @keyframes fadeOut {{
+                        0% {{ opacity: 1; }}
+                        70% {{ opacity: 1; }}
+                        100% {{ opacity: 0; }}
+                    }}
+                    
+                    .save-notification {{
+                        position: relative; 
+                        padding: 6px; 
+                        margin-top: -60px; 
+                        margin-left: 80%; 
+                        background-color: #4CAF50; 
+                        color: white; 
+                        border-radius: 4px; 
+                        font-size: 12px; 
+                        z-index: 1000;
+                        animation: fadeOut 3s forwards;
+                        display: inline-block;
+                    }}
+                    </style>
+                    <div class="save-notification">✓ Saved!</div>
                     """, unsafe_allow_html=True)
             
-            # Add a thinner separator
-            st.markdown("<hr style='margin: 5px 0; opacity: 0.3;'>", unsafe_allow_html=True)
+            # Add a minimal separator
+            st.markdown("<hr style='margin: 1px 0; opacity: 0.2; border-top: 1px solid #ccc;'>", unsafe_allow_html=True)
         
         # Show message if limiting results
         if len(df_jobs) > 100:

@@ -20,7 +20,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 # Import dashboard components
 from dashboard_components.jobs_page import display_jobs_page
 from app.dashboard.logs import display_logs_page
-from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required
+from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required, check_for_auth_cookie
 from app.dashboard.user_jobs import tracked_jobs_page
 from app.dashboard.admin import admin_users_page
 
@@ -52,6 +52,11 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    
+    # Check for saved authentication cookie before rendering the rest of the page
+    if not is_authenticated():
+        # Try to restore session from cookie
+        check_for_auth_cookie()
     
     # Load custom CSS
     with open(os.path.join(os.path.dirname(__file__), "static", "custom.css")) as f:

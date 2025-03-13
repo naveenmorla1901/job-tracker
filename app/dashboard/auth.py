@@ -3,12 +3,153 @@ import streamlit as st
 import requests
 import json
 import os
+import time
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import uuid
+import hashlib
 
 # Configure logging
 logger = logging.getLogger("job_tracker.dashboard.auth")
+
+# Add functions for persistent login
+def generate_session_id():
+    """Generate a unique session ID"""
+    return str(uuid.uuid4())
+
+def get_session_cookie_key():
+    """Get the key for storing the session cookie"""
+    return "job_tracker_session"
+
+def hash_token(token):
+    """Create a hash of the token for more secure storage"""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+def set_auth_cookie(token, user_data):
+    """Set a cookie with authentication data"""
+    session_id = generate_session_id()
+    expiry = datetime.utcnow() + timedelta(days=7)  # Cookie expires in 7 days
+    
+    # Store in session state to prevent logout on refresh
+    if "persistent_auth" not in st.session_state:
+        st.session_state.persistent_auth = {}
+    
+    # Store session info
+    st.session_state.persistent_auth[session_id] = {
+        "token": hash_token(token),
+        "user": user_data,
+        "expiry": expiry.timestamp()
+    }
+    
+    # Create cookie via JavaScript
+    js_code = f"""
+    <script>
+    // Set authentication cookie
+    document.cookie = "{get_session_cookie_key()}={session_id}; path=/; expires={expiry.strftime('%a, %d %b %Y %H:%M:%S GMT')}; SameSite=Lax";
+    console.log('Auth cookie set');
+    
+    // Store token in localStorage for API calls
+    localStorage.setItem('job_tracker_token', '{token}');
+    localStorage.setItem('job_tracker_session_id', '{session_id}');
+    console.log('Authentication data stored in localStorage');
+    </script>
+    """
+    
+    # Inject the JavaScript
+    st.markdown(js_code, unsafe_allow_html=True)
+    logger.info(f"Authentication cookie set for user: {user_data.get('email')}")
+    return session_id
+
+def clear_auth_cookie():
+    """Clear the authentication cookie"""
+    js_code = f"""
+    <script>
+    // Clear auth cookie
+    document.cookie = "{get_session_cookie_key()}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+    console.log('Auth cookie cleared');
+    
+    // Clear token from localStorage
+    localStorage.removeItem('job_tracker_token');
+    localStorage.removeItem('job_tracker_session_id');
+    console.log('Authentication data removed from localStorage');
+    </script>
+    """
+    
+    st.markdown(js_code, unsafe_allow_html=True)
+    logger.info("Authentication cookie cleared")
+
+def check_for_auth_cookie():
+    """Check for a valid authentication cookie and restore session if found"""
+    # Add JavaScript to check for cookie and set it in session state
+    js_code = f"""
+    <script>
+    // Function to get cookie value by name
+    function getCookie(name) {{
+        const value = `; ${{document.cookie}}`;
+        const parts = value.split(`; ${{name}}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    }}
+    
+    // Check for auth cookie
+    const sessionId = getCookie('{get_session_cookie_key()}');
+    if (sessionId) {{
+        // Set a flag in sessionStorage to inform streamlit of the session ID
+        sessionStorage.setItem('current_session_id', sessionId);
+        console.log('Found existing session:', sessionId);
+    }}
+    
+    // Also get from localStorage as backup
+    const localSessionId = localStorage.getItem('job_tracker_session_id');
+    if (localSessionId && !sessionId) {{
+        sessionStorage.setItem('current_session_id', localSessionId);
+        console.log('Found session in localStorage:', localSessionId);
+    }}
+    </script>
+    """
+    
+    st.markdown(js_code, unsafe_allow_html=True)
+    
+    # Create a special component to retrieve the session ID
+    components_js = """
+    <div id="session-id-component"></div>
+    <script>
+    // Try to get the session ID from sessionStorage
+    const currentSessionId = sessionStorage.getItem('current_session_id');
+    
+    // Pass it to Streamlit via session state
+    if (currentSessionId) {
+        window.parent.postMessage({{
+            type: "streamlit:setComponentValue",
+            value: currentSessionId
+        }}, "*");
+    }
+    </script>
+    """
+    
+    # Use the component with a key to get the result
+    from streamlit.components.v1 import html
+    session_id = html(components_js, height=0, key="get_session_id")
+    
+    # Check if we got a valid session ID and it exists in our session state
+    if session_id and "persistent_auth" in st.session_state and session_id in st.session_state.persistent_auth:
+        # Get the stored session data
+        session_data = st.session_state.persistent_auth[session_id]
+        
+        # Check if the session is still valid (not expired)
+        current_time = datetime.utcnow().timestamp()
+        if session_data["expiry"] > current_time:
+            # Restore the session
+            st.session_state.auth_status = {
+                "is_authenticated": True,
+                "user": session_data["user"],
+                "token": session_data["token"]  # This is a hash, not the actual token
+            }
+            logger.info(f"Restored session for user: {session_data['user'].get('email')}")
+            return True
+    
+    return False
 
 # Import get_api_url from dashboard_components.utils
 from dashboard_components.utils import get_api_url
@@ -96,6 +237,9 @@ def login(email: str, password: str) -> bool:
             "token": token
         }
         
+        # Set persistent login cookie
+        set_auth_cookie(token, user_data)
+        
         # Store token in session cookie for JavaScript to access
         # This is used by the JavaScript to make authenticated API calls
         st.markdown(
@@ -130,17 +274,8 @@ def logout():
             "token": None
         }
         
-        # Clear token from localStorage
-        st.markdown(
-            """
-            <script>
-            // Clear authentication token on logout
-            localStorage.removeItem('job_tracker_token');
-            console.log('Authentication token removed from localStorage');
-            </script>
-            """,
-            unsafe_allow_html=True
-        )
+        # Clear auth cookie
+        clear_auth_cookie()
         
         if user_email:
             logger.info(f"User logged out: {user_email}")
