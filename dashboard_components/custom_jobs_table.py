@@ -259,30 +259,33 @@ def display_custom_jobs_table(df_jobs):
                    hasattr(st.session_state, 'last_saved_time') and \
                    st.session_state.last_saved_job == job_id and \
                    time.time() - st.session_state.last_saved_time < 3:  # Show for 3 seconds
-                    # Create a notification with auto-fadeout using CSS animations
+                    # Create a JavaScript-based notification that will auto-remove itself
                     st.markdown(f"""
-                    <style>
-                    @keyframes fadeOut {{
-                        0% {{ opacity: 1; }}
-                        70% {{ opacity: 1; }}
-                        100% {{ opacity: 0; }}
-                    }}
+                    <div id="save-notification-{job_id}" 
+                         style="position: relative; padding: 6px; margin-top: -60px; margin-left: 80%; 
+                               background-color: #4CAF50; color: white; border-radius: 4px; 
+                               font-size: 12px; z-index: 1000;">
+                        ✓ Saved!
+                    </div>
                     
-                    .save-notification {{
-                        position: relative; 
-                        padding: 6px; 
-                        margin-top: -60px; 
-                        margin-left: 80%; 
-                        background-color: #4CAF50; 
-                        color: white; 
-                        border-radius: 4px; 
-                        font-size: 12px; 
-                        z-index: 1000;
-                        animation: fadeOut 3s forwards;
-                        display: inline-block;
-                    }}
-                    </style>
-                    <div class="save-notification">✓ Saved!</div>
+                    <script>
+                    // Auto-remove the notification after 3 seconds
+                    setTimeout(function() {{
+                        const notification = document.getElementById('save-notification-{job_id}');
+                        if (notification) {{
+                            // Fade out
+                            notification.style.transition = 'opacity 1s';
+                            notification.style.opacity = '0';
+                            
+                            // Remove after fade completes
+                            setTimeout(function() {{
+                                if (notification && notification.parentNode) {{
+                                    notification.parentNode.removeChild(notification);
+                                }}
+                            }}, 1000);
+                        }}
+                    }}, 2000);
+                    </script>
                     """, unsafe_allow_html=True)
             
             # Add a minimal separator

@@ -81,7 +81,7 @@ def clear_auth_cookie():
 
 def check_for_auth_cookie():
     """Check for a valid authentication cookie and restore session if found"""
-    # Add JavaScript to check for cookie and set it in session state
+    # Add JavaScript to check for cookie and report back
     js_code = f"""
     <script>
     // Function to get cookie value by name
@@ -94,60 +94,45 @@ def check_for_auth_cookie():
     
     // Check for auth cookie
     const sessionId = getCookie('{get_session_cookie_key()}');
+    
+    // If we have a session ID, store it in localStorage for simple retrieval
     if (sessionId) {{
-        // Set a flag in sessionStorage to inform streamlit of the session ID
-        sessionStorage.setItem('current_session_id', sessionId);
+        localStorage.setItem('current_session_id', sessionId);
         console.log('Found existing session:', sessionId);
     }}
     
-    // Also get from localStorage as backup
-    const localSessionId = localStorage.getItem('job_tracker_session_id');
-    if (localSessionId && !sessionId) {{
-        sessionStorage.setItem('current_session_id', localSessionId);
-        console.log('Found session in localStorage:', localSessionId);
-    }}
+    // Set a flag to indicate we've checked for cookies
+    localStorage.setItem('cookie_check_complete', 'true');
     </script>
     """
     
+    # Inject the JavaScript to check for cookies
     st.markdown(js_code, unsafe_allow_html=True)
     
-    # Create a special component to retrieve the session ID
-    components_js = """
-    <div id="session-id-component"></div>
-    <script>
-    // Try to get the session ID from sessionStorage
-    const currentSessionId = sessionStorage.getItem('current_session_id');
+    # For simplicity, we'll use a simpler method than components that works with older Streamlit versions
+    # Since we can't directly get data from the browser, we'll check if our session state already has authentication
     
-    // Pass it to Streamlit via session state
-    if (currentSessionId) {
-        window.parent.postMessage({{
-            type: "streamlit:setComponentValue",
-            value: currentSessionId
-        }}, "*");
-    }
-    </script>
-    """
+    # If we're already authenticated in session state, we're done
+    if is_authenticated():
+        return True
     
-    # Use the component with a key to get the result
-    from streamlit.components.v1 import html
-    session_id = html(components_js, height=0, key="get_session_id")
-    
-    # Check if we got a valid session ID and it exists in our session state
-    if session_id and "persistent_auth" in st.session_state and session_id in st.session_state.persistent_auth:
-        # Get the stored session data
-        session_data = st.session_state.persistent_auth[session_id]
-        
-        # Check if the session is still valid (not expired)
-        current_time = datetime.utcnow().timestamp()
-        if session_data["expiry"] > current_time:
-            # Restore the session
-            st.session_state.auth_status = {
-                "is_authenticated": True,
-                "user": session_data["user"],
-                "token": session_data["token"]  # This is a hash, not the actual token
-            }
-            logger.info(f"Restored session for user: {session_data['user'].get('email')}")
-            return True
+    # If we have a persistent_auth entry in session state, try to use saved sessions
+    if "persistent_auth" in st.session_state and st.session_state.persistent_auth:
+        # In this approach, we can't get the exact session ID from cookies
+        # But we can check all stored sessions for any that are still valid
+        for session_id, session_data in st.session_state.persistent_auth.items():
+            # Check if session is still valid (not expired)
+            if session_data and "expiry" in session_data:
+                current_time = datetime.utcnow().timestamp()
+                if session_data["expiry"] > current_time and "user" in session_data:
+                    # Restore the session
+                    st.session_state.auth_status = {
+                        "is_authenticated": True,
+                        "user": session_data["user"],
+                        "token": session_data["token"]  # This is a hash, not the actual token
+                    }
+                    logger.info(f"Restored session for user: {session_data['user'].get('email')}")
+                    return True
     
     return False
 
