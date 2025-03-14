@@ -3,8 +3,9 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import logging
+import requests
 
-from app.dashboard.auth import api_request, admin_required, get_current_user
+from app.dashboard.auth import api_request, admin_required, get_current_user, get_token, logout
 
 # Configure logging
 logger = logging.getLogger("job_tracker.dashboard.admin")
@@ -14,10 +15,58 @@ def admin_users_page():
     """Display and manage users (admin only)"""
     st.title("User Management")
     
+    # Check API connection first
+    from dashboard_components.utils import check_api_status, get_api_url
+    api_connected, api_status_msg = check_api_status()
+    
+    if not api_connected:
+        st.error(api_status_msg)
+        st.error("Cannot connect to the API server. Please make sure it's running.")
+        st.info("The API server should be running on port 8001. Try running: `python run.py api`")
+        return
+    
+    st.success(api_status_msg)
+    
+    # Check if we have a valid token
+    token = get_token()
+    if not token:
+        st.error("No authentication token found. Please try logging out and back in.")
+        if st.button("Go to Login Page"):
+            st.session_state.page = 'login'
+            st.rerun()
+        return
+        
+    st.info(f"Using API URL: {get_api_url()}")
+    
+    # Try to get user info to verify token is still valid
+    from dashboard_components.utils import fetch_data
+    try:
+        user_info_response = requests.get(
+            f"{get_api_url()}/auth/me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        if user_info_response.status_code != 200:
+            st.error("Your session may have expired. Please log out and log back in.")
+            if st.button("Logout"):
+                logout()
+                st.rerun()
+            return
+    except Exception as e:
+        st.error(f"Error verifying authentication: {str(e)}")
+        return
+    
     # Fetch users
-    users = api_request("auth/users")
-    if not users:
-        st.error("Failed to fetch user data")
+    try:
+        # Changed to explicitly include the full path with 'auth/'
+        users = api_request("auth/users")
+        if not users:
+            st.error("Failed to fetch user data")
+            st.write("Debug info: Check if your API server is running at the correct URL")
+            st.write("API endpoint: auth/users")
+            return
+    except Exception as e:
+        st.error(f"Error fetching user data: {str(e)}")
+        st.write("Please check the API logs for more information.")
         return
     
     # Create DataFrame for display

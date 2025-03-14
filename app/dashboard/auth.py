@@ -497,45 +497,68 @@ def api_request(endpoint: str, method: str = "GET", data: Dict = None, params: D
     """
     if not is_authenticated():
         logger.error(f"API request failed: User not authenticated")
+        st.error("API request failed: User not authenticated")
         return None
         
     token = get_token()
     if not token:
         logger.error(f"API request failed: No token available")
+        st.error("API request failed: No token available")
         return None
         
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     
     # Get current API URL
     api_url = get_api_url()
     url = f"{api_url}/{endpoint.lstrip('/')}"
     
+    # Debug print to help diagnose issues
+    logger.info(f"API URL: {api_url}, Endpoint: {endpoint}, Full URL: {url}")
+    
     try:
-        logger.info(f"Making {method} request to {url}")
+        logger.info(f"Making {method} request to {url} with headers {headers}")
+        
+        # For GET and DELETE requests, don't set Content-Type to application/json as it might cause issues
+        if method.upper() in ["GET", "DELETE"]:
+            headers = {"Authorization": f"Bearer {token}"}
+            
+        logger.info(f"Using headers: {headers}")
+        
         if method.upper() == "GET":
-            response = requests.get(url, headers=headers, params=params)
+            response = requests.get(url, headers=headers, params=params, timeout=10)
         elif method.upper() == "POST":
-            response = requests.post(url, headers=headers, json=data, params=params)
+            response = requests.post(url, headers=headers, json=data, params=params, timeout=10)
         elif method.upper() == "PUT":
-            response = requests.put(url, headers=headers, json=data, params=params)
+            response = requests.put(url, headers=headers, json=data, params=params, timeout=10)
         elif method.upper() == "DELETE":
-            response = requests.delete(url, headers=headers, params=params)
+            response = requests.delete(url, headers=headers, params=params, timeout=10)
         else:
             logger.error(f"Invalid method: {method}")
             return None
             
         logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response text: {response.text[:500]}")
+        
         if response.status_code not in (200, 201, 204):
-            logger.error(f"API request failed: {response.status_code} - {response.text}")
+            error_details = f"API request failed: {response.status_code} - {response.text}"
+            logger.error(error_details)
+            st.error(error_details)
             return None
             
         if response.status_code == 204:
             return {}
             
-        return response.json()
+        try:
+            return response.json()
+        except Exception as json_err:
+            logger.error(f"Failed to parse JSON response: {str(json_err)}. Response: {response.text[:500]}")
+            st.error(f"Failed to parse JSON response: {str(json_err)}")
+            return None
         
     except Exception as e:
-        logger.error(f"API request error: {str(e)}")
+        error_msg = f"API request error: {str(e)}"
+        logger.error(error_msg)
+        st.error(error_msg)
         return None
 
 def auth_required(func):
