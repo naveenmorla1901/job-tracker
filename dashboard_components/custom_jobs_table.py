@@ -145,13 +145,13 @@ def display_custom_jobs_table(df_jobs):
         font-weight: bold;
         margin-bottom: 0 !important;
         padding-bottom: 0 !important;
-        line-height: 1.1 !important;
+        line-height: 0.1 !important;
     }
     
     /* Smaller text for captions but not too small */
     .caption-text {
         font-size: 0.9rem !important;
-        line-height: 1 !important;
+        line-height: 0.1 !important;
         margin: 0 !important;
         padding: 0 !important;
         color: #888;
@@ -204,9 +204,22 @@ def display_custom_jobs_table(df_jobs):
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
             
-            # Create job card with columns
+            # Create job card with columns in a single container
             with st.container():
-                cols = st.columns([1, 3, 2, 2, 1, 1, 1])
+                container_style = """
+                <style>
+                .job-container {
+                    margin-top: -8px !important;
+                    margin-bottom: -8px !important;
+                    padding-top: 0 !important;
+                    padding-bottom: 0 !important;
+                }
+                </style>
+                <div class="job-container">
+                """
+                st.markdown(container_style, unsafe_allow_html=True)
+                
+                cols = st.columns([1, 3, 2, 2, 1, 1])
                 
                 # Column 1: Number
                 cols[0].write(f"#{i+1}")
@@ -222,76 +235,65 @@ def display_custom_jobs_table(df_jobs):
                 cols[3].markdown(f"<span class='caption-text'>Posted: {date_posted}</span>", unsafe_allow_html=True)
                 cols[3].markdown(f"<span class='caption-text'>Type: {job_type}</span>", unsafe_allow_html=True)
                 
-                # Column 5: Applied Status
+                # Column 5: Applied Status with auto-save
                 # Use session state to maintain checkbox values between renders
                 checkbox_key = f"applied_{job_id}"
-                is_checked = cols[4].checkbox("", value=st.session_state.job_checkboxes[job_id], key=checkbox_key, help="Mark as applied")
                 
-                # Update session state if checkbox changed
-                if is_checked != st.session_state.job_checkboxes[job_id]:
+                # Get the previous value to detect changes
+                prev_value = st.session_state.job_checkboxes.get(job_id, False)
+                
+                # Display the checkbox with a custom label for auto-save
+                # We'll detect changes and save automatically
+                is_checked = cols[4].checkbox("", value=prev_value, key=checkbox_key, help="Mark as applied (saves automatically)")
+                
+                # Check if the value changed and auto-save
+                if is_checked != prev_value:
+                    # Update the session state
                     st.session_state.job_checkboxes[job_id] = is_checked
-                
-                # Column 6: Save Button
-                save_key = f"save_{job_id}"
-                if cols[5].button("Save", key=save_key):
-                    new_status = st.session_state.job_checkboxes[job_id]
                     
-                    # Update the job status
-                    success = update_job_status(user_email, int(job_id), new_status)
+                    # Auto-save the change
+                    success = update_job_status(user_email, int(job_id), is_checked)
                     
                     if success:
-                        # Store the job ID that was just saved for showing a highlight
-                        st.session_state.last_saved_job = job_id
-                        st.session_state.last_saved_time = time.time()
-                        
-                        # Update tracked jobs dictionary for display
-                        tracked_jobs[job_id] = new_status
+                        # Update tracked jobs dictionary for display silently
+                        tracked_jobs[job_id] = is_checked
                     else:
-                        st.error("Failed to update job status")
+                        st.error("Failed to update status.")
                 
-                # Column 7: Apply Button
-                cols[6].markdown(f"[Apply]({job_url})")
+                # Apply button (column 6)
+                cols[5].markdown(f"[Apply]({job_url})")
                 
-                # Add highlight effect for recently saved job
-                if hasattr(st.session_state, 'last_saved_job') and \
-                   hasattr(st.session_state, 'last_saved_time') and \
-                   st.session_state.last_saved_job == job_id and \
-                   time.time() - st.session_state.last_saved_time < 3:  # Show for 3 seconds
-                    # Create a JavaScript-based notification that will auto-remove itself
-                    st.markdown(f"""
-                    <div id="save-notification-{job_id}" 
-                         style="position: relative; padding: 6px; margin-top: -60px; margin-left: 80%; 
-                               background-color: #4CAF50; color: white; border-radius: 4px; 
-                               font-size: 12px; z-index: 1000;">
-                        ✓ Saved!
-                    </div>
-                    
-                    <script>
-                    // Auto-remove the notification after 5 seconds
-                    setTimeout(function() {{
-                        const notification = document.getElementById('save-notification-{job_id}');
-                        if (notification) {{
-                            // Fade out
-                            notification.style.transition = 'opacity 1s';
-                            notification.style.opacity = '0';
-                            
-                            // Remove after fade completes
-                            setTimeout(function() {{
-                                if (notification && notification.parentNode) {{
-                                    notification.parentNode.removeChild(notification);
-                                }}
-                            }}, 1000);
-                        }}
-                    }}, 4000);  // Show for 4 seconds before starting fade
-                    </script>
-                    """, unsafe_allow_html=True)
+                # Close the container div
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+
             
             # Add an extremely minimal separator
             st.markdown("<hr style='margin: 0; opacity: 0.1; border-top: 1px solid #ccc;'>", unsafe_allow_html=True)
     else:
-        # For non-logged-in users, show a simple table
+        # For non-logged-in users, show all jobs in a compact table
+        # Apply the same compact styling
+        st.markdown("""
+        <style>
+        .dataframe th {
+            padding: 3px !important;
+            font-size: 0.9rem !important;
+        }
+        .dataframe td {
+            padding: 3px !important;
+            font-size: 0.85rem !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Create table data for display
         table_data = []
         for i, row in df_jobs.iterrows():
+            apply_url = row['job_url']
             table_data.append({
                 "No.": i+1,
                 "Job Title": row['job_title'],
@@ -299,7 +301,7 @@ def display_custom_jobs_table(df_jobs):
                 "Location": row['location'],
                 "Posted": format_job_date(row['date_posted']),
                 "Type": row.get('employment_type', ''),
-                "Apply": row['job_url']
+                "Apply": apply_url
             })
         
         # Convert to DataFrame for display
