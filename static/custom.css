@@ -81,19 +81,56 @@ input[type="checkbox"] {
     margin-bottom: 0 !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
-    line-height: 1.1 !important;
+    line-height: 1 !important;
 }
 
 .job-title {
-    font-size: 0.95rem !important;
+    font-size: 0.9rem !important;
     font-weight: bold;
     line-height: 1 !important;
 }
 
 .caption-text {
-    font-size: 0.85rem !important;
+    font-size: 0.8rem !important;
     color: #888;
     line-height: 1 !important;
+}
+
+/* Ultra compact job listings */
+.st-emotion-cache-16txtl3 {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.st-emotion-cache-g3wztl {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Reduce height of each row */
+.st-emotion-cache-1l269bu > div:nth-child(1) {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: -5px !important;
+    margin-bottom: -5px !important;
+}
+
+/* Make column containers compact */
+.st-emotion-cache-1r6slb0 {
+    gap: 0 !important;
+    row-gap: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Make checkboxes more compact */
+.st-emotion-cache-xse7vm {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
 }
 
 /* Make streamlit containers more compact */

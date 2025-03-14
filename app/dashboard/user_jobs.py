@@ -38,8 +38,25 @@ def tracked_jobs_page():
         st.info("No jobs match your current filters.")
         return
     
+    # Load compact CSS styling
+    import os
+    css_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
+                          "static", "css", "compact.css")
+    with open(css_path, "r") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        
     # Display jobs
     st.subheader(f"Your Tracked Jobs ({len(df)})")
+    
+    # Apply more compact job styling
+    st.markdown('''
+    <style>
+    .job-container {
+        margin-bottom: 0.5rem !important;
+        padding: 0.3rem !important;
+    }
+    </style>
+    ''', unsafe_allow_html=True)
     
     for index, row in df.iterrows():
         with st.container():

@@ -1,0 +1,102 @@
+/* Compact styling for tables and UI elements */
+
+/* Make tables more compact */
+.user-table {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.user-table th, .user-table td {
+    padding: 3px 5px !important;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+    line-height: 1.2;
+}
+
+.user-table th {
+    background-color: #1E1E1E;
+    color: white;
+    padding: 5px !important;
+}
+
+.user-table tr:hover {
+    background-color: rgba(200, 200, 200, 0.2);
+}
+
+/* Make row separators thinner and with less margin */
+hr {
+    margin-top: 0.3rem !important;
+    margin-bottom: 0.3rem !important;
+    height: 1px !important;
+}
+
+/* Make streamlit form elements more compact */
+.stButton > button {
+    padding: 0.1rem 0.5rem !important;
+    font-size: 0.8rem !important;
+    margin: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+/* Reduce vertical spacing between elements */
+div.row-widget > div {
+    gap: 0.2rem !important;
+}
+
+.stSelectbox, .stTextInput, .stCheckbox {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Compact elements and rows */
+.row-widget div.stSelectbox label,
+.row-widget div.stTextInput label {
+    min-height: 0 !important;
+    padding-bottom: 0 !important;
+    padding-top: 0 !important;
+    margin-bottom: 0 !important;
+    font-size: 0.8rem !important;
+}
+
+/* Make compact job listings like in the screenshot */
+.job-listing {
+    padding: 5px !important;
+    margin-bottom: 5px !important;
+    border-bottom: 1px solid #444;
+}
+
+.job-title {
+    font-weight: bold;
+    margin-bottom: 3px !important;
+}
+
+.job-company {
+    font-size: 0.9rem;
+    color: #ccc;
+    margin-bottom: 3px !important;
+}
+
+.job-details {
+    font-size: 0.85rem;
+    color: #aaa;
+}
+
+/* Make sure column containers have tight spacing */
+div[data-testid="column"] {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Reduce padding around each dataframe or table element */
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+    padding: 3px !important;
+}
+
+/* Reduce padding in each element container */
+.element-container {
+    margin-top: 0.3rem !important;
+    margin-bottom: 0.3rem !important;
+}

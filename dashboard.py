@@ -61,6 +61,12 @@ def main():
     # Load custom CSS
     with open(os.path.join(os.path.dirname(__file__), "static", "custom.css")) as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        
+    # Load compact CSS for more compact tables and UI elements
+    compact_css_path = os.path.join(os.path.dirname(__file__), "static", "css", "compact.css")
+    if os.path.exists(compact_css_path):
+        with open(compact_css_path) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
     
     # Load custom JavaScript for more compact job listings
     with open(os.path.join(os.path.dirname(__file__), "static", "compact_jobs.js")) as f:

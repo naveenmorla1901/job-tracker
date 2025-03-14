@@ -75,27 +75,12 @@ def admin_users_page():
     # Display user count
     st.subheader(f"All Users ({len(df)})")
     
-    # Create user management table
-    st.markdown("""
-    <style>
-    .user-table {
-        width: 100%;
-        margin-bottom: 20px;
-    }
-    .user-table th, .user-table td {
-        padding: 8px;
-        text-align: left;
-        border-bottom: 1px solid #ddd;
-    }
-    .user-table th {
-        background-color: #1E1E1E;
-        color: white;
-    }
-    .user-table tr:hover {
-        background-color: rgba(200, 200, 200, 0.2);
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Load compact CSS styling
+    import os
+    css_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
+                          "static", "css", "compact.css")
+    with open(css_path, "r") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
     
     # Display users in a table
     cols = st.columns([3, 2, 2, 2, 2])

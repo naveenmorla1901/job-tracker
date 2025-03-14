@@ -105,63 +105,105 @@ def display_custom_jobs_table(df_jobs):
     # Apply compact styling
     st.markdown("""
     <style>
-    /* Compact table styling */
+    /* Compact table styling - ULTRA COMPACT */
     .stContainer, .block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 0.5rem !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
     }
     
-    /* Reduce space between elements */
+    /* Reduce space between elements to minimum */
     div.stMarkdown p {
-        margin-bottom: 0.2rem !important;
-        line-height: 1.3 !important;
+        margin-bottom: 0 !important;
+        margin-top: 0 !important;
+        line-height: 1 !important;
     }
     
-    /* Make checkboxes and buttons more compact */
+    /* Make checkboxes and buttons ultra compact */
     div.stCheckbox, button {
-        padding: 0.1rem !important;
-        margin: 0.1rem !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        height: auto !important;
     }
     
-    /* More compact markdown */
+    /* Remove all spacing from markdown */
     .stMarkdown {
         margin-top: 0 !important;
         margin-bottom: 0 !important;
         padding-top: 0 !important;
         padding-bottom: 0 !important;
+        line-height: 1 !important;
     }
     
-    /* Reduce height for containers */
+    /* Remove all spacing from containers */
     div.element-container {
         margin-top: 0 !important;
         margin-bottom: 0 !important;
         padding-top: 0 !important;
         padding-bottom: 0 !important;
+        line-height: 1 !important;
+    }
+    
+    /* Eliminate column padding */
+    div.css-keje6w > div {
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+        margin: 0 !important;
     }
     
     /* Job title and main text */
     .job-title {
-        font-size: 1rem !important;
+        font-size: 0.95rem !important;
         font-weight: bold;
         margin-bottom: 0 !important;
+        margin-top: 0 !important;
         padding-bottom: 0 !important;
-        line-height: 0.1 !important;
+        padding-top: 0 !important;
+        line-height: 1 !important;
     }
     
-    /* Smaller text for captions but not too small */
+    /* Smaller text for captions */
     .caption-text {
-        font-size: 0.9rem !important;
-        line-height: 0.1 !important;
+        font-size: 0.85rem !important;
+        line-height: 1 !important;
         margin: 0 !important;
         padding: 0 !important;
         color: #888;
     }
     
-    /* Reduce space between job listings */
+    /* Almost invisible separators */
     hr {
         margin: 0 !important;
         padding: 0 !important;
-        border-top: 1px solid rgba(200, 200, 200, 0.1) !important;
+        height: 1px !important;
+        border-top: 1px solid rgba(200, 200, 200, 0.05) !important;
+    }
+    
+    /* Reduce height of each job row */
+    .job-container {
+        height: auto !important;
+        min-height: auto !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+    }
+    
+    /* Make checkboxes more compact */
+    input[type="checkbox"] {
+        margin: 0 !important;
+        padding: 0 !important;
+        vertical-align: middle !important;
+        transform: scale(0.8) !important;
+    }
+    
+    /* Remove gap between checkbox and its label */
+    .stCheckbox > div:first-child {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -209,8 +251,8 @@ def display_custom_jobs_table(df_jobs):
                 container_style = """
                 <style>
                 .job-container {
-                    margin-top: -20px !important;
-                    margin-bottom: -20px !important;
+                    margin-top: -25px !important;
+                    margin-bottom: -25px !important;
                     padding-top: 0 !important;
                     padding-bottom: 0 !important;
                 }
@@ -218,6 +260,11 @@ def display_custom_jobs_table(df_jobs):
                     margin: 0 !important;
                     padding: 0 !important;
                     line-height: 1 !important;
+                    font-size: 0.85rem !important;
+                }
+                .st-emotion-cache-ocqkz7 {
+                    padding-top: 0 !important;
+                    padding-bottom: 0 !important;
                 }
                 </style>
                 <div class="job-container">
@@ -227,17 +274,17 @@ def display_custom_jobs_table(df_jobs):
                 cols = st.columns([1, 3, 2, 2, 1, 1])
                 
                 # Column 1: Number - more compact
-                cols[0].markdown(f"<p class='compact-text'>#{i+1}</p>", unsafe_allow_html=True)
+                cols[0].markdown(f"<p class='compact-text' style='font-size:0.8rem;'>#{i+1}</p>", unsafe_allow_html=True)
                 
-                # Column 2: Job Title and Company - more compact
-                cols[1].markdown(f"<div class='job-title' style='margin-bottom: -2px !important; line-height: 1 !important;'>{job_title}</div>", unsafe_allow_html=True)
-                cols[1].markdown(f"<span class='caption-text' style='margin-top: -8px !important;'>{company}</span>", unsafe_allow_html=True)
+                # Column 2: Job Title and Company - even more compact
+                cols[1].markdown(f"<div class='job-title' style='margin-bottom: 0 !important; line-height: 1 !important; padding: 0 !important;'>{job_title}</div>", unsafe_allow_html=True)
+                cols[1].markdown(f"<span class='caption-text' style='margin-top: 0 !important; font-size:0.8rem !important;'>{company}</span>", unsafe_allow_html=True)
                 
                 # Column 3: Location - more compact
-                cols[2].markdown(f"<p class='compact-text' style='color:#888; font-size:0.85rem;'>{location}</p>", unsafe_allow_html=True)
+                cols[2].markdown(f"<p class='compact-text' style='color:#888; font-size:0.8rem; line-height: 1 !important;'>{location}</p>", unsafe_allow_html=True)
                 
                 # Column 4: Date Posted and Type - more compact, combined into one line
-                cols[3].markdown(f"<p class='compact-text' style='color:#888; font-size:0.85rem;'>Posted: {date_posted} • {job_type}</p>", unsafe_allow_html=True)
+                cols[3].markdown(f"<p class='compact-text' style='color:#888; font-size:0.8rem; line-height: 1 !important;'>Posted: {date_posted} • {job_type}</p>", unsafe_allow_html=True)
                 
                 # Column 5: Applied Status with auto-save
                 # Use session state to maintain checkbox values between renders
@@ -264,16 +311,16 @@ def display_custom_jobs_table(df_jobs):
                     else:
                         st.error("Failed to update status.")
                 
-                # Apply button (column 6) - more compact
-                cols[5].markdown(f"<p class='compact-text'><a href='{job_url}' target='_blank' style='display:inline-block; padding:2px 6px; font-size:0.8rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:3px;'>Apply</a></p>", unsafe_allow_html=True)
+                # Apply button (column 6) - ultra compact
+                cols[5].markdown(f"<p class='compact-text'><a href='{job_url}' target='_blank' style='display:inline-block; padding:1px 5px; font-size:0.75rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:2px;'>Apply</a></p>", unsafe_allow_html=True)
                 
                 # Close the container div
                 st.markdown("</div>", unsafe_allow_html=True)
                 
 
             
-            # Add an extremely minimal separator (almost invisible)
-            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0.05; border-top: 1px solid #555;'>", unsafe_allow_html=True)
+            # Ultra minimal separator - barely visible line
+            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0.03; border-top: 1px solid #555; margin-top: -6px; margin-bottom: -6px;'>", unsafe_allow_html=True)
     else:
         # For non-logged-in users, show all jobs in a compact table
         # Apply the same compact styling
