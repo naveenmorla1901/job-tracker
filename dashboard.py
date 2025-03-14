@@ -62,6 +62,10 @@ def main():
     with open(os.path.join(os.path.dirname(__file__), "static", "custom.css")) as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
     
+    # Load custom JavaScript for more compact job listings
+    with open(os.path.join(os.path.dirname(__file__), "static", "compact_jobs.js")) as f:
+        st.markdown(f"<script>{f.read()}</script>", unsafe_allow_html=True)
+    
     # Add a custom header with base tag to help with Google Analytics
     st.markdown(
         """

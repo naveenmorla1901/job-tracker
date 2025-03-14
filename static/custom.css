@@ -75,6 +75,59 @@ input[type="checkbox"] {
     padding-bottom: 0 !important;
 }
 
+/* Job listings super compact styling */
+.job-container * {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    line-height: 1.1 !important;
+}
+
+.job-title {
+    font-size: 0.95rem !important;
+    font-weight: bold;
+    line-height: 1 !important;
+}
+
+.caption-text {
+    font-size: 0.85rem !important;
+    color: #888;
+    line-height: 1 !important;
+}
+
+/* Make streamlit containers more compact */
+.stContainer, .block-container {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Force all elements to be compact */
+div.element-container {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Reduce space between columns */
+.row-widget.stRadio > div {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    line-height: 1 !important;
+}
+
+/* For checkboxes */
+div.row-widget.stCheckbox {
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: -3px !important;
+    margin-bottom: -3px !important;
+}
+
 /* Debug styles */
 .debug-marker {
     background-color: #333;
