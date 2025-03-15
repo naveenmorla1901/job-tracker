@@ -17,12 +17,52 @@ logger = logging.getLogger('job_tracker.dashboard')
 # Add app directory to path
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Import dashboard components
-from dashboard_components.jobs_page import display_jobs_page
-from app.dashboard.logs import display_logs_page
-from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required, check_for_auth_cookie
-from app.dashboard.user_jobs import tracked_jobs_page
-from app.dashboard.admin import admin_users_page
+# Import dashboard components with error handling
+try:
+    from dashboard_components.jobs_page import display_jobs_page
+except ImportError as e:
+    logger.error(f"Error importing jobs_page: {str(e)}")
+    # Define fallback function
+    def display_jobs_page():
+        st.error("Jobs page module could not be loaded. This is likely a configuration issue.")
+        st.info("Please make sure all project dependencies are installed and file paths are correct.")
+
+try:
+    from app.dashboard.logs import display_logs_page
+except ImportError as e:
+    logger.error(f"Error importing logs page: {str(e)}")
+    # Define fallback function
+    def display_logs_page():
+        st.error("System logs module could not be loaded. This is likely a configuration issue.")
+        st.info("Please make sure all project dependencies are installed and file paths are correct.")
+
+try:
+    from app.dashboard.auth import (login_page, user_settings_page, user_menu, 
+                                is_authenticated, is_admin, auth_required, 
+                                admin_required, check_for_auth_cookie)
+except ImportError as e:
+    logger.error(f"Error importing auth functions: {str(e)}")
+    # Define fallback functions
+    def login_page(): st.error("Authentication module not available")
+    def user_settings_page(): st.error("Authentication module not available")
+    def user_menu(): st.sidebar.warning("Authentication not available")
+    def is_authenticated(): return False
+    def is_admin(): return False
+    def auth_required(func): return func
+    def admin_required(func): return func
+    def check_for_auth_cookie(): pass
+
+try:
+    from app.dashboard.user_jobs import tracked_jobs_page
+except ImportError as e:
+    logger.error(f"Error importing user_jobs: {str(e)}")
+    def tracked_jobs_page(): st.error("User jobs module not available")
+
+try:
+    from app.dashboard.admin import admin_users_page
+except ImportError as e:
+    logger.error(f"Error importing admin module: {str(e)}")
+    def admin_users_page(): st.error("Admin module not available")
 
 def parse_arguments():
     """Parse command line arguments"""

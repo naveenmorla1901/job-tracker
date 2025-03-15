@@ -1,6 +1,3 @@
-"""
-Jobs page component for the dashboard
-"""
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -8,17 +5,67 @@ from datetime import datetime, timedelta
 import time
 import logging
 import traceback
+import sys
+import os
 
-from dashboard_components.utils import (
-    fetch_data, 
-    fetch_data_with_params, 
-    format_job_date,
-    check_api_status,
-    get_api_url
-)
-from app.dashboard.auth import is_authenticated, api_request
-from app.dashboard.user_jobs import add_job_tracking_buttons
-from dashboard_components.custom_jobs_table import display_custom_jobs_table
+# Make sure the current directory is in the path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import utils with better error handling
+try:
+    from dashboard_components.utils import (
+        fetch_data, 
+        fetch_data_with_params, 
+        format_job_date,
+        check_api_status,
+        get_api_url
+    )
+except ImportError as e:
+    # Define fallback functions if import fails
+    logging.error(f"Error importing utils: {e}")
+    
+    def fetch_data(endpoint, params=None):
+        st.error(f"Cannot fetch data: utils module not properly loaded")
+        return {}
+        
+    def fetch_data_with_params(endpoint, params=None):
+        st.error(f"Cannot fetch data: utils module not properly loaded")
+        return {}
+        
+    def format_job_date(date):
+        return str(date)
+        
+    def check_api_status():
+        return False, "API connection module not loaded"
+        
+    def get_api_url():
+        return "http://localhost:8001/api"  # Default fallback
+
+# Import auth and tracking functions with error handling
+try:
+    from app.dashboard.auth import is_authenticated, api_request
+except ImportError as e:
+    # Define fallbacks
+    logging.error(f"Error importing auth: {e}")
+    def is_authenticated(): return False
+    def api_request(*args, **kwargs): return None
+
+try:
+    from app.dashboard.user_jobs import add_job_tracking_buttons
+except ImportError as e:
+    # Define fallback
+    logging.error(f"Error importing user_jobs: {e}")
+    def add_job_tracking_buttons(*args, **kwargs): pass
+
+# Import custom_jobs_table with error handling
+try:
+    from dashboard_components.custom_jobs_table import display_custom_jobs_table
+except ImportError as e:
+    # Define fallback function
+    logging.error(f"Error importing custom_jobs_table: {e}")
+    def display_custom_jobs_table(df_jobs):
+        st.warning("Custom jobs table module not loaded. Using simple table instead.")
+        st.dataframe(df_jobs)
 
 # Configure logging
 logger = logging.getLogger('job_tracker.dashboard.jobs_page')

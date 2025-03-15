@@ -5,6 +5,11 @@ import platform
 import datetime
 import logging
 from typing import Dict, Any
+import sys
+import os
+
+# Add the current directory to the Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import system metrics modules
 from system_metrics import (

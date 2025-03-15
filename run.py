@@ -9,6 +9,12 @@ from port_utils import ensure_port_is_free, find_free_port
 
 def main():
     """Main function to handle command line arguments"""
+    # Ensure environment is set up properly
+    try:
+        from ensure_env import check_environment
+        check_environment()
+    except ImportError:
+        print("Warning: Could not run environment check. Some features may not work correctly.")
     # Configure usage message
     usage = """
 Job Tracker Runner
@@ -62,13 +68,21 @@ Commands:
     elif command == "dashboard":
         # Start the dashboard
         try:
+            # Add the current directory to PYTHONPATH to ensure imports work
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            env = os.environ.copy()
+            env['PYTHONPATH'] = current_dir + os.pathsep + env.get('PYTHONPATH', '')
+            
             # Set the API URL explicitly
-            os.environ['JOB_TRACKER_API_URL'] = 'http://localhost:8001/api'
-            subprocess.run(["streamlit", "run", "dashboard.py"])
+            env['JOB_TRACKER_API_URL'] = 'http://localhost:8001/api'
+            subprocess.run(["streamlit", "run", "dashboard.py"], env=env)
         except FileNotFoundError:
             # If streamlit is not in PATH, try using the module approach
-            os.environ['JOB_TRACKER_API_URL'] = 'http://localhost:8001/api'
-            subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard.py"])
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            env = os.environ.copy()
+            env['PYTHONPATH'] = current_dir + os.pathsep + env.get('PYTHONPATH', '')
+            env['JOB_TRACKER_API_URL'] = 'http://localhost:8001/api'
+            subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard.py"], env=env)
         
     elif command == "purge":
         # Purge old records
