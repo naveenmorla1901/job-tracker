@@ -31,6 +31,22 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", 
 # Password hashing setup
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Fix for bcrypt __about__ version issue
+import sys
+import logging
+try:
+    # Try to patch bcrypt if necessary
+    import bcrypt
+    if not hasattr(bcrypt, '__about__'):
+        # Create a minimal __about__ module with version to fix the passlib error
+        class DummyAbout:
+            __version__ = getattr(bcrypt, '__version__', '3.2.0')
+        # Add it to bcrypt module
+        bcrypt.__about__ = DummyAbout()
+        logging.getLogger("job_tracker.auth.security").info("Patched bcrypt module")
+except Exception as e:
+    logging.getLogger("job_tracker.auth.security").error(f"Failed to patch bcrypt: {e}")
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash."""
     return pwd_context.verify(plain_password, hashed_password)

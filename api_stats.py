@@ -45,6 +45,8 @@ def get_api_stats() -> Dict[str, Any]:
                 
             # Count jobs by posting date
             jobs_by_date = []
+            # Use SQLAlchemy's func directly instead of through the Session
+            from sqlalchemy import func
             dates_query = db.query(Job.date_posted, func.count(Job.id)).group_by(Job.date_posted).order_by(Job.date_posted.desc()).limit(7).all()
             
             for date, count in dates_query:
