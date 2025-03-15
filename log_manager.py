@@ -82,7 +82,7 @@ def read_log_content(log_file, max_lines=5000):
         logger.error(f"Error reading log file {log_file}: {str(e)}")
         return []
 
-def cleanup_old_logs(days=2, log_dir="logs"):
+def cleanup_old_logs(days=2, log_dir="logs", max_log_size_mb=2):
     """
     Delete log files older than the specified number of days
     Also rotate main logs if they're too large
@@ -96,24 +96,28 @@ def cleanup_old_logs(days=2, log_dir="logs"):
         archive_logs = []
         
         for main_log in main_logs:
-            if main_log in log_files:
-                log_files.remove(main_log)
-                # Rotate if larger than 5MB
-                if os.path.exists(main_log) and os.path.getsize(main_log) > 5 * 1024 * 1024:
+            if os.path.exists(main_log):
+                # Always rotate main logs if they exist to keep them small
+                if os.path.getsize(main_log) > max_log_size_mb * 1024 * 1024:
                     archive_name = rotate_log(main_log, log_dir)
                     if archive_name:
                         archive_logs.append(archive_name)
-            
+                        logger.info(f"Rotated main log {main_log} (exceeded {max_log_size_mb}MB)")
+        
+        # Make sure we get all log files in the logs directory
+        all_log_files = glob.glob(os.path.join(log_dir, "*.log"))
+        
         # Add archive logs to the list
-        log_files.extend(archive_logs)
+        log_files = list(set(log_files + all_log_files + archive_logs))
         
         # Current time for comparison
         now = datetime.now()
         deleted_count = 0
+        deleted_size = 0
         
         for log_file in log_files:
             try:
-                # Skip main logs
+                # Skip main logs in root directory
                 if log_file in main_logs:
                     continue
                     
@@ -122,11 +126,20 @@ def cleanup_old_logs(days=2, log_dir="logs"):
                 
                 # If older than specified days, delete it
                 if now - mtime > timedelta(days=days):
+                    # Get file size before deletion for reporting
+                    file_size = os.path.getsize(log_file) if os.path.exists(log_file) else 0
+                    
+                    # Delete the file
                     os.remove(log_file)
                     deleted_count += 1
-                    logger.info(f"Deleted old log file: {log_file}")
+                    deleted_size += file_size
+                    logger.info(f"Deleted old log file: {log_file} ({file_size / (1024*1024):.2f} MB)")
             except Exception as e:
                 logger.error(f"Error processing log file {log_file}: {str(e)}")
+        
+        # Report total deleted size
+        if deleted_count > 0:
+            logger.info(f"Total log cleanup: {deleted_count} files, {deleted_size / (1024*1024):.2f} MB")
                 
         return deleted_count
     except Exception as e:

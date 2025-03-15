@@ -16,7 +16,8 @@ def cleanup_logs_task():
     
     logger.info("Running scheduled log cleanup")
     try:
-        deleted_count = cleanup_old_logs(days=2)
+        # More aggressive cleanup - 1 day retention and smaller log size (2MB)
+        deleted_count = cleanup_old_logs(days=1, max_log_size_mb=2)
         logger.info(f"Deleted {deleted_count} old log files")
     except Exception as e:
         logger.error(f"Error during log cleanup: {str(e)}")
@@ -40,9 +41,14 @@ def run_scheduled_tasks():
 
 def start_scheduled_cleanup_thread():
     """Start the scheduled cleanup in a background thread"""
-    # Schedule log cleanup twice daily to ensure logs don't build up
-    schedule.every().day.at("03:00").do(cleanup_logs_task)
-    schedule.every().day.at("15:00").do(cleanup_logs_task)
+    # First run immediately to clean up existing logs
+    cleanup_logs_task()
+    
+    # Schedule log cleanup more frequently (every 6 hours)
+    schedule.every().day.at("00:00").do(cleanup_logs_task)
+    schedule.every().day.at("06:00").do(cleanup_logs_task)
+    schedule.every().day.at("12:00").do(cleanup_logs_task)
+    schedule.every().day.at("18:00").do(cleanup_logs_task)
     
     # Schedule database cleanup daily at 4 AM
     schedule.every().day.at("04:00").do(cleanup_database_task)

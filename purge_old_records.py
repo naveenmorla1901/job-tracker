@@ -49,16 +49,16 @@ def purge_old_records(days=7):
         
         # Get the count of jobs that will be deleted
         cursor.execute(
-            "SELECT COUNT(*) FROM jobs WHERE date_posted < %s",
+            "SELECT COUNT(*) FROM jobs WHERE date_posted < %s AND id NOT IN (SELECT DISTINCT job_id FROM user_jobs)",
             (formatted_date,)
         )
         count_to_delete = cursor.fetchone()[0]
-        logger.info(f"Found {count_to_delete} jobs older than {formatted_date}")
+        logger.info(f"Found {count_to_delete} jobs older than {formatted_date} that are not tracked by users")
         
         if count_to_delete > 0:
-            # Get the IDs of jobs to be deleted
+            # Get the IDs of jobs to be deleted (excluding those tracked by users)
             cursor.execute(
-                "SELECT id FROM jobs WHERE date_posted < %s",
+                "SELECT id FROM jobs WHERE date_posted < %s AND id NOT IN (SELECT DISTINCT job_id FROM user_jobs)",
                 (formatted_date,)
             )
             job_ids = [row[0] for row in cursor.fetchall()]
@@ -77,9 +77,9 @@ def purge_old_records(days=7):
                 role_rows_deleted = cursor.rowcount
                 logger.info(f"Deleted {role_rows_deleted} entries from job_roles table")
             
-            # Now delete the jobs
+            # Now delete the jobs (excluding those tracked by users)
             cursor.execute(
-                "DELETE FROM jobs WHERE date_posted < %s",
+                "DELETE FROM jobs WHERE date_posted < %s AND id NOT IN (SELECT DISTINCT job_id FROM user_jobs)",
                 (formatted_date,)
             )
             job_rows_deleted = cursor.rowcount

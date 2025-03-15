@@ -35,7 +35,16 @@ VALID_ROLES = {
     "Business Analyst",
     "Technical Writer",
     "Systems Engineer", 
-    "Data Analyst"  # Added Data Analyst role
+    "Data Analyst",
+    "Project Manager",
+    "Solutions Architect",
+    "Marketing Analyst",
+    "Content Manager",
+    "Content Strategist",
+    "Content Analyst",
+    "Business Intelligence Analyst",
+    "Supply Chain Analyst",
+    "Financial Analyst"
 }
 
 def clean_role_name(role_name: str) -> str:
@@ -71,9 +80,39 @@ def get_or_create_role(db: Session, role_name: str) -> Role:
         # Create the role if it doesn't exist
         logger.info(f"Creating new role: {cleaned_role_name}")
         role = Role(name=cleaned_role_name)
-        db.add(role)
-        db.commit()
-        db.refresh(role)
+        
+        try:
+            db.add(role)
+            db.commit()
+            db.refresh(role)
+        except IntegrityError:
+            # Role might have been created by another process
+            db.rollback()
+            # Try to get it again
+            role = db.query(Role).filter(Role.name == cleaned_role_name).first()
+            if not role:
+                # Create a default role as fallback
+                logger.warning(f"Failed to create or retrieve role: {cleaned_role_name}, using default")
+                default_role = "Software Engineer"
+                role = db.query(Role).filter(Role.name == default_role).first()
+                if not role:
+                    # Create the default role if it doesn't exist
+                    role = Role(name=default_role)
+                    db.add(role)
+                    db.commit()
+                    db.refresh(role)
+        except Exception as e:
+            logger.error(f"Error creating role {cleaned_role_name}: {str(e)}")
+            db.rollback()
+            # Use default role
+            default_role = "Software Engineer"
+            role = db.query(Role).filter(Role.name == default_role).first()
+            if not role:
+                # Create the default role if it doesn't exist
+                role = Role(name=default_role)
+                db.add(role)
+                db.commit()
+                db.refresh(role)
     
     return role
 

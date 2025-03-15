@@ -91,7 +91,16 @@ async def startup_event():
     logger.info("STARTING JOB TRACKER API")
     logger.info("="*80)
     
-    # First purge old records
+    # Run storage optimization first
+    try:
+        from optimize_storage import optimize_storage
+        logger.info("Running storage optimization...")
+        result = optimize_storage()
+        logger.info(f"Storage optimization completed: {result['space_freed_mb']:.2f} MB freed")
+    except Exception as e:
+        logger.error(f"Error during storage optimization: {str(e)}")
+    
+    # Then purge old records
     try:
         from purge_old_records import purge_old_records
         import threading
