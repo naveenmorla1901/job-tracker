@@ -18,8 +18,18 @@ source venv/bin/activate
 
 # Install dependencies
 echo "Installing dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
+
+# Try pip upgrade with retry
+for i in {1..3}; do
+  python -m pip install --upgrade pip==23.0.1 && break || echo "Attempt $i failed. Retrying..."
+  sleep 2
+done
+
+# Try requirements installation with retry
+for i in {1..3}; do
+  python -m pip install -r requirements.txt && break || echo "Attempt $i failed. Retrying..."
+  sleep 2
+done
 
 # Install psutil for system monitoring
 pip install psutil
@@ -49,6 +59,9 @@ echo "Starting services..."
 # Start services using nohup for initial deployment
 nohup uvicorn main:app --host 0.0.0.0 --port 8001 > api.log 2>&1 &
 nohup streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &
+
+# Sleep to ensure services are up before continuing
+sleep 5
 
 echo "Cleaning up old logs..."
 python -c "from log_manager import cleanup_old_logs; cleanup_old_logs(days=2)"
@@ -103,5 +116,5 @@ sudo cp scripts/job-tracker-sudoers /etc/sudoers.d/job-tracker
 sudo chmod 0440 /etc/sudoers.d/job-tracker
 
 echo "Deployment completed successfully!"
-echo "API running at: http://$(hostname -I | awk '{print $1}'):8000"
+echo "API running at: http://$(hostname -I | awk '{print $1}'):8001"
 echo "Dashboard running at: http://$(hostname -I | awk '{print $1}'):8501"

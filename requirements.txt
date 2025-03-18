@@ -41,6 +41,9 @@ email-validator
 gunicorn
 python-dotenv
 
+# Specific versions to avoid compatibility issues
+pip==23.0.1
+
 # Testing
 httpx
 pytest
