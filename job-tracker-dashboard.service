@@ -10,8 +10,11 @@ WorkingDirectory=/home/ubuntu/job-tracker
 Environment="PYTHONPATH=/home/ubuntu/job-tracker"
 Environment="JOB_TRACKER_API_URL=http://localhost:8001/api"
 ExecStart=/home/ubuntu/job-tracker/venv/bin/streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0
+ExecStop=/bin/pkill -f "streamlit run dashboard.py"
 Restart=on-failure
 RestartSec=5s
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target

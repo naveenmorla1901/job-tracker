@@ -69,9 +69,17 @@ echo "Setting up Nginx as reverse proxy..."
 bash scripts/setup_nginx.sh
 
 echo "Stopping any existing services..."
-# Simple approach for initial deployment - use pkill with a fallback
-pkill -f "uvicorn main:app" || echo "No API server running"
+# Better approach for stopping services - use both systemctl and direct process killing
+# Try stopping via systemctl first
+sudo systemctl stop job-tracker-api || echo "No API service to stop"
+sudo systemctl stop job-tracker-dashboard || echo "No dashboard service to stop"
+
+# Also kill any stray processes
+pkill -f "uvicorn main:app" || echo "No API process running"
 pkill -f "streamlit run dashboard.py" || echo "No dashboard running"
+
+# Wait for processes to completely terminate
+sleep 3
 
 echo "Starting services..."
 # Start services using nohup for initial deployment
@@ -99,22 +107,33 @@ cd /home/ubuntu/job-tracker
 unset GIT_DIR
 git pull origin main
 
-# Restart the API and dashboard services
+# Stop the API and dashboard services first
 if systemctl is-active --quiet job-tracker-api.service; then
-    echo "Restarting job-tracker-api.service..."
-    sudo systemctl restart job-tracker-api.service
-else
-    echo "Starting job-tracker-api.service..."
-    sudo systemctl start job-tracker-api.service
+    echo "Stopping job-tracker-api.service..."
+    sudo systemctl stop job-tracker-api.service
 fi
 
 if systemctl is-active --quiet job-tracker-dashboard.service; then
-    echo "Restarting job-tracker-dashboard.service..."
-    sudo systemctl restart job-tracker-dashboard.service
-else
-    echo "Starting job-tracker-dashboard.service..."
-    sudo systemctl start job-tracker-dashboard.service
+    echo "Stopping job-tracker-dashboard.service..."
+    sudo systemctl stop job-tracker-dashboard.service
 fi
+
+# Kill any remaining processes
+pkill -f "uvicorn main:app" || echo "No API process running"
+pkill -f "streamlit run dashboard.py" || echo "No dashboard running"
+
+# Wait for processes to terminate
+sleep 2
+
+# Start the services
+echo "Starting job-tracker-api.service..."
+sudo systemctl start job-tracker-api.service
+
+echo "Starting job-tracker-dashboard.service..."
+sudo systemctl start job-tracker-dashboard.service
+
+# Run the process cleanup script to ensure no duplicate processes
+bash scripts/cleanup_processes.sh
 
 echo "Services restarted successfully!"
 EOL
