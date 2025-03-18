@@ -178,9 +178,12 @@ def get_job_stats(db: Session = Depends(get_db)):
         now = datetime.utcnow()
         last_week = now - timedelta(days=7)
         
+        # Use func instead of db.func
+        from sqlalchemy import func
+        
         jobs_by_date = db.query(
             Job.date_posted, 
-            db.func.count(Job.id)
+            func.count(Job.id)
         ).filter(
             Job.date_posted >= last_week,
             Job.is_active == True
@@ -193,13 +196,13 @@ def get_job_stats(db: Session = Depends(get_db)):
         # Count jobs by company
         jobs_by_company = db.query(
             Job.company,
-            db.func.count(Job.id)
+            func.count(Job.id)
         ).filter(
             Job.is_active == True
         ).group_by(
             Job.company
         ).order_by(
-            db.func.count(Job.id).desc()
+            func.count(Job.id).desc()
         ).limit(10).all()
         
         # Count total active jobs
