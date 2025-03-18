@@ -17,6 +17,15 @@ load_dotenv()
 default_jwt_key = "temporary_secret_key_replace_in_production"
 JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", default_jwt_key)
 
+# Generate a secure random key if not provided and not in development mode
+if JWT_SECRET_KEY == default_jwt_key and os.environ.get("ENVIRONMENT") != "development":
+    import secrets
+    new_key = secrets.token_hex(32)
+    JWT_SECRET_KEY = new_key
+    logger.warning(
+        f"Generated a random JWT secret key. For better security, set this key in your .env file:\nJWT_SECRET_KEY={new_key}"
+    )
+
 # Log a warning if using the default JWT secret in production
 if JWT_SECRET_KEY == default_jwt_key and os.environ.get("ENVIRONMENT") == "production":
     logger.warning(

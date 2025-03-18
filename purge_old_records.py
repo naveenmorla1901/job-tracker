@@ -71,6 +71,14 @@ def purge_old_records(days=7):
                 else:
                     job_ids_str = str(tuple(job_ids))
                 
+                # First delete from user_jobs to avoid FK constraint violation
+                cursor.execute(
+                    f"DELETE FROM user_jobs WHERE job_id IN {job_ids_str}"
+                )
+                user_job_rows_deleted = cursor.rowcount
+                logger.info(f"Deleted {user_job_rows_deleted} entries from user_jobs table")
+                
+                # Then delete from job_roles
                 cursor.execute(
                     f"DELETE FROM job_roles WHERE job_id IN {job_ids_str}"
                 )
