@@ -3,6 +3,13 @@ set -e
 
 echo "Starting deployment process..."
 
+# Check Python availability
+if ! command -v python3 &> /dev/null; then
+  echo "Python 3 not found! Installing..."
+  sudo apt-get update
+  sudo apt-get install -y python3 python3-venv
+fi
+
 # Load environment variables
 if [ -f .env ]; then
   export $(cat .env | grep -v '^#' | xargs)
@@ -15,6 +22,17 @@ if [ ! -d "venv" ]; then
 fi
 
 source venv/bin/activate
+
+# Verify Python and pip are working
+echo "Python version: $(python --version)"
+echo "Pip version: $(pip --version || echo 'Pip not working properly')"
+
+# Check if pip is broken and fix if needed
+if ! pip --version &> /dev/null; then
+  echo "Pip appears to be broken. Reinstalling..."
+  curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+  python get-pip.py --force-reinstall pip==23.0.1
+fi
 
 # Install dependencies
 echo "Installing dependencies..."

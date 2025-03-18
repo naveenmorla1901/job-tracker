@@ -46,7 +46,7 @@ jobs:
         ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "find ~/job-tracker/scripts -name '*.sh' -exec chmod +x {} \;"
         # Try standard deployment first
         ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/deploy.sh" || {
-          echo "Standard deployment failed, trying fix script..."
-          ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/fix_deployment.sh"
+          echo "Standard deployment failed, trying emergency fix script..."
+          ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "cd ~/job-tracker && bash scripts/emergency_fix.sh"
         }
         ssh -o StrictHostKeyChecking=no ubuntu@170.9.227.112 "chmod +x ~/job-tracker/.git/hooks/post-receive"
