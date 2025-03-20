@@ -4,7 +4,7 @@ import enum
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Table, UniqueConstraint, Boolean, JSON, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Check if we're using SQLite (for testing)
 TESTING = os.environ.get("TESTING", "False").lower() in ("true", "1", "t")
@@ -35,11 +35,11 @@ class Job(Base):
     location = Column(String(255))
     job_url = Column(String(1024), nullable=False)
     company = Column(String(255), nullable=False, index=True)  # Store the company name
-    date_posted = Column(DateTime, default=datetime.utcnow)
+    date_posted = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     employment_type = Column(String(50))
     description = Column(Text)
-    first_seen = Column(DateTime, default=datetime.utcnow)
-    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    first_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_updated = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Use standard JSON type for SQLite compatibility
     raw_data = Column(JSON, nullable=True)  # Store the full JSON for future reference
@@ -69,7 +69,7 @@ class ScraperRun(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     scraper_name = Column(String(100), nullable=False)
-    start_time = Column(DateTime, default=datetime.utcnow)
+    start_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     end_time = Column(DateTime)
     status = Column(String(50))  # success, failure, partial
     jobs_added = Column(Integer, default=0)
@@ -84,7 +84,7 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), default=UserRole.REGULAR, nullable=False)
-    registration_date = Column(DateTime, default=datetime.utcnow)
+    registration_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     
@@ -98,8 +98,8 @@ class UserJob(Base):
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     job_id = Column(Integer, ForeignKey('jobs.id'), primary_key=True)
     is_applied = Column(Boolean, default=False)
-    date_saved = Column(DateTime, default=datetime.utcnow)
-    date_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    date_saved = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    date_updated = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
     user = relationship("User", back_populates="tracked_jobs")

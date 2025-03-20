@@ -44,14 +44,44 @@ def read_log_content(log_file, max_lines=5000):
             return []
 
         with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-            # Read last N lines
-            lines = f.readlines()
-            if len(lines) > max_lines:
-                lines = lines[-max_lines:]
+            # Read all lines from the file
+            all_lines = f.readlines()
+            
+            # Check for scraper run summaries to highlight in logs
+            scraper_summary_lines = []
+            for i, line in enumerate(all_lines):
+                if "SCRAPER RUN SUMMARY" in line:
+                    # Collect this line and the next 7 lines which typically contain the summary
+                    summary_block = all_lines[i:i+8]
+                    scraper_summary_lines.extend(summary_block)
+            
+            # Limit lines for display
+            if len(all_lines) > max_lines:
+                # First include important scraper summary logs
+                selected_lines = scraper_summary_lines
+                
+                # Then add the most recent logs up to max_lines
+                remaining_lines = max_lines - len(selected_lines)
+                if remaining_lines > 0:
+                    selected_lines.extend(all_lines[-remaining_lines:])
+                
+                # Sort lines to maintain chronological order
+                # Try to parse timestamps and sort
+                def get_timestamp(line):
+                    try:
+                        if len(line) > 19 and line[4] == '-' and line[7] == '-' and line[10] == ' ':
+                            return datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+                    except:
+                        pass
+                    return datetime.min
+                
+                sorted_lines = sorted(selected_lines, key=get_timestamp)
+            else:
+                sorted_lines = all_lines
                 
             # Fix timezone issue (convert from UTC to local time)
             corrected_lines = []
-            for line in lines:
+            for line in sorted_lines:
                 try:
                     # Check if this is a log line with a timestamp
                     if len(line) > 19 and line[4] == '-' and line[7] == '-' and line[10] == ' ' and line[13] == ':' and line[16] == ':':
@@ -62,13 +92,24 @@ def read_log_content(log_file, max_lines=5000):
                         # Parse the timestamp
                         dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
                         
-                        # Assuming the timestamp is in UTC and we want to convert to EST (UTC-5)
-                        local_tz = pytz.timezone('America/New_York')  # Adjust to your local timezone
-                        utc_dt = pytz.utc.localize(dt)
-                        local_dt = utc_dt.astimezone(local_tz)
+                        # Assuming the timestamp is in UTC and we want to convert to local timezone
+                        try:
+                            local_tz = pytz.timezone('America/New_York')  # Adjust to your local timezone
+                            utc_dt = pytz.utc.localize(dt)
+                            local_dt = utc_dt.astimezone(local_tz)
+                            
+                            # Create new line with the corrected timestamp
+                            corrected_line = local_dt.strftime("%Y-%m-%d %H:%M:%S") + rest_of_line
+                        except:
+                            # If timezone conversion fails, use the original timestamp
+                            corrected_line = line
                         
-                        # Create new line with the corrected timestamp
-                        corrected_line = local_dt.strftime("%Y-%m-%d %H:%M:%S") + rest_of_line
+                        # Highlight important scraper summary lines
+                        if "SCRAPER RUN SUMMARY" in corrected_line:
+                            corrected_line = "\n" + "=" * 50 + "\n" + corrected_line
+                        elif "Total jobs added:" in corrected_line or "Total jobs updated:" in corrected_line:
+                            corrected_line = ">>> " + corrected_line
+                            
                         corrected_lines.append(corrected_line)
                     else:
                         # Not a timestamp line, keep as is

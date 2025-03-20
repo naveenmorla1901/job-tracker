@@ -35,7 +35,13 @@ VALID_ROLES = {
     "Business Analyst",
     "Technical Writer",
     "Systems Engineer", 
-    "Data Analyst"  # Added Data Analyst role
+    "Data Analyst",
+    "Data Science",
+    "Python Engineer",
+    "SQL Developer",
+    "Data Administrator",
+    "MLOps Engineer",
+    "AI Researcher"
 }
 
 def clean_role_name(role_name: str) -> str:
@@ -53,6 +59,12 @@ def clean_role_name(role_name: str) -> str:
             if valid_role.lower() in cleaned.lower():
                 logger.debug(f"Mapped role '{cleaned}' to valid role '{valid_role}'")
                 return valid_role
+        
+        # If no match found, but role name seems valid (not empty or too generic),
+        # accept it as a new valid role
+        if len(cleaned) > 3 and cleaned.lower() not in ["job", "general", "position", "opening"]:
+            logger.info(f"Adding new valid role: {cleaned}")
+            VALID_ROLES.add(cleaned)  # Add dynamically to valid roles
     
     return cleaned
 

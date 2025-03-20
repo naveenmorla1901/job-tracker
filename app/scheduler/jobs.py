@@ -1,7 +1,7 @@
 # app/scheduler/jobs.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime
+from datetime import datetime, timezone
 import importlib
 import logging
 from sqlalchemy.orm import Session
@@ -90,7 +90,7 @@ def run_scraper(scraper_name, roles=None, days_back=7):
     total_scrapers = len(get_all_scrapers())
     
     # Default roles to use for all scrapers
-    default_roles = ["Data Scientist", "Data Analyst", "Machine Learning Engineer"]
+    default_roles = ["Data  Science python SQL", "Data Analyst", "Machine Learning Engineer python SQL", "AI Engineer python SQL"]
     DS="Data  Science python SQL"
     DA="Data Analyst"
     MLE="Machine Learning Engineer python SQL"
@@ -152,7 +152,7 @@ def run_scraper(scraper_name, roles=None, days_back=7):
     # Create a scraper run record
     scraper_run = ScraperRun(
         scraper_name=scraper_name,
-        start_time=datetime.utcnow(),
+        start_time=datetime.now(timezone.utc),
         status="running"
     )
     db.add(scraper_run)
@@ -196,7 +196,7 @@ def run_scraper(scraper_name, roles=None, days_back=7):
         
         # Update the scraper run record
         scraper_run.status = "success"
-        scraper_run.end_time = datetime.utcnow()
+        scraper_run.end_time = datetime.now(timezone.utc)
         scraper_run.jobs_added = jobs_added
         scraper_run.jobs_updated = jobs_updated
         
@@ -206,7 +206,7 @@ def run_scraper(scraper_name, roles=None, days_back=7):
         # Log the error and update the scraper run record
         logger.error(f"Error running scraper {scraper_name}: {str(e)}")
         scraper_run.status = "failure"
-        scraper_run.end_time = datetime.utcnow()
+        scraper_run.end_time = datetime.now(timezone.utc)
         scraper_run.error_message = str(e)
         global_stats["scraper_errors"] += 1
     
@@ -220,7 +220,7 @@ def run_scraper(scraper_name, roles=None, days_back=7):
             success_rate = ((total_scrapers - errors) / total_scrapers) * 100 if total_scrapers > 0 else 0
             
             logger.info("=" * 50)
-            logger.info(f"SCRAPER RUN SUMMARY ({datetime.now().strftime('%Y-%m-%d %H:%M')})")
+            logger.info(f"SCRAPER RUN SUMMARY ({datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')})")
             logger.info(f"Scrapers run: {total_scrapers}")
             logger.info(f"Successful: {total_scrapers - errors} ({success_rate:.1f}%)")
             logger.info(f"Failed: {errors}")
