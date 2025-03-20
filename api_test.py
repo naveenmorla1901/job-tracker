@@ -18,4 +18,4 @@ for url in urls:
         st.write(f"Response: {response.json()}")
         st.success(f"✅ Connected to {url}")
     except Exception as e:
-        st.error(f"❌ Failed to connect to {url}: {str(e)}")
+        st.error(f"❌ Failed to connect to {url}: {str(e)}")#test1
