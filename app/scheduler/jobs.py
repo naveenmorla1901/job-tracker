@@ -16,9 +16,11 @@ logger = logging.getLogger(__name__)
 # Company name mappings for proper capitalization
 COMPANY_NAMES = {
     "accenture": "Accenture",
+    "abbott": "Abbott",
     "adobe": "Adobe",
     "appliedmaterials": "Applied Materials",
     "airbus": "Airbus",
+    "airliquide": "Air Liquide",
     "assurant": "Assurant",
     "att": "ATT",
     "autodesk": "Autodesk",
@@ -51,6 +53,7 @@ COMPANY_NAMES = {
     "homedepot": "Home Depot",
     "igs": "IGS Energy",
     "illuminate": "Illuminate",
+    "allstate": "Allstate",
     "iqvia": "IQVIA",
     "jll": "JLL",
     "kbr": "KBR",
@@ -146,8 +149,11 @@ def run_scraper(scraper_name, roles=None, days_back=7):
     # Define custom roles for specific scrapers if needed
     custom_roles = {
         "accenture": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
+        "abbott": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
         "adobe": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
+        "allstate": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
         "appliedmaterials": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
+        "airliquide": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
         "airbus": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
         "assurant": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
         "att": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
