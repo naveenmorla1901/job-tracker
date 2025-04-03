@@ -4,15 +4,15 @@ import json
 from datetime import datetime, timedelta
 import concurrent.futures
 
-def get_allstate_jobs(roles, days=7):
-    """Main function to retrieve Allstate jobs structured by roles"""
+def get_motorola_jobs(roles, days=7):
+    """Main function to retrieve Motorola jobs structured by roles"""
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://allstate.wd5.myworkdayjobs.com/wday/cxs/allstate/allstate_careers/jobs"
+        base_url = "https://motorolasolutions.wd5.myworkdayjobs.com/wday/cxs/motorolasolutions/Careers/jobs"
 
         payload = {
-            "appliedFacets": {},
+            "appliedFacets": {"locationCountry": ["bc33aa3152ec42d4995f4791a106ed09"]},
             "searchText": target_role,
             "limit": 20,
             "offset": 0
@@ -22,7 +22,7 @@ def get_allstate_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://allstate.wd5.myworkdayjobs.com/allstate_careers"
+            "Referer": "https://motorolasolutions.wd5.myworkdayjobs.com/Careers"
         }
 
         try:
@@ -35,14 +35,14 @@ def get_allstate_jobs(roles, days=7):
             cutoff_date = datetime.now() - timedelta(days=days)
 
             for job in data.get('jobPostings', []):
-                job_id = extract_allstate_job_id(job)
+                job_id = extract_job_id(job)
                 if job_id and job_id not in seen_ids:
                     seen_ids.add(job_id)
                     jobs_to_process.append(job)
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_job = {
-                    executor.submit(process_allstate_job, job, cutoff_date): job
+                    executor.submit(process_motorola_job, job, cutoff_date): job
                     for job in jobs_to_process
                 }
 
@@ -65,23 +65,24 @@ def get_allstate_jobs(roles, days=7):
 
     return structured_results
 
-def process_allstate_job(job, cutoff_date):
+# Helper functions remain the same except removed print statements
+def process_motorola_job(job, cutoff_date):
     try:
-        job_url = f"https://allstate.wd5.myworkdayjobs.com/en-US/allstate_careers{job.get('externalPath', '')}"
-        metadata = get_allstate_job_details(job_url)
+        job_url = f"https://motorolasolutions.wd5.myworkdayjobs.com/en-US/Careers{job.get('externalPath', '')}"
+        metadata = get_motorola_details(job_url)
 
         if not metadata.get('datePosted'):
             return None
 
-        post_date = parse_allstate_date(metadata['datePosted'])
+        post_date = parse_motorola_date(metadata['datePosted'])
         if post_date and post_date >= cutoff_date:
-            return format_allstate_job_data(job, metadata)
+            return format_motorola_data(job, metadata)
 
     except Exception as e:
         print(f"Error processing job: {str(e)}")
     return None
 
-def get_allstate_job_details(job_url):
+def get_motorola_details(job_url):
     try:
         response = requests.get(job_url, timeout=10)
         response.raise_for_status()
@@ -95,7 +96,7 @@ def get_allstate_job_details(job_url):
                 return {
                     'datePosted': data.get('datePosted'),
                     'employmentType': data.get('employmentType'),
-                    'description': clean_allstate_description(data.get('description', ''))
+                    'description': clean_description(data.get('description', ''))
                 }
             except json.JSONDecodeError:
                 pass
@@ -111,24 +112,24 @@ def get_allstate_job_details(job_url):
         print(f"Error fetching details: {str(e)}")
         return {}
 
-def format_allstate_job_data(job, metadata):
+def format_motorola_data(job, metadata):
     return {
         "job_title": job.get('title', 'N/A'),
-        "job_id": extract_allstate_job_id(job),
+        "job_id": extract_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://allstate.wd5.myworkdayjobs.com/en-US/allstate_careers{job.get('externalPath', '')}",
-        "date_posted": format_allstate_date(metadata['datePosted']),
+        "job_url": f"https://motorolasolutions.wd5.myworkdayjobs.com/en-US/Careers{job.get('externalPath', '')}",
+        "date_posted": format_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
-        "description": metadata.get('description', 'N/A')
+        "description": metadata.get('description', 'N/A')[:300] + "..."
     }
 
-def extract_allstate_job_id(job):
+def extract_job_id(job):
     try:
         return job['externalPath'].split('_')[-1].split('/')[-1]
     except:
         return job.get('bulletFields', ['N/A'])[0]
 
-def parse_allstate_date(date_str):
+def parse_motorola_date(date_str):
     try:
         return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z")
     except:
@@ -137,29 +138,25 @@ def parse_allstate_date(date_str):
         except:
             return None
 
-def format_allstate_date(date_str):
+def format_date(date_str):
     try:
         return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%Y-%m-%d")
     except:
         return date_str
 
-def clean_allstate_description(desc):
-    if not desc:
-        return 'N/A'
-    cleaned = BeautifulSoup(desc, 'html.parser').get_text(separator=' ')
-    return ' '.join(cleaned.split()[:200]) + '...'
+def clean_description(desc):
+    return ' '.join(BeautifulSoup(desc, 'html.parser').get_text().split()[:150]) + '...'
 
 # Example usage:
 # if __name__ == "__main__":
 #     roles_to_check = [
-#         "Actuarial Analyst",
-#         "Claims Specialist",
-#         "Data Scientist",
-#         "Cybersecurity Engineer",
-#         "Product Manager",
-#         "UX Designer",
-#         "Risk Analyst"
+#         "SOC Analyst",
+#         "Machine Learning Engineer",
+#         "Cybersecurity Specialist",
+#         "Software Engineer",
+#         "RF Engineer",
+#         "Implementation Specialist"
 #     ]
 
-#     jobs_data = get_allstate_jobs(roles=roles_to_check, days=7)
+#     jobs_data = get_motorola_jobs(roles=roles_to_check, days=7)
 #     print(json.dumps(jobs_data, indent=2, ensure_ascii=False))
