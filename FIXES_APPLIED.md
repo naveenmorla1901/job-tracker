@@ -42,6 +42,14 @@ This document outlines the fixes applied to address several issues with the Job 
 - Improved logging for scheduler operations
 - Implemented startup detection to prevent unnecessary job runs
 
+### 6. Improved Role Validation
+**Problem**: Scrapers retrieving irrelevant job roles (e.g., "O9 Technical Architect") that don't match input roles.
+**Solution**:
+- Created `role_utils.py` utility module for role validation
+- Implemented intelligent role matching and filtering
+- Added automatic filtering to all scrapers using a decorator
+- Provided testing tool for verifying role validation
+
 ## Issues Fixed
 
 ### 1. Timestamp Issues
