@@ -1,97 +1,4 @@
-def _display_nginx_logs():
-    """Display Nginx logs in a tab"""
-    st.subheader("Nginx Logs")
-    
-    # Check common Nginx log file locations
-    log_files = ["/var/log/nginx/error.log", "/var/log/nginx/access.log"]
-    
-    # Use a dropdown to select which Nginx log to view
-    log_type = st.radio("Select Nginx log type:", ["Error Log", "Access Log"], horizontal=True)
-    
-    if log_type == "Error Log":
-        log_file = log_files[0]
-    else:  # Access Log
-        log_file = log_files[1]
-    
-    # Try to read the log file
-    try:
-        if os.path.exists(log_file):
-            # Read the log file using the system command
-            import subprocess
-            result = subprocess.run(["sudo", "tail", "-n", "1000", log_file], capture_output=True, text=True)
-            
-            if result.returncode == 0 and result.stdout:
-                st.code(result.stdout, language="text")
-            else:
-                # Try a direct file read as fallback
-                try:
-                    with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-                        content = f.readlines()
-                        # Take last 1000 lines
-                        if len(content) > 1000:
-                            content = content[-1000:]
-                        st.code("".join(content), language="text")
-                except Exception as e:
-                    st.warning(f"Could not read Nginx log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
-        else:
-            st.warning(f"Nginx log file {log_file} not found")
-    except Exception as e:
-        st.error(f"Error accessing Nginx logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
-
-def _display_postgres_logs():
-    """Display PostgreSQL logs in a tab"""
-    st.subheader("PostgreSQL Logs")
-    
-    # Common PostgreSQL log locations
-    log_paths = [
-        "/var/log/postgresql/postgresql-*.log",  # Debian/Ubuntu
-        "/var/lib/pgsql/data/log/*.log",         # RHEL/CentOS
-        "/usr/local/var/postgres/server.log"     # macOS Homebrew
-    ]
-    
-    # Find the actual log files
-    import glob
-    all_logs = []
-    for path in log_paths:
-        all_logs.extend(glob.glob(path))
-    
-    if all_logs:
-        # Let user select which log file to view
-        selected_log = st.selectbox("Select PostgreSQL log file:", all_logs)
-        
-        # Try to read the selected log file
-        try:
-            # Use system command to read logs with proper permissions
-            import subprocess
-            result = subprocess.run(["sudo", "tail", "-n", "1000", selected_log], capture_output=True, text=True)
-            
-            if result.returncode == 0 and result.stdout:
-                st.code(result.stdout, language="text")
-            else:
-                # Try a direct file read as fallback
-                try:
-                    with open(selected_log, 'r', encoding='utf-8', errors='replace') as f:
-                        content = f.readlines()
-                        # Take last 1000 lines
-                        if len(content) > 1000:
-                            content = content[-1000:]
-                        st.code("".join(content), language="text")
-                except Exception as e:
-                    st.warning(f"Could not read PostgreSQL log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
-        except Exception as e:
-            st.error(f"Error accessing PostgreSQL logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
-    else:
-        # If no log files found, show a message about checking PostgreSQL processes
-        st.warning("No PostgreSQL log files found at common locations")
-        
-        # Show PostgreSQL processes
-        st.subheader("PostgreSQL Processes")
-        try:
-            import subprocess
-            result = subprocess.run(["ps", "aux", "|", "grep", "postgres"], shell=True, capture_output=True, text=True)
-            st.code(result.stdout, language="text")
-        except Exception as e:
-            st.error(f"Error checking PostgreSQL processes: {str(e)}")"""
+"""
 Simplified logs page for the Job Tracker dashboard
 """
 import streamlit as st
@@ -383,3 +290,98 @@ def _display_system_info():
             
     except Exception as e:
         st.error(f"Error getting system information: {str(e)}")
+
+def _display_nginx_logs():
+    """Display Nginx logs in a tab"""
+    st.subheader("Nginx Logs")
+    
+    # Check common Nginx log file locations
+    log_files = ["/var/log/nginx/error.log", "/var/log/nginx/access.log"]
+    
+    # Use a dropdown to select which Nginx log to view
+    log_type = st.radio("Select Nginx log type:", ["Error Log", "Access Log"], horizontal=True)
+    
+    if log_type == "Error Log":
+        log_file = log_files[0]
+    else:  # Access Log
+        log_file = log_files[1]
+    
+    # Try to read the log file
+    try:
+        if os.path.exists(log_file):
+            # Read the log file using the system command
+            import subprocess
+            result = subprocess.run(["sudo", "tail", "-n", "1000", log_file], capture_output=True, text=True)
+            
+            if result.returncode == 0 and result.stdout:
+                st.code(result.stdout, language="text")
+            else:
+                # Try a direct file read as fallback
+                try:
+                    with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.readlines()
+                        # Take last 1000 lines
+                        if len(content) > 1000:
+                            content = content[-1000:]
+                        st.code("".join(content), language="text")
+                except Exception as e:
+                    st.warning(f"Could not read Nginx log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        else:
+            st.warning(f"Nginx log file {log_file} not found")
+    except Exception as e:
+        st.error(f"Error accessing Nginx logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+
+def _display_postgres_logs():
+    """Display PostgreSQL logs in a tab"""
+    st.subheader("PostgreSQL Logs")
+    
+    # Common PostgreSQL log locations
+    log_paths = [
+        "/var/log/postgresql/postgresql-*.log",  # Debian/Ubuntu
+        "/var/lib/pgsql/data/log/*.log",         # RHEL/CentOS
+        "/usr/local/var/postgres/server.log"     # macOS Homebrew
+    ]
+    
+    # Find the actual log files
+    import glob
+    all_logs = []
+    for path in log_paths:
+        all_logs.extend(glob.glob(path))
+    
+    if all_logs:
+        # Let user select which log file to view
+        selected_log = st.selectbox("Select PostgreSQL log file:", all_logs)
+        
+        # Try to read the selected log file
+        try:
+            # Use system command to read logs with proper permissions
+            import subprocess
+            result = subprocess.run(["sudo", "tail", "-n", "1000", selected_log], capture_output=True, text=True)
+            
+            if result.returncode == 0 and result.stdout:
+                st.code(result.stdout, language="text")
+            else:
+                # Try a direct file read as fallback
+                try:
+                    with open(selected_log, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.readlines()
+                        # Take last 1000 lines
+                        if len(content) > 1000:
+                            content = content[-1000:]
+                        st.code("".join(content), language="text")
+                except Exception as e:
+                    st.warning(f"Could not read PostgreSQL log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        except Exception as e:
+            st.error(f"Error accessing PostgreSQL logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+    else:
+        # If no log files found, show a message about checking PostgreSQL processes
+        st.warning("No PostgreSQL log files found at common locations")
+        
+        # Show PostgreSQL processes
+        st.subheader("PostgreSQL Processes")
+        try:
+            import subprocess
+            result = subprocess.run(["ps", "aux", "|", "grep", "postgres"], shell=True, capture_output=True, text=True)
+            st.code(result.stdout, language="text")
+        except Exception as e:
+            st.error(f"Error checking PostgreSQL processes: {str(e)}")
