@@ -3,20 +3,33 @@ set -e
 
 echo "Starting deployment process..."
 
-# Before starting new services, clean up any old folders that might be taking space
-echo "Cleaning up old backups and temporary files..."
-find . -maxdepth 1 -type d -name "venv_old*" -o -name "venv_backup*" -o -name "*_backup" | xargs rm -rf 2>/dev/null || true
-find . -name "*.pyc" -o -name "*.pyo" -o -name "__pycache__" | xargs rm -rf 2>/dev/null || true
-find . -name "*.log.old" -o -name "*.log.bak" | xargs rm -f 2>/dev/null || true
+# Run the comprehensive project size cleanup script
+echo "Running project size cleanup..."
+if [ -f "scripts/cleanup_project_size.sh" ]; then
+  # Run in non-interactive mode for automated deployments
+  bash scripts/cleanup_project_size.sh <<< "y\ny\ny\ny\ny\ny"
+else
+  # Fallback to basic cleanup if the script doesn't exist
+  echo "Cleanup script not found, using basic cleanup..."
+  find . -maxdepth 1 -type d -name "venv_old*" -o -name "venv_backup*" -o -name "*_backup" | xargs rm -rf 2>/dev/null || true
+  find . -name "*.pyc" -o -name "*.pyo" -o -name "__pycache__" | xargs rm -rf 2>/dev/null || true
+  find . -name "*.log.old" -o -name "*.log.bak" | xargs rm -f 2>/dev/null || true
 
-# Truncate large log files
-for log_file in *.log; do
-  if [ -f "$log_file" ] && [ $(du -b "$log_file" | cut -f1) -gt 5000000 ]; then
-    echo "Truncating large log file: $log_file"
-    tail -n 1000 "$log_file" > "${log_file}.new"
-    mv "${log_file}.new" "$log_file"
-  fi
-done
+  # Truncate large log files
+  for log_file in *.log; do
+    if [ -f "$log_file" ] && [ $(du -b "$log_file" | cut -f1) -gt 5000000 ]; then
+      echo "Truncating large log file: $log_file"
+      tail -n 1000 "$log_file" > "${log_file}.new"
+      mv "${log_file}.new" "$log_file"
+    fi
+  done
+fi
+
+# Clean up any running processes before deployment
+echo "Cleaning up processes before deployment..."
+if [ -f "scripts/cleanup_processes.sh" ]; then
+  bash scripts/cleanup_processes.sh
+fi
 
 # Check Python availability
 if ! command -v python3 &> /dev/null; then
@@ -167,6 +180,17 @@ echo "Setting up sudo permissions..."
 sudo cp scripts/job-tracker-sudoers /etc/sudoers.d/job-tracker
 sudo chmod 0440 /etc/sudoers.d/job-tracker
 
+# Final cleanup to ensure no duplicate processes and minimal disk usage
+echo "Running final cleanup..."
+bash scripts/cleanup_processes.sh
+
+# Check project size after deployment
+echo "Final project size:"
+du -sh .
+
 echo "Deployment completed successfully!"
 echo "API running at: http://$(hostname -I | awk '{print $1}'):8001"
 echo "Dashboard running at: http://$(hostname -I | awk '{print $1}'):8501"
+
+echo "Note: If you experience issues with duplicate processes or increasing project size,"
+echo "run 'bash scripts/maintenance.sh' to perform comprehensive maintenance."

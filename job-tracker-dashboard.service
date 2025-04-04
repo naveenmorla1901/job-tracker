@@ -9,13 +9,18 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/job-tracker
 Environment="PYTHONPATH=/home/ubuntu/job-tracker"
 Environment="JOB_TRACKER_API_URL=http://localhost:8001/api"
+# Kill any existing processes before starting
+ExecStartPre=/bin/bash -c 'pkill -f "streamlit run dashboard.py" || true'
+ExecStartPre=/bin/sleep 2
+# Free the port if needed
 ExecStartPre=/bin/bash -c '/home/ubuntu/job-tracker/venv/bin/python /home/ubuntu/job-tracker/free_port.py 8501'
 ExecStart=/home/ubuntu/job-tracker/venv/bin/streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0
 ExecStop=/bin/pkill -f "streamlit run dashboard.py"
+# Prevent too many restarts
 Restart=on-failure
-RestartSec=5s
-StartLimitIntervalSec=120
-StartLimitBurst=5
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
