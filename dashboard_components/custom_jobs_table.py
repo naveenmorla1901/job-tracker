@@ -295,7 +295,7 @@ def display_custom_jobs_table(df_jobs):
                 
                 # Display the checkbox with a custom label for auto-save
                 # We'll detect changes and save automatically
-                is_checked = cols[4].checkbox("", value=prev_value, key=checkbox_key, help="Mark as applied (saves automatically)")
+                is_checked = cols[4].checkbox("Applied", value=prev_value, key=checkbox_key, help="Mark as applied (saves automatically)", label_visibility="collapsed")
                 
                 # Check if the value changed and auto-save
                 if is_checked != prev_value:

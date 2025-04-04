@@ -141,6 +141,16 @@ async def startup_event():
     # Then start the scheduler
     logger.info("Initializing job scraper scheduler...")
     from app.scheduler.jobs import setup_scheduler
+    from free_port import is_port_in_use, free_port
+    
+    # Make sure the port is free before starting the API
+    port = 8001  # The port we want to use
+    if is_port_in_use(port):
+        logger.warning(f"Port {port} is already in use, attempting to free it...")
+        if not free_port(port):
+            logger.error(f"Could not free port {port}, API may not start properly")
+            
+    # Setup the scheduler
     setup_scheduler()
     logger.info("Startup complete!")
 

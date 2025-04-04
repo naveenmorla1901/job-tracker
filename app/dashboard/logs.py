@@ -1,4 +1,97 @@
-"""
+def _display_nginx_logs():
+    """Display Nginx logs in a tab"""
+    st.subheader("Nginx Logs")
+    
+    # Check common Nginx log file locations
+    log_files = ["/var/log/nginx/error.log", "/var/log/nginx/access.log"]
+    
+    # Use a dropdown to select which Nginx log to view
+    log_type = st.radio("Select Nginx log type:", ["Error Log", "Access Log"], horizontal=True)
+    
+    if log_type == "Error Log":
+        log_file = log_files[0]
+    else:  # Access Log
+        log_file = log_files[1]
+    
+    # Try to read the log file
+    try:
+        if os.path.exists(log_file):
+            # Read the log file using the system command
+            import subprocess
+            result = subprocess.run(["sudo", "tail", "-n", "1000", log_file], capture_output=True, text=True)
+            
+            if result.returncode == 0 and result.stdout:
+                st.code(result.stdout, language="text")
+            else:
+                # Try a direct file read as fallback
+                try:
+                    with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.readlines()
+                        # Take last 1000 lines
+                        if len(content) > 1000:
+                            content = content[-1000:]
+                        st.code("".join(content), language="text")
+                except Exception as e:
+                    st.warning(f"Could not read Nginx log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        else:
+            st.warning(f"Nginx log file {log_file} not found")
+    except Exception as e:
+        st.error(f"Error accessing Nginx logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+
+def _display_postgres_logs():
+    """Display PostgreSQL logs in a tab"""
+    st.subheader("PostgreSQL Logs")
+    
+    # Common PostgreSQL log locations
+    log_paths = [
+        "/var/log/postgresql/postgresql-*.log",  # Debian/Ubuntu
+        "/var/lib/pgsql/data/log/*.log",         # RHEL/CentOS
+        "/usr/local/var/postgres/server.log"     # macOS Homebrew
+    ]
+    
+    # Find the actual log files
+    import glob
+    all_logs = []
+    for path in log_paths:
+        all_logs.extend(glob.glob(path))
+    
+    if all_logs:
+        # Let user select which log file to view
+        selected_log = st.selectbox("Select PostgreSQL log file:", all_logs)
+        
+        # Try to read the selected log file
+        try:
+            # Use system command to read logs with proper permissions
+            import subprocess
+            result = subprocess.run(["sudo", "tail", "-n", "1000", selected_log], capture_output=True, text=True)
+            
+            if result.returncode == 0 and result.stdout:
+                st.code(result.stdout, language="text")
+            else:
+                # Try a direct file read as fallback
+                try:
+                    with open(selected_log, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.readlines()
+                        # Take last 1000 lines
+                        if len(content) > 1000:
+                            content = content[-1000:]
+                        st.code("".join(content), language="text")
+                except Exception as e:
+                    st.warning(f"Could not read PostgreSQL log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        except Exception as e:
+            st.error(f"Error accessing PostgreSQL logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+    else:
+        # If no log files found, show a message about checking PostgreSQL processes
+        st.warning("No PostgreSQL log files found at common locations")
+        
+        # Show PostgreSQL processes
+        st.subheader("PostgreSQL Processes")
+        try:
+            import subprocess
+            result = subprocess.run(["ps", "aux", "|", "grep", "postgres"], shell=True, capture_output=True, text=True)
+            st.code(result.stdout, language="text")
+        except Exception as e:
+            st.error(f"Error checking PostgreSQL processes: {str(e)}")"""
 Simplified logs page for the Job Tracker dashboard
 """
 import streamlit as st
@@ -30,8 +123,8 @@ def display_logs_page():
         deleted_count = cleanup_old_logs(days=2)
         st.sidebar.success(f"Deleted {deleted_count} old log files")
     
-    # Display API logs, Dashboard logs, and System info in tabs
-    tab1, tab2, tab3 = st.tabs(["API Logs", "Dashboard Logs", "System Info"])
+    # Display API logs, Dashboard logs, System info, Nginx logs, and Postgres logs in tabs
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["API Logs", "Dashboard Logs", "System Info", "Nginx Logs", "Postgres Logs"])
     
     # Read API logs
     with tab1:
@@ -44,6 +137,14 @@ def display_logs_page():
     # System Information
     with tab3:
         _display_system_info()
+        
+    # Nginx Logs
+    with tab4:
+        _display_nginx_logs()
+    
+    # Postgres Logs
+    with tab5:
+        _display_postgres_logs()
     
     # Information about logs cleanup
     st.sidebar.info("Logs are automatically cleaned up every 2 days")
@@ -53,36 +154,42 @@ def _display_api_logs():
     st.subheader("API Logs (job_tracker.log)")
     
     # Check if main log file exists
-    if os.path.exists("job_tracker.log"):
-        # Read content
-        log_content = read_log_content("job_tracker.log")
-        
+    log_files = ["job_tracker.log", "/var/log/job-tracker/api.log", "/home/ubuntu/job-tracker/job_tracker.log"]
+    log_content = []
+    
+    for log_file in log_files:
+        if os.path.exists(log_file):
+            log_content.extend(read_log_content(log_file))
+    
+    if log_content:
         # Reverse the log content to show most recent logs first
         log_content.reverse()
         
         # Display logs in a fixed height read-only text area
         st.code("".join(log_content), language="text")
-        
     else:
-        st.warning("API log file (job_tracker.log) not found")
+        st.warning("No API log files found")
 
 def _display_dashboard_logs():
     """Display dashboard logs in a tab"""
     st.subheader("Dashboard Logs (dashboard.log)")
     
-    # Check if dashboard log file exists
-    if os.path.exists("dashboard.log"):
-        # Read content
-        log_content = read_log_content("dashboard.log")
-        
+    # Check multiple possible log file locations
+    log_files = ["dashboard.log", "/var/log/job-tracker/dashboard.log", "/home/ubuntu/job-tracker/dashboard.log"]
+    log_content = []
+    
+    for log_file in log_files:
+        if os.path.exists(log_file):
+            log_content.extend(read_log_content(log_file))
+    
+    if log_content:
         # Reverse the log content to show most recent logs first
         log_content.reverse()
         
         # Display logs in a fixed height read-only text area
         st.code("".join(log_content), language="text")
-        
     else:
-        st.warning("Dashboard log file (dashboard.log) not found")
+        st.warning("No dashboard log files found")
 
 def _display_system_info():
     """Display system information in a tab"""

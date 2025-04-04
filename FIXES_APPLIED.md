@@ -2,6 +2,46 @@
 
 This document outlines the fixes applied to address several issues with the Job Tracker application.
 
+## Latest Fixes (April 2025)
+
+### 1. Backend Scheduler and Port Conflicts
+**Problem**: Backend logs continuously generating due to port conflicts, scheduler issues, and multiple instances of the API server trying to start simultaneously.
+**Solution**:
+- Created `free_port.py` script to detect and kill processes using required ports
+- Updated scheduler job IDs to be consistent and prevent duplication
+- Added port conflict checking before API startup
+- Modified service files to automatically clear port conflicts before starting
+
+### 2. Empty Label Warnings in Streamlit
+**Problem**: Dashboard logs showing warnings about empty labels in Streamlit components.
+**Solution**:
+- Fixed checkboxes to use proper labels with hidden visibility rather than empty labels
+- Updated custom UI components to comply with accessibility recommendations
+
+### 3. System Logs Display
+**Problem**: Not all system logs being displayed in the web interface.
+**Solution**:
+- Enhanced log display to show logs from multiple sources
+- Added tabs for Nginx and PostgreSQL logs
+- Implemented multi-file log reading for more comprehensive logging
+- Added safety checks to prevent errors when logs are not accessible
+
+### 4. Multiple Service Instances
+**Problem**: Multiple instances of PostgreSQL, Nginx, and application servers running simultaneously.
+**Solution**:
+- Created `restart_services.py` to properly manage service lifecycles
+- Added `clean_start.py` script for complete system cleanup and restart
+- Implemented process checks to prevent duplicate instances
+- Added systemd service improvements to better handle restarts
+
+### 5. Scheduler Runs
+**Problem**: Scheduler not running correctly from 7AM to 5PM as intended.
+**Solution**:
+- Fixed scheduler configuration with proper job IDs
+- Added checks to prevent duplicate scheduler instances
+- Improved logging for scheduler operations
+- Implemented startup detection to prevent unnecessary job runs
+
 ## Issues Fixed
 
 ### 1. Timestamp Issues

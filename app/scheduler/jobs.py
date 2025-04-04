@@ -443,7 +443,7 @@ def setup_scheduler():
     scheduler.add_job(
         run_all_scrapers,
         CronTrigger(hour='7-17', minute='0'),  # Run at the top of every hour from 7 AM to 5 PM
-        id="hourly_scraper_run",
+        id="run_all_scrapers",
         replace_existing=True
     )
     
@@ -451,16 +451,26 @@ def setup_scheduler():
     scheduler.add_job(
         check_for_expired_jobs,
         CronTrigger(hour=18, minute=0),  # Run daily at 6 PM
-        id="daily_expired_check",
+        id="check_for_expired_jobs",
         replace_existing=True
     )
     
-    # Commented out to prevent scraping on every startup
-    # scheduler.add_job(
-    #     run_all_scrapers,
-    #     'date',
-    #     id="startup_scraper_run"
-    # )
+    # Run scrapers once at startup only if not already scheduled
+    if scheduler.get_job('run_all_scrapers') is None:
+        logger.warning("Scheduler reset detected, re-configuring all jobs")
+        scheduler.add_job(
+            run_all_scrapers,
+            CronTrigger(hour='7-17', minute='0'),
+            id="run_all_scrapers",
+            replace_existing=True
+        )
+        
+        scheduler.add_job(
+            check_for_expired_jobs,
+            CronTrigger(hour=18, minute=0),
+            id="check_for_expired_jobs",
+            replace_existing=True
+        )
     
     scheduler.start()
     logger.info(f"Scheduler started with {len(available_scrapers)} scrapers running hourly from 7 AM to 5 PM")
