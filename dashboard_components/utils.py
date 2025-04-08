@@ -137,16 +137,29 @@ def format_job_date(date_str):
         today = pd.Timestamp.now().normalize()
         yesterday = today - pd.Timedelta(days=1)
 
+        # Check if the time part is midnight (00:00) or noon (12:00)
+        # This likely means the time wasn't stored, just the date
+        has_real_time = not (date_obj.hour == 0 and date_obj.minute == 0) and not (date_obj.hour == 12 and date_obj.minute == 0)
+
         # Format time part
         time_str = date_obj.strftime("%I:%M %p")  # 12-hour format with AM/PM
 
         if date_obj.normalize() == today:
-            return f"Today at {time_str}"
+            if has_real_time:
+                return f"Today at {time_str}"
+            else:
+                return "Today"
         elif date_obj.normalize() == yesterday:
-            return f"Yesterday at {time_str}"
+            if has_real_time:
+                return f"Yesterday at {time_str}"
+            else:
+                return "Yesterday"
         else:
-            # For older dates, show date and time
-            return date_obj.strftime("%Y-%m-%d at %I:%M %p")
+            # For older dates, show date and time if we have real time data
+            if has_real_time:
+                return date_obj.strftime("%Y-%m-%d at %I:%M %p")
+            else:
+                return date_obj.strftime("%Y-%m-%d")
     except Exception as e:
         # Return original if parsing fails
         return date_str

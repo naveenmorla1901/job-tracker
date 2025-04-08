@@ -106,7 +106,7 @@ def display_custom_jobs_table(df_jobs):
     st.markdown("""
     <style>
     /* Compact table styling - ULTRA COMPACT */
-    .stContainer, .block-container {
+    .stContainer, .block-container, .element-container {
         padding-top: 0 !important;
         padding-bottom: 0 !important;
         margin-top: 0 !important;
@@ -123,9 +123,35 @@ def display_custom_jobs_table(df_jobs):
 
     /* Reduce gap between job listings */
     .job-container {
-        margin-bottom: -15px !important;
+        margin-bottom: -25px !important;
         padding-bottom: 0 !important;
         padding-top: 0 !important;
+    }
+
+    /* Target Streamlit's container classes for logged-in view */
+    .st-emotion-cache-ocqkz7, .st-emotion-cache-16txtl3, .st-emotion-cache-1r6slb0, .st-emotion-cache-1kyxreq {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    /* Target the row container */
+    .row-widget {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Target the stHorizontal class */
+    .stHorizontal {
+        gap: 0 !important;
+        margin-top: -10px !important;
+        margin-bottom: -10px !important;
+    }
+
+    /* Target the checkbox container */
+    .stCheckbox > div {
+        min-height: 0 !important;
     }
 
     /* Make checkboxes and buttons ultra compact */
@@ -259,8 +285,8 @@ def display_custom_jobs_table(df_jobs):
                 container_style = """
                 <style>
                 .job-container {
-                    margin-top: -25px !important;
-                    margin-bottom: -25px !important;
+                    margin-top: -30px !important;
+                    margin-bottom: -30px !important;
                     padding-top: 0 !important;
                     padding-bottom: 0 !important;
                 }
@@ -270,9 +296,23 @@ def display_custom_jobs_table(df_jobs):
                     line-height: 1 !important;
                     font-size: 0.85rem !important;
                 }
-                .st-emotion-cache-ocqkz7 {
+                /* Target Streamlit's container classes */
+                .st-emotion-cache-ocqkz7, .st-emotion-cache-16txtl3, .st-emotion-cache-1r6slb0, .st-emotion-cache-1kyxreq {
                     padding-top: 0 !important;
                     padding-bottom: 0 !important;
+                    margin-top: 0 !important;
+                    margin-bottom: 0 !important;
+                }
+                /* Target the row container */
+                .row-widget {
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                /* Target the stHorizontal class */
+                .stHorizontal {
+                    gap: 0 !important;
+                    margin-top: -10px !important;
+                    margin-bottom: -10px !important;
                 }
                 </style>
                 <div class="job-container">
@@ -328,8 +368,8 @@ def display_custom_jobs_table(df_jobs):
 
 
 
-            # Ultra minimal separator - barely visible line
-            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0.03; border-top: 1px solid #555; margin-top: -6px; margin-bottom: -6px;'>", unsafe_allow_html=True)
+            # Ultra minimal separator - almost invisible line
+            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0.01; border-top: 1px solid #555; margin-top: -15px; margin-bottom: -15px;'>", unsafe_allow_html=True)
     else:
         # For non-logged-in users, show all jobs in a compact table
         # Apply the same compact styling
