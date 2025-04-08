@@ -71,20 +71,41 @@ def main():
     # Load custom JavaScript for more compact job listings
     with open(os.path.join(os.path.dirname(__file__), "static", "compact_jobs.js")) as f:
         st.markdown(f"<script>{f.read()}</script>", unsafe_allow_html=True)
+        
+    # Load analytics helper functions
+    with open(os.path.join(os.path.dirname(__file__), "static", "analytics.js")) as f:
+        st.markdown(f"<script>{f.read()}</script>", unsafe_allow_html=True)
     
-    # Add a custom header with base tag to help with Google Analytics
+    # Add Google Analytics - updated implementation
     st.markdown(
         """
-        <head>
-            <!-- Global site tag (gtag.js) - Google Analytics -->
-            <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
-            <script>
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', 'G-EGVJQG5M34');
-            </script>
-        </head>
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-EGVJQG5M34');
+            
+            // Add event to track page views in Streamlit
+            document.addEventListener('DOMContentLoaded', function() {
+                const callback = function() {
+                    gtag('event', 'page_view', {
+                        'page_location': window.location.href
+                    });
+                };
+                
+                // Try to detect Streamlit page changes
+                const observer = new MutationObserver(callback);
+                setTimeout(() => {
+                    const mainContent = document.querySelector('.main');
+                    if (mainContent) {
+                        observer.observe(mainContent, { childList: true, subtree: true });
+                        console.log('Google Analytics initialized and tracking page views');
+                    }
+                }, 2000);
+            });
+        </script>
         """,
         unsafe_allow_html=True
     )

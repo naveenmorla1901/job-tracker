@@ -311,8 +311,8 @@ def display_custom_jobs_table(df_jobs):
                     else:
                         st.error("Failed to update status.")
                 
-                # Apply button (column 6) - ultra compact
-                cols[5].markdown(f"<p class='compact-text'><a href='{job_url}' target='_blank' style='display:inline-block; padding:1px 5px; font-size:0.75rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:2px;'>Apply</a></p>", unsafe_allow_html=True)
+                # Apply button (column 6) - ultra compact with analytics tracking
+                cols[5].markdown(f"<p class='compact-text'><a href='{job_url}' target='_blank' onclick=\"trackJobApply('{job_id}', '{company}', '{job_title}'); return true;\" style='display:inline-block; padding:1px 5px; font-size:0.75rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:2px;'>Apply</a></p>", unsafe_allow_html=True)
                 
                 # Close the container div
                 st.markdown("</div>", unsafe_allow_html=True)

@@ -442,7 +442,7 @@ def setup_scheduler():
     # Schedule all scrapers to run hourly from 7 AM to 5 PM
     scheduler.add_job(
         run_all_scrapers,
-        CronTrigger(hour='7-17', minute='0'),  # Run at the top of every hour from 7 AM to 5 PM
+        CronTrigger(hour='9-19', minute='0'),  # Run at the top of every hour from 7 AM to 5 PM
         id="run_all_scrapers",
         replace_existing=True
     )

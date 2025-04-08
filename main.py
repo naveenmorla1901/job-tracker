@@ -32,6 +32,7 @@ from app.api.endpoints.stats import router as stats_router
 from app.api.endpoints.health import router as health_router
 from app.api.endpoints.auth.routes import router as auth_router
 from app.api.endpoints.user_jobs import router as user_jobs_router
+from app.api.endpoints.roles import router as roles_router
 from app.config import ENVIRONMENT
 
 # Get environment for conditional logic
@@ -42,7 +43,7 @@ is_test = ENVIRONMENT == "test"
 if not is_test:
     logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    
+
     # Import only if not in test to prevent circular imports
     from app.scheduler.jobs import setup_scheduler
 else:
@@ -78,6 +79,7 @@ app.include_router(stats_router, prefix="/api/stats", tags=["stats"])
 app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(user_jobs_router, prefix="/api/user/jobs", tags=["user-jobs"])
+app.include_router(roles_router, prefix="/api/roles", tags=["roles"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -86,18 +88,18 @@ async def startup_event():
     if is_test:
         logger.info("Test environment: skipping startup tasks")
         return
-        
+
     logger.info("="*80)
     logger.info("STARTING JOB TRACKER API")
     logger.info("="*80)
-    
+
     # First purge old records
     try:
         from purge_old_records import purge_old_records
         import threading
-        
+
         logger.info("Starting initial database cleanup...")
-        
+
         # Run initial purge in a separate thread
         def purge_thread():
             try:
@@ -105,19 +107,19 @@ async def startup_event():
                 logger.info(f"Initial cleanup complete: {removed_count} old records removed")
             except Exception as e:
                 logger.error(f"Error during initial cleanup: {str(e)}")
-        
+
         thread = threading.Thread(target=purge_thread)
         thread.daemon = True
         thread.start()
-        
+
         # Start the scheduled cleanup process
         from scheduled_cleanup import start_scheduled_cleanup_thread
         cleanup_thread = start_scheduled_cleanup_thread()
-        
+
         logger.info("Scheduled cleanup service started successfully")
     except Exception as e:
         logger.error(f"Warning: Could not set up scheduled cleanup: {str(e)}")
-    
+
     # Get database statistics
     try:
         db = next(get_db())
@@ -125,7 +127,7 @@ async def startup_event():
         total_jobs = db.query(Job).count()
         companies = db.query(Job.company).distinct().count()
         roles = db.query(Role).count()
-        
+
         logger.info("-"*50)
         logger.info("Database Statistics:")
         logger.info(f"Active Jobs: {active_jobs}")
@@ -133,23 +135,23 @@ async def startup_event():
         logger.info(f"Companies: {companies}")
         logger.info(f"Roles: {roles}")
         logger.info("-"*50)
-        
+
         db.close()
     except Exception as e:
         logger.error(f"Error getting database statistics: {str(e)}")
-    
+
     # Then start the scheduler
     logger.info("Initializing job scraper scheduler...")
     from app.scheduler.jobs import setup_scheduler
     from free_port import is_port_in_use, free_port
-    
+
     # Make sure the port is free before starting the API
     port = 8001  # The port we want to use
     if is_port_in_use(port):
         logger.warning(f"Port {port} is already in use, attempting to free it...")
         if not free_port(port):
             logger.error(f"Could not free port {port}, API may not start properly")
-            
+
     # Setup the scheduler
     setup_scheduler()
     logger.info("Startup complete!")

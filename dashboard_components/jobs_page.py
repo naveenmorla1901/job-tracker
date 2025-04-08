@@ -161,6 +161,32 @@ def display_jobs_page():
     total_jobs = jobs_data.get("total", 0)
     st.markdown(f"<h4 class='job-listing-header' style='margin-bottom:0; padding-bottom:0;'>Found {total_jobs} jobs matching your criteria</h4>", unsafe_allow_html=True)
     
+    # Add analytics tracking for search
+    if search_term:
+        st.markdown(f"<script>trackSearch('{search_term}', {total_jobs});</script>", unsafe_allow_html=True)
+    
+    # Add analytics tracking for filters
+    if selected_roles or selected_companies or location or selected_employment_type != "All":
+        filters_used = []
+        
+        if selected_roles:
+            filters_used.append(f"roles: {','.join(selected_roles)}")
+        
+        if selected_companies:
+            filters_used.append(f"companies: {','.join(selected_companies)}")
+            
+        if location:
+            filters_used.append(f"location: {location}")
+            
+        if selected_employment_type != "All":
+            filters_used.append(f"type: {selected_employment_type}")
+            
+        filter_str = '; '.join(filters_used)
+        st.markdown(f"<script>trackFilter('combined', '{filter_str}');</script>", unsafe_allow_html=True)
+        
+    # Add analytics tracking for time period
+    st.markdown(f"<script>trackFilter('time_period', '{selected_period}');</script>", unsafe_allow_html=True)
+    
     # Process data for visualization and display
     if jobs_data.get("jobs"):
         try:
