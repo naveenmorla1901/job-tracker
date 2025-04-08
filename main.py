@@ -32,7 +32,7 @@ from app.api.endpoints.stats import router as stats_router
 from app.api.endpoints.health import router as health_router
 from app.api.endpoints.auth.routes import router as auth_router
 from app.api.endpoints.user_jobs import router as user_jobs_router
-from app.api.endpoints.roles import router as roles_router
+# Roles router removed
 from app.config import ENVIRONMENT
 
 # Get environment for conditional logic
@@ -79,7 +79,7 @@ app.include_router(stats_router, prefix="/api/stats", tags=["stats"])
 app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(user_jobs_router, prefix="/api/user/jobs", tags=["user-jobs"])
-app.include_router(roles_router, prefix="/api/roles", tags=["roles"])
+# Roles router removed
 
 @app.on_event("startup")
 async def startup_event():

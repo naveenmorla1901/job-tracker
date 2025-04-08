@@ -7,8 +7,6 @@ from datetime import datetime
 import sys
 import os
 import logging
-import requests
-import json
 
 # Add parent directory to path to import log_manager
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -32,8 +30,8 @@ def display_logs_page():
         deleted_count = cleanup_old_logs(days=2)
         st.sidebar.success(f"Deleted {deleted_count} old log files")
 
-    # Display API logs, Dashboard logs, System info, Nginx logs, Postgres logs, and Filtered Roles in tabs
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["API Logs", "Dashboard Logs", "System Info", "Nginx Logs", "Postgres Logs", "Filtered Roles"])
+    # Display API logs, Dashboard logs, System info, Nginx logs, and Postgres logs in tabs
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["API Logs", "Dashboard Logs", "System Info", "Nginx Logs", "Postgres Logs"])
 
     # Read API logs
     with tab1:
@@ -54,10 +52,6 @@ def display_logs_page():
     # Postgres Logs
     with tab5:
         _display_postgres_logs()
-
-    # Filtered Roles
-    with tab6:
-        _display_filtered_roles()
 
     # Information about logs cleanup
     st.sidebar.info("Logs are automatically cleaned up every 2 days")
@@ -392,81 +386,4 @@ def _display_postgres_logs():
         except Exception as e:
             st.error(f"Error checking PostgreSQL processes: {str(e)}")
 
-def _display_filtered_roles():
-    """Display filtered roles in a tab"""
-    st.subheader("Filtered Roles")
-
-    # Add description
-    st.markdown("""
-    This tab shows roles that were filtered out during validation. These are roles that the system
-    determined were not valid based on the validation criteria in `role_utils.py`.
-
-    Reviewing this information can help you identify roles that should be added to the validation system.
-    """)
-
-    # Add controls
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        min_count = st.slider("Minimum occurrences", 1, 100, 1, help="Only show roles that were filtered at least this many times")
-    with col2:
-        if st.button("Clear Data", help="Clear the filtered roles tracking data"):
-            try:
-                # Call the API to clear filtered roles
-                api_url = os.environ.get('JOB_TRACKER_API_URL', 'http://localhost:8001/api')
-                response = requests.delete(f"{api_url}/roles/filtered")
-                if response.status_code == 200:
-                    st.success("Filtered roles data cleared successfully")
-                else:
-                    st.error(f"Failed to clear data: {response.status_code}")
-            except Exception as e:
-                st.error(f"Error clearing filtered roles data: {str(e)}")
-
-    # Get filtered roles from API
-    try:
-        api_url = os.environ.get('JOB_TRACKER_API_URL', 'http://localhost:8001/api')
-        response = requests.get(f"{api_url}/roles/filtered?min_count={min_count}")
-
-        if response.status_code == 200:
-            data = response.json()
-            filtered_roles = data.get("filtered_roles", {})
-            stats = data.get("stats", {})
-
-            # Display stats
-            st.metric("Companies with filtered roles", stats.get("companies", 0))
-            st.metric("Total filtered roles", stats.get("roles", 0))
-            st.metric("Total occurrences", stats.get("occurrences", 0))
-
-            # Display filtered roles by company
-            if filtered_roles:
-                st.subheader("Filtered Roles by Company")
-
-                # Create tabs for each company
-                if len(filtered_roles) > 0:
-                    company_tabs = st.tabs(list(filtered_roles.keys()))
-
-                    for i, (company, roles) in enumerate(filtered_roles.items()):
-                        with company_tabs[i]:
-                            if roles:
-                                # Convert to DataFrame for better display
-                                roles_df = pd.DataFrame({
-                                    "Role": list(roles.keys()),
-                                    "Count": list(roles.values())
-                                })
-                                roles_df = roles_df.sort_values("Count", ascending=False)
-
-                                # Display as table
-                                st.dataframe(roles_df, use_container_width=True)
-
-                                # Also show as bar chart
-                                if len(roles_df) > 0:
-                                    st.bar_chart(roles_df.set_index("Role"))
-                            else:
-                                st.info(f"No filtered roles for {company} with at least {min_count} occurrences")
-                else:
-                    st.info(f"No filtered roles found with at least {min_count} occurrences")
-            else:
-                st.info("No filtered roles data available")
-        else:
-            st.error(f"Failed to fetch filtered roles: {response.status_code}")
-    except Exception as e:
-        st.error(f"Error fetching filtered roles: {str(e)}")
+# Filtered roles display function removed

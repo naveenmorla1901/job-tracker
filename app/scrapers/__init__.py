@@ -12,79 +12,17 @@ is_test = ENVIRONMENT == "test"
 
 logger = logging.getLogger("app.scrapers")
 
-# Import role validation utilities
-try:
-    from app.scrapers.role_utils import filter_jobs_by_role, filter_roles
-except ImportError as e:
-    logger.error(f"Error importing role utilities: {e}")
-    # Define dummy functions to prevent errors
-    def filter_jobs_by_role(jobs, _=None):
-        logger.warning("Using dummy filter_jobs_by_role function - role validation disabled")
-        return jobs
-
-    def filter_roles(job_data, _=None):
-        logger.warning("Using dummy filter_roles function - role validation disabled")
-        return job_data
+# Role validation has been removed
 
 # Dictionary to store scraper functions
 scrapers = {}
 
-# Create a decorator to apply role filtering to all scrapers
+# Simple pass-through decorator (role filtering removed)
 def apply_role_filtering(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # Extract roles from arguments
-        input_roles = kwargs.get('roles', [])
-        if not input_roles and args:
-            input_roles = args[0]  # Assume first positional argument is roles
-
-        # Get the scraper name from the function name
-        func_name = func.__name__
-        scraper_name = func_name.replace('get_', '').replace('_jobs', '')
-
-        # Log the roles being used
-        if input_roles:
-            logger.info(f"Running {scraper_name} scraper with roles: {input_roles}")
-        else:
-            logger.info(f"Running {scraper_name} scraper with no specific roles (all roles will be included)")
-
-        # Call the original function
-        job_data = func(*args, **kwargs)
-
-        # Check if we got any data
-        if not job_data:
-            logger.warning(f"{scraper_name} scraper returned no data")
-            return {}
-
-        # Log the raw results
-        total_jobs = sum(len(jobs) for jobs in job_data.values())
-        logger.info(f"{scraper_name} scraper returned {len(job_data)} roles with {total_jobs} total jobs")
-
-        # Filter the results to only include relevant roles
-        try:
-            # Apply role filtering with company name
-            filtered_data = filter_roles(job_data, input_roles, company=scraper_name)
-
-            # For each role, filter the jobs to only include relevant ones
-            for role, jobs in list(filtered_data.items()):
-                filtered_jobs = filter_jobs_by_role(jobs, input_roles)
-
-                # If no jobs passed the filter for this role, remove the role
-                if not filtered_jobs:
-                    logger.info(f"Removing role '{role}' from {scraper_name} as no jobs passed the filter")
-                    del filtered_data[role]
-                else:
-                    filtered_data[role] = filtered_jobs
-
-            # Log the filtering results
-            filtered_total = sum(len(jobs) for jobs in filtered_data.values())
-            logger.info(f"After filtering {scraper_name}: {len(filtered_data)} roles with {filtered_total} total jobs")
-
-            return filtered_data
-        except Exception as e:
-            logger.error(f"Error applying role filtering for {scraper_name}: {e}")
-            logger.error(f"Returning original data due to filtering error")
-            return job_data
+        # Just call the original function without any filtering
+        return func(*args, **kwargs)
 
     return wrapper
 
