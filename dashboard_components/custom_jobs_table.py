@@ -123,9 +123,19 @@ def display_custom_jobs_table(df_jobs):
 
     /* Reduce gap between job listings */
     .job-container {
-        margin-bottom: -25px !important;
+        margin-bottom: -35px !important;
+        margin-top: -15px !important;
         padding-bottom: 0 !important;
         padding-top: 0 !important;
+    }
+
+    /* Target Streamlit's container divs */
+    div[data-testid="column"] > div,
+    div[data-testid="stVerticalBlock"] > div {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
     }
 
     /* Target Streamlit's container classes for logged-in view */
@@ -285,8 +295,8 @@ def display_custom_jobs_table(df_jobs):
                 container_style = """
                 <style>
                 .job-container {
-                    margin-top: -30px !important;
-                    margin-bottom: -30px !important;
+                    margin-top: -40px !important;
+                    margin-bottom: -40px !important;
                     padding-top: 0 !important;
                     padding-bottom: 0 !important;
                 }
@@ -368,8 +378,8 @@ def display_custom_jobs_table(df_jobs):
 
 
 
-            # Ultra minimal separator - almost invisible line
-            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0.01; border-top: 1px solid #555; margin-top: -15px; margin-bottom: -15px;'>", unsafe_allow_html=True)
+            # Ultra minimal separator - completely invisible line
+            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0; border: none; margin-top: -25px; margin-bottom: -25px;'>", unsafe_allow_html=True)
     else:
         # For non-logged-in users, show all jobs in a compact table
         # Apply the same compact styling

@@ -247,7 +247,18 @@ def display_jobs_page():
 
             # Convert date_posted to datetime for filtering
             if "date_posted" in df_jobs.columns:
+                # Log a sample of dates for debugging
+                if len(df_jobs) > 0:
+                    sample_dates = df_jobs["date_posted"].head(3).tolist()
+                    logger.info(f"Sample date_posted values: {sample_dates}")
+
+                # Convert to datetime
                 df_jobs["date_posted"] = pd.to_datetime(df_jobs["date_posted"])
+
+                # Log converted dates
+                if len(df_jobs) > 0:
+                    sample_converted = df_jobs["date_posted"].head(3).tolist()
+                    logger.info(f"Sample converted dates: {sample_converted}")
 
                 # Apply client-side time filtering based on selected time periods
                 if selected_time_keys:
@@ -256,18 +267,29 @@ def display_jobs_page():
 
                     for key in selected_time_keys:
                         if key == "today":
-                            # Today's jobs
-                            mask = df_jobs["date_posted"].dt.date == today
+                            # Today's jobs - use normalize() to compare just the date part
+                            mask = df_jobs["date_posted"].dt.normalize() == pd.Timestamp(today)
                             date_masks.append(mask)
+                            # Log for debugging
+                            today_count = mask.sum()
+                            logger.info(f"Today's jobs count: {today_count}")
                         elif key == "yesterday":
                             # Yesterday's jobs
-                            mask = df_jobs["date_posted"].dt.date == (today - timedelta(days=1))
+                            mask = df_jobs["date_posted"].dt.normalize() == pd.Timestamp(today - timedelta(days=1))
                             date_masks.append(mask)
+                            # Log for debugging
+                            yesterday_count = mask.sum()
+                            logger.info(f"Yesterday's jobs count: {yesterday_count}")
                         elif key.startswith("days_"):
                             # Last N days jobs
                             days = int(key.split("_")[1])
-                            mask = df_jobs["date_posted"].dt.date >= (today - timedelta(days=days-1))
+                            # Use normalize() to compare just the date part
+                            cutoff_date = pd.Timestamp(today - timedelta(days=days-1))
+                            mask = df_jobs["date_posted"].dt.normalize() >= cutoff_date
                             date_masks.append(mask)
+                            # Log for debugging
+                            days_count = mask.sum()
+                            logger.info(f"Last {days} days jobs count: {days_count}")
 
                     # Combine all masks with OR operation
                     if date_masks:
