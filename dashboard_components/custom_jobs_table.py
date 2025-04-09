@@ -288,9 +288,9 @@ def display_custom_jobs_table(df_jobs):
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
 
-            # Create checkbox HTML
+            # Create checkbox HTML with more explicit event handling
             checkbox_id = f"applied_{job_id}"
-            checkbox_html = f'<input type="checkbox" id="{checkbox_id}" name="{checkbox_id}" {"checked" if is_applied else ""} onclick="handleCheckboxChange({job_id}, this.checked)"/>'
+            checkbox_html = f'<input type="checkbox" id="{checkbox_id}" name="{checkbox_id}" {"checked" if is_applied else ""} onclick="handleCheckboxChange({job_id}, this.checked);" style="cursor:pointer;"/>'
 
             # Create apply button HTML
             apply_html = f'<a href="{job_url}" target="_blank" onclick="trackJobApply(\'{job_id}\', \'{company}\', \'{job_title}\'); return true;" style="display:inline-block; padding:1px 5px; font-size:0.75rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:2px;">Apply</a>'
@@ -313,36 +313,90 @@ def display_custom_jobs_table(df_jobs):
         # Add JavaScript for checkbox handling
         js_code = """
         <script>
+        // Log when script is loaded
+        console.log('Job tracking script loaded');
+
+        // Execute when document is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Document ready, initializing job tracking functionality');
+
+            // Add event listeners to all checkboxes
+            const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="applied_"]');
+            console.log(`Found ${checkboxes.length} job checkboxes`);
+
+            checkboxes.forEach(checkbox => {
+                const jobId = checkbox.id.replace('applied_', '');
+                console.log(`Adding event listener to checkbox for job ${jobId}`);
+
+                checkbox.addEventListener('change', function() {
+                    console.log(`Checkbox changed via event listener: job ${jobId}, checked: ${this.checked}`);
+                    handleCheckboxChange(jobId, this.checked);
+                });
+            });
+        });
+
         // Function to get the authentication token from localStorage
         function getAuthToken() {
             return localStorage.getItem('job_tracker_token') || '';
         }
 
         function handleCheckboxChange(jobId, isApplied) {
+            console.log(`Checkbox clicked for job ${jobId}, new state: ${isApplied}`);
+
             // Prevent multiple clicks
             const checkbox = document.getElementById(`applied_${jobId}`);
             if (checkbox) {
                 checkbox.disabled = true;
+                console.log(`Checkbox disabled: ${checkbox.disabled}`);
+            } else {
+                console.error(`Checkbox element not found for job ${jobId}`);
+                return; // Exit if checkbox not found
             }
 
-            // First ensure the job is tracked before marking it as applied
-            ensureJobTracked(jobId).then(success => {
-                if (success) {
-                    // Now make API call to update status
-                    updateAppliedStatus(jobId, isApplied);
-                } else {
-                    // Enable checkbox again if tracking failed
-                    if (checkbox) {
-                        checkbox.disabled = false;
-                        checkbox.checked = !isApplied; // Revert checkbox
-                    }
-                    alert('Failed to track job. Please try again.');
+            // Show a loading message
+            showStatusMessage('Updating job status...', 'info');
+
+            // First track the job
+            directApiCall(
+                `/api/user/jobs/${jobId}/track`,
+                'POST',
+                null,
+                function(data) {
+                    console.log('Job tracked successfully:', data);
+
+                    // Now update the applied status
+                    directApiCall(
+                        `/api/user/jobs/${jobId}/applied`,
+                        'PUT',
+                        { applied: isApplied },
+                        function(data) {
+                            console.log('Applied status updated successfully:', data);
+                            checkbox.disabled = false;
+                            const statusMsg = isApplied ? 'applied' : 'not applied';
+                            showStatusMessage(`Job marked as ${statusMsg}`, 'success');
+                        },
+                        function(status, error) {
+                            console.error('Failed to update applied status:', status, error);
+                            checkbox.disabled = false;
+                            checkbox.checked = !isApplied; // Revert checkbox
+                            showStatusMessage('Failed to update job status', 'error');
+                        }
+                    );
+                },
+                function(status, error) {
+                    console.error('Failed to track job:', status, error);
+                    checkbox.disabled = false;
+                    checkbox.checked = !isApplied; // Revert checkbox
+                    showStatusMessage('Failed to track job', 'error');
                 }
-            });
+            );
         }
 
         // Function to ensure a job is tracked
         function ensureJobTracked(jobId) {
+            console.log(`Ensuring job ${jobId} is tracked...`);
+            console.log(`Auth token: ${getAuthToken() ? 'Present' : 'Missing'}`);
+
             return fetch(`/api/user/jobs/${jobId}/track`, {
                 method: 'POST',
                 headers: {
@@ -351,6 +405,10 @@ def display_custom_jobs_table(df_jobs):
                 }
             })
             .then(response => {
+                console.log(`Track job response status: ${response.status}`);
+                if (!response.ok) {
+                    console.error(`Failed to track job: ${response.status} ${response.statusText}`);
+                }
                 return response.ok;
             })
             .catch(error => {
@@ -361,6 +419,8 @@ def display_custom_jobs_table(df_jobs):
 
         // Function to update applied status
         function updateAppliedStatus(jobId, isApplied) {
+            console.log(`Updating applied status for job ${jobId} to ${isApplied}...`);
+
             fetch(`/api/user/jobs/${jobId}/applied`, {
                 method: 'PUT',
                 headers: {
@@ -370,6 +430,10 @@ def display_custom_jobs_table(df_jobs):
                 body: JSON.stringify({
                     applied: isApplied
                 })
+            })
+            .then(response => {
+                console.log(`Update applied status response: ${response.status}`);
+                return response;
             })
             .then(response => {
                 if (!response.ok) {
@@ -410,22 +474,87 @@ def display_custom_jobs_table(df_jobs):
             statusDiv.style.margin = '8px 0';
             statusDiv.style.borderRadius = '4px';
             statusDiv.style.textAlign = 'center';
+            statusDiv.style.position = 'fixed';
+            statusDiv.style.top = '10px';
+            statusDiv.style.left = '50%';
+            statusDiv.style.transform = 'translateX(-50%)';
+            statusDiv.style.zIndex = '9999';
+            statusDiv.style.minWidth = '300px';
 
             if (type === 'success') {
-                statusDiv.style.backgroundColor = 'rgba(0, 128, 0, 0.2)';
+                statusDiv.style.backgroundColor = 'rgba(0, 128, 0, 0.8)';
+                statusDiv.style.color = 'white';
+            } else if (type === 'error') {
+                statusDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+                statusDiv.style.color = 'white';
+            } else if (type === 'info') {
+                statusDiv.style.backgroundColor = 'rgba(0, 0, 255, 0.8)';
                 statusDiv.style.color = 'white';
             } else {
-                statusDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
+                statusDiv.style.backgroundColor = 'rgba(100, 100, 100, 0.8)';
                 statusDiv.style.color = 'white';
             }
 
             // Add to the page
-            document.body.insertBefore(statusDiv, document.body.firstChild);
+            document.body.appendChild(statusDiv);
 
             // Remove after 3 seconds
             setTimeout(() => {
                 statusDiv.remove();
             }, 3000);
+        }
+
+        // Alternative direct API call function using XMLHttpRequest
+        function directApiCall(url, method, data, successCallback, errorCallback) {
+            console.log(`Making direct API call to ${url} with method ${method}`);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open(method, url, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+
+            const token = getAuthToken();
+            if (token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    console.log(`API response status: ${xhr.status}`);
+
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        // Success
+                        let responseData = {};
+                        try {
+                            responseData = JSON.parse(xhr.responseText);
+                        } catch (e) {
+                            console.warn('Could not parse response as JSON');
+                        }
+
+                        if (successCallback) {
+                            successCallback(responseData);
+                        }
+                    } else {
+                        // Error
+                        console.error(`API error: ${xhr.status} ${xhr.statusText}`);
+                        if (errorCallback) {
+                            errorCallback(xhr.status, xhr.statusText);
+                        }
+                    }
+                }
+            };
+
+            xhr.onerror = function() {
+                console.error('API request failed');
+                if (errorCallback) {
+                    errorCallback(0, 'Network error');
+                }
+            };
+
+            if (data && (method === 'POST' || method === 'PUT')) {
+                xhr.send(JSON.stringify(data));
+            } else {
+                xhr.send();
+            }
         }
 
         function trackJobApply(jobId, company, jobTitle) {
@@ -482,7 +611,10 @@ def display_custom_jobs_table(df_jobs):
         """, unsafe_allow_html=True)
 
         # Display the table with HTML
-        st.markdown(df_display.to_html(escape=False, index=False) + js_code, unsafe_allow_html=True)
+        st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+        # Add JavaScript separately to ensure it's properly loaded
+        st.markdown(js_code, unsafe_allow_html=True)
     else:
         # For non-logged-in users, show all jobs in a compact table with the same styling as logged-in view
         # Create table data for display
