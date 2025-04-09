@@ -3,12 +3,11 @@ Jobs table with save button for application status changes
 """
 import streamlit as st
 import pandas as pd
-import time
 from dashboard_components.utils import format_job_date
 from app.dashboard.auth import is_authenticated, get_current_user
 from app.db.database import get_db
 from app.db.models import UserJob, Job, User
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 # Configure logging
@@ -68,14 +67,14 @@ def update_job_status(user_email, job_id, applied):
         if user_job:
             # Update existing record
             user_job.is_applied = applied
-            user_job.date_updated = datetime.utcnow()
+            user_job.date_updated = datetime.now(timezone.utc)
         else:
             # Create new record
             user_job = UserJob(
                 user_id=user.id,
                 job_id=job_id,
                 is_applied=applied,
-                date_saved=datetime.utcnow()
+                date_saved=datetime.now(timezone.utc)
             )
             db.add(user_job)
 
@@ -271,9 +270,9 @@ def display_custom_jobs_table(df_jobs):
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
 
-        # Display each job with columns
+        # Create table data for display - similar to non-logged-in view but with checkbox
+        table_data = []
         for i, row in df_jobs.iterrows():
-            # Get job details
             job_id = str(row['id'])
             job_title = row['job_title']
             company = row['company']
@@ -283,127 +282,143 @@ def display_custom_jobs_table(df_jobs):
             job_url = row['job_url']
 
             # Default to False if not in tracked jobs
-            is_tracked = job_id in tracked_jobs
             is_applied = tracked_jobs.get(job_id, False)
 
             # Add job to session state if not present
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
 
-            # Create job card with columns in a single container
-            with st.container():
-                container_style = """
-                <style>
-                .job-container {
-                    margin-top: -40px !important;
-                    margin-bottom: -40px !important;
-                    padding-top: 0 !important;
-                    padding-bottom: 0 !important;
+            # Create checkbox HTML
+            checkbox_id = f"applied_{job_id}"
+            checkbox_html = f'<input type="checkbox" id="{checkbox_id}" name="{checkbox_id}" {"checked" if is_applied else ""} onclick="handleCheckboxChange({job_id}, this.checked)"/>'
+
+            # Create apply button HTML
+            apply_html = f'<a href="{job_url}" target="_blank" onclick="trackJobApply(\'{job_id}\', \'{company}\', \'{job_title}\'); return true;" style="display:inline-block; padding:1px 5px; font-size:0.75rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:2px;">Apply</a>'
+
+            # Add to table data
+            table_data.append({
+                "No.": i+1,
+                "Job Title": job_title,
+                "Company": company,
+                "Location": location,
+                "Posted": date_posted,
+                "Type": job_type,
+                "Applied": checkbox_html,
+                "Apply": apply_html
+            })
+
+        # Convert to DataFrame for display
+        df_display = pd.DataFrame(table_data)
+
+        # Add JavaScript for checkbox handling
+        js_code = """
+        <script>
+        function handleCheckboxChange(jobId, isApplied) {
+            // Prevent multiple clicks
+            const checkbox = document.getElementById(`applied_${jobId}`);
+            if (checkbox) {
+                checkbox.disabled = true;
+            }
+
+            // Make API call to update status
+            fetch(`/api/user/jobs/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    job_id: jobId,
+                    is_applied: isApplied
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
                 }
-                .compact-text {
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    line-height: 1 !important;
-                    font-size: 0.85rem !important;
+                return response.json();
+            })
+            .then(data => {
+                console.log('Success:', data);
+                // Re-enable checkbox
+                if (checkbox) {
+                    checkbox.disabled = false;
                 }
-                /* Target Streamlit's container classes */
-                .st-emotion-cache-ocqkz7, .st-emotion-cache-16txtl3, .st-emotion-cache-1r6slb0, .st-emotion-cache-1kyxreq {
-                    padding-top: 0 !important;
-                    padding-bottom: 0 !important;
-                    margin-top: 0 !important;
-                    margin-bottom: 0 !important;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+                // Revert checkbox on error
+                if (checkbox) {
+                    checkbox.checked = !isApplied;
+                    checkbox.disabled = false;
                 }
-                /* Target the row container */
-                .row-widget {
-                    padding: 0 !important;
-                    margin: 0 !important;
-                }
-                /* Target the stHorizontal class */
-                .stHorizontal {
-                    gap: 0 !important;
-                    margin-top: -10px !important;
-                    margin-bottom: -10px !important;
-                }
-                </style>
-                <div class="job-container">
-                """
-                st.markdown(container_style, unsafe_allow_html=True)
+            });
+        }
 
-                cols = st.columns([1, 3, 2, 2, 1, 1])
+        function trackJobApply(jobId, company, jobTitle) {
+            console.log(`Applying to job ${jobId}: ${jobTitle} at ${company}`);
+            // Add any analytics tracking code here
+        }
+        </script>
+        """
 
-                # Column 1: Number - more compact
-                cols[0].markdown(f"<p class='compact-text' style='font-size:0.8rem;'>#{i+1}</p>", unsafe_allow_html=True)
-
-                # Column 2: Job Title and Company - even more compact
-                cols[1].markdown(f"<div class='job-title' style='margin-bottom: 0 !important; line-height: 1 !important; padding: 0 !important;'>{job_title}</div>", unsafe_allow_html=True)
-                cols[1].markdown(f"<span class='caption-text' style='margin-top: 0 !important; font-size:0.8rem !important;'>{company}</span>", unsafe_allow_html=True)
-
-                # Column 3: Location - more compact
-                cols[2].markdown(f"<p class='compact-text' style='color:#888; font-size:0.8rem; line-height: 1 !important;'>{location}</p>", unsafe_allow_html=True)
-
-                # Column 4: Date Posted and Type - more compact, combined into one line
-                # Use a smaller font for the date/time to fit more information
-                cols[3].markdown(f"<p class='compact-text' style='color:#888; font-size:0.75rem; line-height: 1 !important;'>Posted: {date_posted} • {job_type}</p>", unsafe_allow_html=True)
-
-                # Column 5: Applied Status with auto-save
-                # Use session state to maintain checkbox values between renders
-                checkbox_key = f"applied_{job_id}"
-
-                # Get the previous value to detect changes
-                prev_value = st.session_state.job_checkboxes.get(job_id, False)
-
-                # Display the checkbox with a custom label for auto-save
-                # We'll detect changes and save automatically
-                is_checked = cols[4].checkbox("Applied", value=prev_value, key=checkbox_key, help="Mark as applied (saves automatically)", label_visibility="collapsed")
-
-                # Check if the value changed and auto-save
-                if is_checked != prev_value:
-                    # Update the session state
-                    st.session_state.job_checkboxes[job_id] = is_checked
-
-                    # Auto-save the change
-                    success = update_job_status(user_email, int(job_id), is_checked)
-
-                    if success:
-                        # Update tracked jobs dictionary for display silently
-                        tracked_jobs[job_id] = is_checked
-                    else:
-                        st.error("Failed to update status.")
-
-                # Apply button (column 6) - ultra compact with analytics tracking
-                cols[5].markdown(f"<p class='compact-text'><a href='{job_url}' target='_blank' onclick=\"trackJobApply('{job_id}', '{company}', '{job_title}'); return true;\" style='display:inline-block; padding:1px 5px; font-size:0.75rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:2px;'>Apply</a></p>", unsafe_allow_html=True)
-
-                # Close the container div
-                st.markdown("</div>", unsafe_allow_html=True)
-
-
-
-            # Ultra minimal separator - completely invisible line
-            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0; border: none; margin-top: -25px; margin-bottom: -25px;'>", unsafe_allow_html=True)
-    else:
-        # For non-logged-in users, show all jobs in a compact table
-        # Apply the same compact styling
+        # Apply table styling for logged-in view
         st.markdown("""
         <style>
-        .dataframe th {
-            padding: 3px !important;
-            font-size: 0.9rem !important;
+        /* Table styling for logged-in view */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+            padding: 0;
         }
-        .dataframe td {
-            padding: 3px !important;
-            font-size: 0.85rem !important;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 200px;
+
+        th {
+            background-color: #1E1E1E;
+            color: white;
+            text-align: left;
+            padding: 4px 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            border-bottom: 1px solid #444;
+        }
+
+        td {
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #333;
+            vertical-align: middle;
+        }
+
+        tr:hover {
+            background-color: rgba(200, 200, 200, 0.1);
+        }
+
+        /* Checkbox styling */
+        input[type="checkbox"] {
+            transform: scale(1.2);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Center checkbox and apply button */
+        td:nth-child(7), td:nth-child(8) {
+            text-align: center;
         }
         </style>
         """, unsafe_allow_html=True)
 
+        # Display the table with HTML
+        st.markdown(df_display.to_html(escape=False, index=False) + js_code, unsafe_allow_html=True)
+    else:
+        # For non-logged-in users, show all jobs in a compact table with the same styling as logged-in view
         # Create table data for display
         table_data = []
         for i, row in df_jobs.iterrows():
-            apply_url = row['job_url']
+            job_url = row['job_url']
+            # Create apply button HTML
+            apply_html = f'<a href="{job_url}" target="_blank" style="display:inline-block; padding:1px 5px; font-size:0.75rem; background-color:#1E90FF; color:white; text-decoration:none; border-radius:2px;">Apply</a>'
+
             table_data.append({
                 "No.": i+1,
                 "Job Title": row['job_title'],
@@ -411,22 +426,53 @@ def display_custom_jobs_table(df_jobs):
                 "Location": row['location'],
                 "Posted": format_job_date(row['date_posted']),
                 "Type": row.get('employment_type', ''),
-                "Apply": apply_url
+                "Apply": apply_html
             })
 
         # Convert to DataFrame for display
         df_display = pd.DataFrame(table_data)
 
-        # Display table
-        st.dataframe(
-            df_display,
-            column_config={
-                "Apply": st.column_config.LinkColumn("Apply", display_text="Apply")
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=600
-        )
+        # Apply table styling for non-logged-in view (same as logged-in view)
+        st.markdown("""
+        <style>
+        /* Table styling for non-logged-in view */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+            padding: 0;
+        }
+
+        th {
+            background-color: #1E1E1E;
+            color: white;
+            text-align: left;
+            padding: 4px 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            border-bottom: 1px solid #444;
+        }
+
+        td {
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #333;
+            vertical-align: middle;
+        }
+
+        tr:hover {
+            background-color: rgba(200, 200, 200, 0.1);
+        }
+
+        /* Center apply button */
+        td:nth-child(7) {
+            text-align: center;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Display the table with HTML
+        st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
 
         # Show login message
         st.info("Log in to track job applications")
