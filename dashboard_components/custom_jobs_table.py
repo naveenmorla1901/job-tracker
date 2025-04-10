@@ -8,7 +8,6 @@ from app.dashboard.auth import is_authenticated, get_current_user
 from app.db.database import get_db
 from app.db.models import UserJob, Job, User
 from datetime import datetime, timezone
-from sqlalchemy import and_
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,22 +21,22 @@ def get_tracked_jobs(user_email):
     try:
         # Get database session
         db = next(get_db())
-        
+
         # Get user
         user = get_user_by_email(db, user_email)
         if not user:
             return {}
-        
+
         # Get tracked jobs
         user_jobs = db.query(UserJob).filter(
             UserJob.user_id == user.id
         ).all()
-        
+
         # Convert to dictionary for easy lookup
         tracked_jobs = {}
         for user_job in user_jobs:
             tracked_jobs[str(user_job.job_id)] = user_job.is_applied
-        
+
         return tracked_jobs
     except Exception as e:
         logger.error(f"Error getting tracked jobs: {str(e)}")
@@ -97,7 +96,7 @@ def display_custom_jobs_table(df_jobs):
         if user and "email" in user:
             user_email = user["email"]
 
-    # Apply ultra-compact styling
+    # Apply ultra-compact styling for table format
     st.markdown("""
     <style>
     /* Compact table styling - ULTRA COMPACT */
@@ -107,7 +106,7 @@ def display_custom_jobs_table(df_jobs):
         margin-top: 0 !important;
         margin-bottom: 0 !important;
     }
-    
+
     /* Reduce space between elements to absolute minimum */
     div.stMarkdown p {
         margin-bottom: 0 !important;
@@ -115,56 +114,69 @@ def display_custom_jobs_table(df_jobs):
         line-height: 1 !important;
         padding: 0 !important;
     }
-    
-    /* Reduce gap between job listings */
-    .job-container {
-        margin-bottom: -35px !important;
-        margin-top: -15px !important;
-        padding-bottom: 0 !important;
-        padding-top: 0 !important;
+
+    /* Hide the warning message about session state */
+    [data-testid="stAppViewBlockContainer"] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) {
+        display: none !important;
     }
-    
-    /* Target Streamlit's container divs */
-    div[data-testid="column"] > div, 
-    div[data-testid="stVerticalBlock"] > div {
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
+
+    /* Override Streamlit's default table styling */
+    div[data-testid="stTable"] table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0;
+        padding: 0;
+        font-size: 0.9rem;
     }
-    
-    /* Target Streamlit's container classes for logged-in view */
-    .st-emotion-cache-ocqkz7, .st-emotion-cache-16txtl3, .st-emotion-cache-1r6slb0, .st-emotion-cache-1kyxreq {
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
+
+    div[data-testid="stTable"] th {
+        background-color: #1E1E1E !important;
+        color: white !important;
+        text-align: left !important;
+        padding: 8px !important;
+        font-size: 0.9rem !important;
+        font-weight: bold !important;
+        border-bottom: 1px solid #444 !important;
     }
-    
-    /* Target the row container */
-    .row-widget {
-        padding: 0 !important;
-        margin: 0 !important;
+
+    div[data-testid="stTable"] td {
+        padding: 8px !important;
+        border-bottom: 1px solid #333 !important;
+        vertical-align: middle !important;
     }
-    
-    /* Target the stHorizontal class */
-    .stHorizontal {
-        gap: 0 !important;
-        margin-top: -10px !important;
-        margin-bottom: -10px !important;
+
+    div[data-testid="stTable"] tr:hover {
+        background-color: rgba(200, 200, 200, 0.1) !important;
     }
-    
+
     /* Target the checkbox container */
     .stCheckbox > div {
         min-height: 0 !important;
     }
-    
+
     /* Remove gap between checkbox and its label */
     .stCheckbox > div:first-child {
         margin-top: 0 !important;
         margin-bottom: 0 !important;
         padding-top: 0 !important;
         padding-bottom: 0 !important;
+    }
+
+    /* Center checkbox and apply button */
+    .center-content {
+        text-align: center;
+    }
+
+    /* Apply button styling */
+    .apply-button {
+        display: inline-block;
+        padding: 2px 8px;
+        background-color: #1E90FF;
+        color: white;
+        text-decoration: none;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -188,34 +200,22 @@ def display_custom_jobs_table(df_jobs):
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
 
-        # Create column headers
-        cols = st.columns([0.5, 3, 2, 2, 1, 1])
-        cols[0].markdown("**#**")
-        cols[1].markdown("**Job Title**")
-        cols[2].markdown("**Location**")
-        cols[3].markdown("**Posted**")
-        cols[4].markdown("**Applied**")
-        cols[5].markdown("**Apply**")
-        
-        # Add a separator
-        st.markdown("<hr style='margin: 0; padding: 0;'>", unsafe_allow_html=True)
-        
         # Define a callback function for checkbox changes
         def on_checkbox_change(job_id):
             # Get the current value from session state
             is_checked = st.session_state[f"applied_{job_id}"]
-            
+
             # Get the previous value
             prev_value = st.session_state.job_checkboxes.get(job_id, False)
-            
+
             # Only update if the value has changed
             if is_checked != prev_value:
                 # Update the session state
                 st.session_state.job_checkboxes[job_id] = is_checked
-                
+
                 # Auto-save the change to the database
                 success = update_job_status(user_email, int(job_id), is_checked)
-                
+
                 if success:
                     # Update tracked jobs dictionary for display silently
                     tracked_jobs[job_id] = is_checked
@@ -227,10 +227,12 @@ def display_custom_jobs_table(df_jobs):
                     # Revert the checkbox in session state
                     st.session_state[f"applied_{job_id}"] = prev_value
                     st.session_state.job_checkboxes[job_id] = prev_value
-        
-        # Display each job with columns
+
+        # Create a simple table with pandas and use Streamlit's native table display
+
+        # Create table data for display
+        table_data = []
         for i, row in df_jobs.iterrows():
-            # Get job details
             job_id = str(row['id'])
             job_title = row['job_title']
             company = row['company']
@@ -246,84 +248,60 @@ def display_custom_jobs_table(df_jobs):
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
 
-            # Create job card with columns in a single container
-            with st.container():
-                # Apply ultra-compact styling to this container
-                st.markdown("""
-                <style>
-                .job-row {
-                    margin-top: -25px !important;
-                    margin-bottom: -25px !important;
-                    padding-top: 0 !important;
-                    padding-bottom: 0 !important;
-                }
-                </style>
-                <div class="job-row">
-                """, unsafe_allow_html=True)
-                
-                # Create columns for this job
-                job_cols = st.columns([0.5, 3, 2, 2, 1, 1])
-                
-                # Column 1: Number
-                job_cols[0].markdown(f"<p style='font-size:0.9rem;'>#{i+1}</p>", unsafe_allow_html=True)
-                
-                # Column 2: Job Title and Company
-                job_cols[1].markdown(f"<div style='margin-bottom: 0;'><strong>{job_title}</strong></div>", unsafe_allow_html=True)
-                job_cols[1].markdown(f"<div style='font-size:0.8rem; color:#888;'>{company}</div>", unsafe_allow_html=True)
-                
-                # Column 3: Location
-                job_cols[2].markdown(f"<p style='font-size:0.9rem;'>{location}</p>", unsafe_allow_html=True)
-                
-                # Column 4: Date Posted and Type
-                job_cols[3].markdown(f"<p style='font-size:0.8rem; color:#888;'>{date_posted} • {job_type}</p>", unsafe_allow_html=True)
-                
-                # Column 5: Applied Status with auto-save
-                # Use session state to maintain checkbox values between renders
-                checkbox_key = f"applied_{job_id}"
-                
-                # Get the previous value to detect changes
-                prev_value = st.session_state.job_checkboxes.get(job_id, False)
-                
-                # Initialize the checkbox state in session state if not present
-                if checkbox_key not in st.session_state:
-                    st.session_state[checkbox_key] = prev_value
-                
-                # Display the checkbox with on_change callback
-                job_cols[4].checkbox(
-                    "Applied", 
-                    value=prev_value, 
-                    key=checkbox_key, 
-                    help="Mark as applied (saves automatically)", 
-                    label_visibility="collapsed",
-                    on_change=on_checkbox_change,
-                    args=(job_id,)
-                )
-                
-                # Column 6: Apply button
-                job_cols[5].markdown(f"<a href='{job_url}' target='_blank' style='display:inline-block; padding:2px 8px; background-color:#1E90FF; color:white; text-decoration:none; border-radius:3px; font-size:0.8rem;'>Apply</a>", unsafe_allow_html=True)
-                
-                # Close the container div
-                st.markdown("</div>", unsafe_allow_html=True)
-            
-            # Add a minimal separator between jobs
-            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0.1;'>", unsafe_allow_html=True)
+            # Create a unique key for each checkbox that doesn't conflict with session state
+            checkbox_key = f"cb_{job_id}"
+
+            # Add to table data
+            table_data.append({
+                "#": f"#{i+1}",
+                "Job Title": f"{job_title}\n{company}",
+                "Location": location,
+                "Posted": f"{date_posted} • {job_type}",
+                "Applied": is_applied,  # We'll replace this with checkboxes later
+                "Apply": f"<a href='{job_url}' target='_blank' class='apply-button'>Apply</a>"
+            })
+
+        # Convert to DataFrame for display
+        df_display = pd.DataFrame(table_data)
+
+        # Display the table
+        st.table(df_display)
+
+        # Now add the checkboxes directly in the UI
+        st.write("Mark jobs as applied:")
+        for i, row in df_jobs.iterrows():
+            job_id = str(row['id'])
+            job_title = row['job_title']
+
+            # Get the current value from session state
+            is_applied = st.session_state.job_checkboxes.get(job_id, False)
+
+            # Create a unique key for the checkbox
+            checkbox_key = f"cb_{job_id}"
+
+            # Display the checkbox with the job title
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = is_applied
+
+            # Display the checkbox
+            if st.checkbox(
+                f"{job_title}",
+                value=is_applied,
+                key=checkbox_key,
+                on_change=on_checkbox_change,
+                args=(job_id,)
+            ):
+                # This will run when the checkbox is checked
+                if not st.session_state.job_checkboxes.get(job_id, False):
+                    st.session_state.job_checkboxes[job_id] = True
+                    update_job_status(user_email, int(job_id), True)
     else:
         # For non-logged-in users, show all jobs in a compact table with the same styling as logged-in view
-        # Create column headers
-        cols = st.columns([0.5, 3, 2, 2, 1, 1])
-        cols[0].markdown("**#**")
-        cols[1].markdown("**Job Title**")
-        cols[2].markdown("**Location**")
-        cols[3].markdown("**Posted**")
-        cols[4].markdown("**Type**")
-        cols[5].markdown("**Apply**")
-        
-        # Add a separator
-        st.markdown("<hr style='margin: 0; padding: 0;'>", unsafe_allow_html=True)
-        
-        # Display each job with columns
+        # Create a simple table with pandas and use Streamlit's native table display
+
+        # Create table data for display
+        table_data = []
         for i, row in df_jobs.iterrows():
-            # Get job details
             job_id = str(row['id'])
             job_title = row['job_title']
             company = row['company']
@@ -332,48 +310,21 @@ def display_custom_jobs_table(df_jobs):
             job_type = row.get('employment_type', '')
             job_url = row['job_url']
 
-            # Create job card with columns in a single container
-            with st.container():
-                # Apply ultra-compact styling to this container
-                st.markdown("""
-                <style>
-                .job-row {
-                    margin-top: -25px !important;
-                    margin-bottom: -25px !important;
-                    padding-top: 0 !important;
-                    padding-bottom: 0 !important;
-                }
-                </style>
-                <div class="job-row">
-                """, unsafe_allow_html=True)
-                
-                # Create columns for this job
-                job_cols = st.columns([0.5, 3, 2, 2, 1, 1])
-                
-                # Column 1: Number
-                job_cols[0].markdown(f"<p style='font-size:0.9rem;'>#{i+1}</p>", unsafe_allow_html=True)
-                
-                # Column 2: Job Title and Company
-                job_cols[1].markdown(f"<div style='margin-bottom: 0;'><strong>{job_title}</strong></div>", unsafe_allow_html=True)
-                job_cols[1].markdown(f"<div style='font-size:0.8rem; color:#888;'>{company}</div>", unsafe_allow_html=True)
-                
-                # Column 3: Location
-                job_cols[2].markdown(f"<p style='font-size:0.9rem;'>{location}</p>", unsafe_allow_html=True)
-                
-                # Column 4: Date Posted
-                job_cols[3].markdown(f"<p style='font-size:0.8rem; color:#888;'>{date_posted}</p>", unsafe_allow_html=True)
-                
-                # Column 5: Job Type
-                job_cols[4].markdown(f"<p style='font-size:0.8rem; color:#888;'>{job_type}</p>", unsafe_allow_html=True)
-                
-                # Column 6: Apply button
-                job_cols[5].markdown(f"<a href='{job_url}' target='_blank' style='display:inline-block; padding:2px 8px; background-color:#1E90FF; color:white; text-decoration:none; border-radius:3px; font-size:0.8rem;'>Apply</a>", unsafe_allow_html=True)
-                
-                # Close the container div
-                st.markdown("</div>", unsafe_allow_html=True)
-            
-            # Add a minimal separator between jobs
-            st.markdown("<hr style='margin: 0; padding: 0; opacity: 0.1;'>", unsafe_allow_html=True)
+            # Add to table data
+            table_data.append({
+                "#": f"#{i+1}",
+                "Job Title": f"{job_title}\n{company}",
+                "Location": location,
+                "Posted": f"{date_posted}",
+                "Type": job_type,
+                "Apply": f"<a href='{job_url}' target='_blank' class='apply-button'>Apply</a>"
+            })
+
+        # Convert to DataFrame for display
+        df_display = pd.DataFrame(table_data)
+
+        # Display the table
+        st.table(df_display)
 
         # Show login message
         st.info("Log in to track job applications")
