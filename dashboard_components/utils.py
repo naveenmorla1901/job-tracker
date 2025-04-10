@@ -137,8 +137,9 @@ def format_job_date(date_str):
         today = pd.Timestamp.now().normalize()
         yesterday = today - pd.Timedelta(days=1)
 
-        # Always format time part, even if it's not a "real" time
-        time_str = date_obj.strftime("%I:%M %p")  # 12-hour format with AM/PM
+        # Always format time part with actual time, not default time
+        # Remove leading zero for hours (e.g., 01:30 PM -> 1:30 PM)
+        time_str = date_obj.strftime("%I:%M %p").lstrip('0')  # 12-hour format with AM/PM
 
         if date_obj.normalize() == today:
             return f"Today at {time_str}"
@@ -146,8 +147,10 @@ def format_job_date(date_str):
             return f"Yesterday at {time_str}"
         else:
             # For older dates, always show date and time
-            return date_obj.strftime("%Y-%m-%d at %I:%M %p")
+            return date_obj.strftime("%Y-%m-%d at %I:%M %p").replace(' 0', ' ')
     except Exception as e:
+        # Log the error for debugging
+        logger.error(f"Error formatting date '{date_str}': {str(e)}")
         # Return original if parsing fails
         return date_str
 

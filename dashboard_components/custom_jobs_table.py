@@ -149,6 +149,41 @@ def display_custom_jobs_table(df_jobs):
         background-color: rgba(200, 200, 200, 0.1) !important;
     }
 
+    /* Style for the checkmark in the Applied column */
+    .checkmark {
+        color: #4CAF50;
+        font-size: 1.2rem;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    /* Styling for the HTML table */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    th {
+        background-color: #1E1E1E;
+        color: white;
+        text-align: left;
+        padding: 8px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        border-bottom: 1px solid #444;
+    }
+
+    td {
+        padding: 8px;
+        border-bottom: 1px solid #333;
+        vertical-align: middle;
+    }
+
+    tr:hover {
+        background-color: rgba(200, 200, 200, 0.1);
+    }
+
     /* Target the checkbox container */
     .stCheckbox > div {
         min-height: 0 !important;
@@ -232,7 +267,7 @@ def display_custom_jobs_table(df_jobs):
 
         # Create table data for display
         table_data = []
-        for i, row in df_jobs.iterrows():
+        for _, row in df_jobs.iterrows():
             job_id = str(row['id'])
             job_title = row['job_title']
             company = row['company']
@@ -252,29 +287,25 @@ def display_custom_jobs_table(df_jobs):
 
             # Add to table data
             table_data.append({
-                "#": f"#{i+1}",
                 "Job Title": f"{job_title}\n{company}",
                 "Location": location,
                 "Posted": f"{date_posted} • {job_type}",
-                "Applied": str(is_applied),  # Convert boolean to string
-                "Apply": "Apply"  # Plain text for now, we'll handle links separately
+                "Applied": "<span class='checkmark'>✓</span>" if is_applied else "",  # Use checkmark for applied jobs
+                "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply</a>"
             })
 
         # Convert to DataFrame for display
         df_display = pd.DataFrame(table_data)
 
-        # Display the table
-        st.table(df_display)
+        # Convert the DataFrame to HTML and render it with unsafe_allow_html
+        html_table = df_display.to_html(escape=False, index=False)
+        st.markdown(html_table, unsafe_allow_html=True)
 
-        # Create clickable links for each job
-        cols = st.columns(len(df_jobs))
-        for i, row in df_jobs.iterrows():
-            with cols[i % len(cols)]:
-                st.markdown(f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply to {row['job_title']}</a>", unsafe_allow_html=True)
+        # No need for separate links as they're now in the table
 
         # Now add the checkboxes directly in the UI
         st.write("Mark jobs as applied:")
-        for i, row in df_jobs.iterrows():
+        for _, row in df_jobs.iterrows():
             job_id = str(row['id'])
             job_title = row['job_title']
 
@@ -306,7 +337,7 @@ def display_custom_jobs_table(df_jobs):
 
         # Create table data for display
         table_data = []
-        for i, row in df_jobs.iterrows():
+        for _, row in df_jobs.iterrows():
             job_id = str(row['id'])
             job_title = row['job_title']
             company = row['company']
@@ -316,25 +347,21 @@ def display_custom_jobs_table(df_jobs):
 
             # Add to table data
             table_data.append({
-                "#": f"#{i+1}",
                 "Job Title": f"{job_title}\n{company}",
                 "Location": location,
                 "Posted": f"{date_posted}",
                 "Type": job_type,
-                "Apply": "Apply"  # Plain text for now, we'll handle links separately
+                "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply</a>"
             })
 
         # Convert to DataFrame for display
         df_display = pd.DataFrame(table_data)
 
-        # Display the table
-        st.table(df_display)
+        # Convert the DataFrame to HTML and render it with unsafe_allow_html
+        html_table = df_display.to_html(escape=False, index=False)
+        st.markdown(html_table, unsafe_allow_html=True)
 
-        # Create clickable links for each job
-        cols = st.columns(len(df_jobs))
-        for i, row in df_jobs.iterrows():
-            with cols[i % len(cols)]:
-                st.markdown(f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply to {row['job_title']}</a>", unsafe_allow_html=True)
+        # No need for separate links as they're now in the table
 
         # Show login message
         st.info("Log in to track job applications")
