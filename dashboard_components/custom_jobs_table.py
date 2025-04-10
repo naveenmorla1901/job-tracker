@@ -149,12 +149,37 @@ def display_custom_jobs_table(df_jobs):
         background-color: rgba(200, 200, 200, 0.1) !important;
     }
 
-    /* Style for the checkmark in the Applied column */
-    .checkmark {
-        color: #4CAF50;
-        font-size: 1.2rem;
-        font-weight: bold;
+    /* Style for the applied buttons */
+    .applied-button {
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        border: none;
+        transition: all 0.3s;
+        width: 100%;
         text-align: center;
+    }
+
+    .applied {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .not-applied {
+        background-color: #f1f1f1;
+        color: #333;
+    }
+
+    .applied-button:hover {
+        opacity: 0.8;
+    }
+
+    .applied-button[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background-color: #ddd;
+        color: #666;
     }
 
     /* Styling for the HTML table */
@@ -290,7 +315,7 @@ def display_custom_jobs_table(df_jobs):
                 "Job Title": f"{job_title}\n{company}",
                 "Location": location,
                 "Posted": f"{date_posted} • {job_type}",
-                "Applied": "<span class='checkmark'>✓</span>" if is_applied else "",  # Use checkmark for applied jobs
+                "Applied": f"<button class='applied-button {'' if is_applied else 'not-'}applied' onclick='toggleApplied(\"{job_id}\")' id='applied-{job_id}'>{'' if is_applied else 'Mark '} Applied</button>",
                 "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply</a>"
             })
 
@@ -299,7 +324,107 @@ def display_custom_jobs_table(df_jobs):
 
         # Convert the DataFrame to HTML and render it with unsafe_allow_html
         html_table = df_display.to_html(escape=False, index=False)
-        st.markdown(html_table, unsafe_allow_html=True)
+
+        # Create a callback for the applied buttons
+        def handle_applied_click():
+            # Get the clicked job ID from the query parameters
+            if 'job_id' in st.session_state and 'new_status' in st.session_state:
+                job_id = st.session_state.job_id
+                new_status = st.session_state.new_status
+
+                # Update the job status in the database
+                success = update_job_status(user_email, int(job_id), new_status)
+
+                if success:
+                    # Update session state
+                    st.session_state.job_checkboxes[job_id] = new_status
+                    st.toast(f"Job marked as {'applied' if new_status else 'not applied'}", icon="✅")
+                    # Force a rerun to update the UI
+                    st.rerun()
+                else:
+                    st.toast("Failed to update status", icon="❌")
+
+        # Add JavaScript for toggling applied status
+        js_code = """
+        <script>
+        // Function to create a unique key for Streamlit communication
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Function to handle button clicks
+        function toggleApplied(jobId) {
+            // Get the button element
+            const button = document.getElementById('applied-' + jobId);
+
+            // Check current state
+            const isCurrentlyApplied = button.classList.contains('applied');
+
+            // Toggle the class and text
+            if (isCurrentlyApplied) {
+                button.classList.remove('applied');
+                button.classList.add('not-applied');
+                button.textContent = 'Mark Applied';
+            } else {
+                button.classList.remove('not-applied');
+                button.classList.add('applied');
+                button.textContent = 'Applied';
+            }
+
+            // Create a unique key for this interaction
+            const key = 'applied_' + generateUUID();
+
+            // Create a form to submit the update to Streamlit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = window.location.href;
+            form.target = '_self';
+
+            // Add job ID field
+            const jobIdField = document.createElement('input');
+            jobIdField.type = 'hidden';
+            jobIdField.name = 'job_id';
+            jobIdField.value = jobId;
+            form.appendChild(jobIdField);
+
+            // Add applied status field
+            const appliedField = document.createElement('input');
+            appliedField.type = 'hidden';
+            appliedField.name = 'new_status';
+            appliedField.value = !isCurrentlyApplied;
+            form.appendChild(appliedField);
+
+            // Add key field
+            const keyField = document.createElement('input');
+            keyField.type = 'hidden';
+            keyField.name = 'form_key';
+            keyField.value = key;
+            form.appendChild(keyField);
+
+            // Add to document and submit
+            document.body.appendChild(form);
+            form.submit();
+        }
+        </script>
+        """
+
+        # Combine the table and JavaScript
+        st.markdown(html_table + js_code, unsafe_allow_html=True)
+
+        # Check for form submissions
+        query_params = st.experimental_get_query_params()
+        if 'job_id' in query_params and 'new_status' in query_params:
+            job_id = query_params['job_id'][0]
+            new_status_str = query_params['new_status'][0]
+            new_status = new_status_str.lower() == 'true'
+
+            # Store in session state and trigger callback
+            st.session_state.job_id = job_id
+            st.session_state.new_status = new_status
+            handle_applied_click()
 
         # No need for separate links as they're now in the table
 
@@ -351,6 +476,7 @@ def display_custom_jobs_table(df_jobs):
                 "Location": location,
                 "Posted": f"{date_posted}",
                 "Type": job_type,
+                "Applied": "<button class='applied-button not-applied' disabled>Login to Track</button>",
                 "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply</a>"
             })
 
