@@ -279,15 +279,8 @@ def display_custom_jobs_table(df_jobs):
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
 
-            # Create the button HTML with appropriate styling
-            applied_button = f"""
-            <button
-                id="applied-{job_id}"
-                class="applied-button {'applied' if is_applied else 'not-applied'}"
-                onclick="toggleApplied('{job_id}', {str(is_applied).lower()})">
-                {'Applied' if is_applied else 'Mark Applied'}
-            </button>
-            """
+            # Create the button HTML with appropriate styling (no line breaks)
+            applied_button = f"<button id='applied-{job_id}' class='applied-button {'applied' if is_applied else 'not-applied'}' onclick='toggleApplied(\"{job_id}\", {str(is_applied).lower()})'>{'Applied' if is_applied else 'Mark Applied'}</button>"
 
             # Add to table data
             table_data.append({
@@ -308,9 +301,9 @@ def display_custom_jobs_table(df_jobs):
 
         # Add JavaScript for handling button clicks
         # Add a handler for form submissions
-        if 'job_id' in st.experimental_get_query_params() and 'applied' in st.experimental_get_query_params():
-            job_id = st.experimental_get_query_params()['job_id'][0]
-            applied_str = st.experimental_get_query_params()['applied'][0]
+        if 'job_id' in st.query_params and 'applied' in st.query_params:
+            job_id = st.query_params['job_id']
+            applied_str = st.query_params['applied']
             applied = applied_str.lower() == 'true'
 
             # Update the job status in the database
