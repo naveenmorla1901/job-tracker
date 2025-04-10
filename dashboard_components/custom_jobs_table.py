@@ -203,7 +203,7 @@ def display_custom_jobs_table(df_jobs):
         # Define a callback function for checkbox changes
         def on_checkbox_change(job_id):
             # Get the current value from session state
-            is_checked = st.session_state[f"applied_{job_id}"]
+            is_checked = st.session_state[f"cb_{job_id}"]
 
             # Get the previous value
             prev_value = st.session_state.job_checkboxes.get(job_id, False)
@@ -225,7 +225,7 @@ def display_custom_jobs_table(df_jobs):
                     # Show error message
                     st.toast("Failed to update status", icon="❌")
                     # Revert the checkbox in session state
-                    st.session_state[f"applied_{job_id}"] = prev_value
+                    st.session_state[f"cb_{job_id}"] = prev_value
                     st.session_state.job_checkboxes[job_id] = prev_value
 
         # Create a simple table with pandas and use Streamlit's native table display
@@ -239,7 +239,6 @@ def display_custom_jobs_table(df_jobs):
             location = row['location']
             date_posted = format_job_date(row['date_posted'])
             job_type = row.get('employment_type', '')
-            job_url = row['job_url']
 
             # Default to False if not in tracked jobs
             is_applied = tracked_jobs.get(job_id, False)
@@ -257,8 +256,8 @@ def display_custom_jobs_table(df_jobs):
                 "Job Title": f"{job_title}\n{company}",
                 "Location": location,
                 "Posted": f"{date_posted} • {job_type}",
-                "Applied": is_applied,  # We'll replace this with checkboxes later
-                "Apply": f"<a href='{job_url}' target='_blank' class='apply-button'>Apply</a>"
+                "Applied": str(is_applied),  # Convert boolean to string
+                "Apply": "Apply"  # Plain text for now, we'll handle links separately
             })
 
         # Convert to DataFrame for display
@@ -266,6 +265,12 @@ def display_custom_jobs_table(df_jobs):
 
         # Display the table
         st.table(df_display)
+
+        # Create clickable links for each job
+        cols = st.columns(len(df_jobs))
+        for i, row in df_jobs.iterrows():
+            with cols[i % len(cols)]:
+                st.markdown(f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply to {row['job_title']}</a>", unsafe_allow_html=True)
 
         # Now add the checkboxes directly in the UI
         st.write("Mark jobs as applied:")
@@ -308,7 +313,6 @@ def display_custom_jobs_table(df_jobs):
             location = row['location']
             date_posted = format_job_date(row['date_posted'])
             job_type = row.get('employment_type', '')
-            job_url = row['job_url']
 
             # Add to table data
             table_data.append({
@@ -317,7 +321,7 @@ def display_custom_jobs_table(df_jobs):
                 "Location": location,
                 "Posted": f"{date_posted}",
                 "Type": job_type,
-                "Apply": f"<a href='{job_url}' target='_blank' class='apply-button'>Apply</a>"
+                "Apply": "Apply"  # Plain text for now, we'll handle links separately
             })
 
         # Convert to DataFrame for display
@@ -325,6 +329,12 @@ def display_custom_jobs_table(df_jobs):
 
         # Display the table
         st.table(df_display)
+
+        # Create clickable links for each job
+        cols = st.columns(len(df_jobs))
+        for i, row in df_jobs.iterrows():
+            with cols[i % len(cols)]:
+                st.markdown(f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply to {row['job_title']}</a>", unsafe_allow_html=True)
 
         # Show login message
         st.info("Log in to track job applications")
