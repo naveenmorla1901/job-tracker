@@ -269,8 +269,9 @@ def display_custom_jobs_table(df_jobs):
             job_title = row['job_title']
             company = row['company']
             location = row['location']
-            date_posted = format_job_date(row['date_posted'])
-            job_type = row.get('employment_type', '')
+            # Format date_posted for display
+            date_posted = format_job_date(row.get('first_seen', row['date_posted']))
+            job_type = row.get('employment_type', 'N/A')
 
             # Default to False if not in tracked jobs
             is_applied = tracked_jobs.get(job_id, False)
@@ -287,9 +288,10 @@ def display_custom_jobs_table(df_jobs):
                 "Job Title": job_title,
                 "Company": company,
                 "Location": location,
-                "Posted": f"{date_posted} • {job_type}",
+                "Posted Date": date_posted,
+                "Job Type": job_type,
                 "Applied": applied_button,
-                "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply</a>"
+                "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply Now</a>"
             })
 
         # Convert to DataFrame for display
@@ -380,18 +382,19 @@ def display_custom_jobs_table(df_jobs):
             job_title = row['job_title']
             company = row['company']
             location = row['location']
-            date_posted = format_job_date(row['date_posted'])
-            job_type = row.get('employment_type', '')
+            # Format date_posted for display
+            date_posted = format_job_date(row.get('first_seen', row['date_posted']))
+            job_type = row.get('employment_type', 'N/A')
 
             # Add to table data
             table_data.append({
                 "Job Title": job_title,
                 "Company": company,
                 "Location": location,
-                "Posted": f"{date_posted}",
-                "Type": job_type,
+                "Posted Date": date_posted,
+                "Job Type": job_type,
                 "Applied": "<button class='applied-button not-applied' disabled>Login to Track</button>",
-                "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply</a>"
+                "Apply": f"<a href='{row['job_url']}' target='_blank' class='apply-button'>Apply Now</a>"
             })
 
         # Convert to DataFrame for display
