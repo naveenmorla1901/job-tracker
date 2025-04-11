@@ -151,14 +151,16 @@ def display_custom_jobs_table(df_jobs):
 
     /* Style for the applied buttons */
     .applied-button {
-        padding: 5px 10px;
-        border-radius: 4px;
+        padding: 3px 6px;
+        border-radius: 3px;
         cursor: pointer;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         border: none;
         transition: all 0.3s;
-        width: 100%;
+        width: auto;
+        min-width: 80px;
         text-align: center;
+        display: inline-block;
     }
 
     .applied {
@@ -188,27 +190,35 @@ def display_custom_jobs_table(df_jobs):
         border-collapse: collapse;
         margin-bottom: 20px;
         table-layout: fixed;
+        max-width: 100%;
+    }
+
+    /* Remove extra space on left and right */
+    .stMarkdown {
+        margin-left: -20px;
+        margin-right: -20px;
+        width: calc(100% + 40px);
     }
 
     /* Column width adjustments */
     table th:nth-child(1), /* Job Title */
     table td:nth-child(1) {
-        width: 20%;
+        width: 22%;
     }
 
     table th:nth-child(2), /* Company */
     table td:nth-child(2) {
-        width: 15%;
+        width: 18%;
     }
 
     table th:nth-child(3), /* Location */
     table td:nth-child(3) {
-        width: 10%;
+        width: 15%;
     }
 
     table th:nth-child(4), /* Posted Date */
     table td:nth-child(4) {
-        width: 20%;
+        width: 18%;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -217,17 +227,19 @@ def display_custom_jobs_table(df_jobs):
 
     table th:nth-child(5), /* Job Type */
     table td:nth-child(5) {
-        width: 10%;
+        width: 12%;
     }
 
     table th:nth-child(6), /* Applied */
     table td:nth-child(6) {
-        width: 12%;
+        width: 8%;
+        text-align: center;
     }
 
     table th:nth-child(7), /* Apply */
     table td:nth-child(7) {
-        width: 13%;
+        width: 7%;
+        text-align: center;
     }
 
     th {
@@ -271,13 +283,14 @@ def display_custom_jobs_table(df_jobs):
     /* Apply button styling */
     .apply-button {
         display: inline-block;
-        padding: 2px 8px;
+        padding: 3px 6px;
         background-color: #1E90FF;
         color: white;
         text-decoration: none;
         border-radius: 3px;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         text-align: center;
+        min-width: 80px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -326,7 +339,7 @@ def display_custom_jobs_table(df_jobs):
                 st.session_state.job_checkboxes[job_id] = is_applied
 
             # Create the button HTML with appropriate styling (no line breaks)
-            applied_button = f"<button id='applied-{job_id}' class='applied-button {'applied' if is_applied else 'not-applied'}' onclick='toggleApplied(\"{job_id}\", {str(is_applied).lower()})'>{'Applied' if is_applied else 'Mark Applied'}</button>"
+            applied_button = f"<button id='applied-{job_id}' class='applied-button {'applied' if is_applied else 'not-applied'}' onclick='toggleApplied(\"{job_id}\", {str(is_applied).lower()})'>{'✓' if is_applied else 'Mark'}</button>"
 
             # Add to table data
             table_data.append({

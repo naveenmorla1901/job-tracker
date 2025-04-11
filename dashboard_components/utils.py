@@ -133,20 +133,39 @@ def fetch_data_with_params(endpoint, params_list):
 def format_job_date(date_str):
     """Format job date with better handling of parsing and display, including exact time"""
     try:
+        # Convert to datetime object
         date_obj = pd.to_datetime(date_str)
-        today = pd.Timestamp.now().normalize()
+
+        # Get current time in UTC (same timezone as our database timestamps)
+        now = pd.Timestamp.now(tz='UTC')
+        today = now.normalize()
         yesterday = today - pd.Timedelta(days=1)
 
-        # Always format time part with actual time, not default time
-        # Remove leading zero for hours (e.g., 01:30 PM -> 1:30 PM)
+        # Ensure date_obj is in UTC for comparison
+        if date_obj.tzinfo is None:
+            date_obj = date_obj.tz_localize('UTC')
+
+        # Format the time part (remove leading zero for hours)
         time_str = date_obj.strftime("%I:%M %p").lstrip('0')  # 12-hour format with AM/PM
 
-        if date_obj.normalize() == today:
+        # Normalize the date for comparison (strip time part)
+        normalized_date = date_obj.normalize()
+
+        # Log for debugging
+        logger.debug(f"Date comparison - Input: {date_str}, Parsed: {date_obj}, Normalized: {normalized_date}")
+        logger.debug(f"Today: {today}, Yesterday: {yesterday}")
+        logger.debug(f"Is today? {normalized_date == today}, Is yesterday? {normalized_date == yesterday}")
+
+        # Calculate days difference for more accurate comparison
+        days_diff = (today - normalized_date).days
+
+        # Format based on when the date is
+        if days_diff == 0:
             return f"Today at {time_str}"
-        elif date_obj.normalize() == yesterday:
+        elif days_diff == 1:
             return f"Yesterday at {time_str}"
         else:
-            # For older dates, always show date and time
+            # For older dates, show date and time
             return date_obj.strftime("%Y-%m-%d at %I:%M %p").replace(' 0', ' ')
     except Exception as e:
         # Log the error for debugging
