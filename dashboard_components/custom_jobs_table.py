@@ -187,6 +187,47 @@ def display_custom_jobs_table(df_jobs):
         width: 100%;
         border-collapse: collapse;
         margin-bottom: 20px;
+        table-layout: fixed;
+    }
+
+    /* Column width adjustments */
+    table th:nth-child(1), /* Job Title */
+    table td:nth-child(1) {
+        width: 20%;
+    }
+
+    table th:nth-child(2), /* Company */
+    table td:nth-child(2) {
+        width: 15%;
+    }
+
+    table th:nth-child(3), /* Location */
+    table td:nth-child(3) {
+        width: 10%;
+    }
+
+    table th:nth-child(4), /* Posted Date */
+    table td:nth-child(4) {
+        width: 20%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: bold;
+    }
+
+    table th:nth-child(5), /* Job Type */
+    table td:nth-child(5) {
+        width: 10%;
+    }
+
+    table th:nth-child(6), /* Applied */
+    table td:nth-child(6) {
+        width: 12%;
+    }
+
+    table th:nth-child(7), /* Apply */
+    table td:nth-child(7) {
+        width: 13%;
     }
 
     th {
@@ -260,7 +301,11 @@ def display_custom_jobs_table(df_jobs):
             if job_id not in st.session_state.job_checkboxes:
                 st.session_state.job_checkboxes[job_id] = is_applied
 
-        # Create a simple table with pandas and use Streamlit's native table display
+        # Sort the dataframe by first_seen or date_posted (most recent first)
+        if 'first_seen' in df_jobs.columns:
+            df_jobs = df_jobs.sort_values(by='first_seen', ascending=False)
+        else:
+            df_jobs = df_jobs.sort_values(by='date_posted', ascending=False)
 
         # Create table data for display
         table_data = []
@@ -373,7 +418,11 @@ def display_custom_jobs_table(df_jobs):
         # No need for separate links as they're now in the table
     else:
         # For non-logged-in users, show all jobs in a compact table with the same styling as logged-in view
-        # Create a simple table with pandas and use Streamlit's native table display
+        # Sort the dataframe by first_seen or date_posted (most recent first)
+        if 'first_seen' in df_jobs.columns:
+            df_jobs = df_jobs.sort_values(by='first_seen', ascending=False)
+        else:
+            df_jobs = df_jobs.sort_values(by='date_posted', ascending=False)
 
         # Create table data for display
         table_data = []
