@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google Analytics Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f7f7f7;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .event-log {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Google Analytics Debug Tool</h1>
+        <p>This tool helps diagnose issues with Google Analytics implementation in your Job Tracker application.</p>
+        
+        <div class="section">
+            <h2>GA4 Status</h2>
+            <div id="ga-status" class="status warning">Checking Google Analytics status...</div>
+            <p>Measurement ID: <span id="ga-id">Checking...</span></p>
+            <p>HTTPS: <span id="https-status">Checking...</span></p>
+            <p>Document Domain: <span id="domain-status">Checking...</span></p>
+            <p>Cookies Enabled: <span id="cookies-status">Checking...</span></p>
+        </div>
+        
+        <div class="section">
+            <h2>Test GA Events</h2>
+            <p>Click the buttons below to trigger test events and verify they're being sent to Google Analytics.</p>
+            <button id="test-pageview">Test Page View</button>
+            <button id="test-event">Test Custom Event</button>
+            <button id="test-timing">Test Timing Event</button>
+            <div id="event-result" class="status"></div>
+        </div>
+        
+        <div class="section">
+            <h2>Event Log</h2>
+            <div id="event-log" class="event-log">Event log will appear here...</div>
+        </div>
+        
+        <div class="section">
+            <h2>Troubleshooting</h2>
+            <ul id="troubleshooting-list">
+                <li>Checking if Google Analytics is properly loaded...</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Google tag (gtag.js) with debug mode -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        
+        // Debug mode configuration
+        gtag('config', 'G-EGVJQG5M34', {
+            'debug_mode': true,
+            'anonymize_ip': true,
+            'transport_type': 'beacon',
+            'cookie_domain': 'auto'
+        });
+        
+        // Check GA status after a delay
+        setTimeout(checkGAStatus, 2000);
+        
+        // Event log
+        let eventLog = [];
+        
+        function addToLog(message) {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            eventLog.push(`[${timestamp}] ${message}`);
+            if (eventLog.length > 50) eventLog.shift();
+            document.getElementById('event-log').innerText = eventLog.join('\n');
+            // Auto-scroll to bottom
+            const logElement = document.getElementById('event-log');
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function checkGAStatus() {
+            const gaStatus = document.getElementById('ga-status');
+            const gaId = document.getElementById('ga-id');
+            const httpsStatus = document.getElementById('https-status');
+            const domainStatus = document.getElementById('domain-status');
+            const cookiesStatus = document.getElementById('cookies-status');
+            const troubleshootingList = document.getElementById('troubleshooting-list');
+            
+            // Clear troubleshooting list
+            troubleshootingList.innerHTML = '';
+            
+            // Check if GA is loaded
+            if (typeof gtag === 'function') {
+                gaStatus.className = 'status success';
+                gaStatus.innerText = 'Google Analytics is loaded';
+                gaId.innerText = 'G-EGVJQG5M34';
+                addToLog('Google Analytics is loaded');
+            } else {
+                gaStatus.className = 'status error';
+                gaStatus.innerText = 'Google Analytics failed to load';
+                gaId.innerText = 'Not detected';
+                addToLog('ERROR: Google Analytics is not loaded');
+                
+                troubleshootingList.innerHTML += `
+                    <li>Google Analytics is not loaded. Check for browser extensions blocking scripts.</li>
+                    <li>Ensure the Google Analytics script is properly included in the page.</li>
+                `;
+            }
+            
+            // Check HTTPS
+            if (window.location.protocol === 'https:') {
+                httpsStatus.innerText = 'Yes (Secure)';
+                addToLog('HTTPS: Yes');
+            } else {
+                httpsStatus.innerText = 'No (Not Secure)';
+                addToLog('WARNING: Site is not using HTTPS');
+                
+                troubleshootingList.innerHTML += `
+                    <li>This site is not using HTTPS. Modern browsers may block tracking on non-secure sites.</li>
+                    <li>Consider setting up HTTPS for better analytics tracking and security.</li>
+                `;
+            }
+            
+            // Check domain
+            if (window.location.hostname === 'localhost' || /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname)) {
+                domainStatus.innerText = window.location.hostname + ' (Development/IP address)';
+                addToLog(`WARNING: Using ${window.location.hostname} instead of a proper domain name`);
+                
+                troubleshootingList.innerHTML += `
+                    <li>You are using ${window.location.hostname} which might affect tracking reliability.</li>
+                    <li>Consider setting up a proper domain name for production use.</li>
+                `;
+            } else {
+                domainStatus.innerText = window.location.hostname;
+                addToLog(`Domain: ${window.location.hostname}`);
+            }
+            
+            // Check cookies
+            if (navigator.cookieEnabled) {
+                cookiesStatus.innerText = 'Enabled';
+                addToLog('Cookies: Enabled');
+            } else {
+                cookiesStatus.innerText = 'Disabled';
+                addToLog('ERROR: Cookies are disabled');
+                
+                troubleshootingList.innerHTML += `
+                    <li>Cookies are disabled in the browser. Google Analytics requires cookies for tracking.</li>
+                    <li>Enable cookies or consider alternative tracking methods.</li>
+                `;
+            }
+            
+            // Add general recommendations
+            if (troubleshootingList.innerHTML === '') {
+                troubleshootingList.innerHTML = `
+                    <li>All basic checks passed. If you're still having issues:</li>
+                    <li>Check Google Analytics dashboard for property configuration</li>
+                    <li>Verify the stream settings in Google Analytics</li>
+                    <li>Test events using the buttons above</li>
+                    <li>Check for Content Security Policy issues in browser console</li>
+                `;
+            }
+        }
+        
+        // Set up event listeners for test buttons
+        document.getElementById('test-pageview').addEventListener('click', function() {
+            if (typeof gtag === 'function') {
+                gtag('event', 'page_view', {
+                    'page_title': 'Analytics Debug Page',
+                    'page_location': window.location.href,
+                    'debug_mode': true
+                });
+                
+                document.getElementById('event-result').className = 'status success';
+                document.getElementById('event-result').innerText = 'Page view event sent!';
+                addToLog('TEST: Page view event sent');
+            } else {
+                document.getElementById('event-result').className = 'status error';
+                document.getElementById('event-result').innerText = 'Google Analytics not loaded!';
+                addToLog('ERROR: Cannot send page view event - GA not loaded');
+            }
+        });
+        
+        document.getElementById('test-event').addEventListener('click', function() {
+            if (typeof gtag === 'function') {
+                gtag('event', 'test_event', {
+                    'event_category': 'Debug',
+                    'event_label': 'Test Event ' + new Date().toISOString(),
+                    'debug_mode': true
+                });
+                
+                document.getElementById('event-result').className = 'status success';
+                document.getElementById('event-result').innerText = 'Custom event sent!';
+                addToLog('TEST: Custom event sent');
+            } else {
+                document.getElementById('event-result').className = 'status error';
+                document.getElementById('event-result').innerText = 'Google Analytics not loaded!';
+                addToLog('ERROR: Cannot send custom event - GA not loaded');
+            }
+        });
+        
+        document.getElementById('test-timing').addEventListener('click', function() {
+            if (typeof gtag === 'function') {
+                gtag('event', 'timing_complete', {
+                    'name': 'test_timing',
+                    'value': 100,
+                    'event_category': 'Debug',
+                    'debug_mode': true
+                });
+                
+                document.getElementById('event-result').className = 'status success';
+                document.getElementById('event-result').innerText = 'Timing event sent!';
+                addToLog('TEST: Timing event sent');
+            } else {
+                document.getElementById('event-result').className = 'status error';
+                document.getElementById('event-result').innerText = 'Google Analytics not loaded!';
+                addToLog('ERROR: Cannot send timing event - GA not loaded');
+            }
+        });
+        
+        // Initial log entry
+        addToLog('Debug page loaded at ' + new Date().toISOString());
+    </script>
+</body>
+</html>

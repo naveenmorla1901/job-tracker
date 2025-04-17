@@ -23,6 +23,7 @@ from app.dashboard.logs import display_logs_page
 from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required, check_for_auth_cookie
 from app.dashboard.user_jobs import tracked_jobs_page
 from app.dashboard.admin import admin_users_page
+from app.dashboard.analytics_routes import display_analytics_page
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -72,38 +73,95 @@ def main():
     with open(os.path.join(os.path.dirname(__file__), "static", "compact_jobs.js")) as f:
         st.markdown(f"<script>{f.read()}</script>", unsafe_allow_html=True)
         
-    # Load analytics helper functions
+    # Load enhanced analytics helper functions
     with open(os.path.join(os.path.dirname(__file__), "static", "analytics.js")) as f:
         st.markdown(f"<script>{f.read()}</script>", unsafe_allow_html=True)
+        
+    # Add analytics debug page link in development mode
+    debug_link_html = f'''
+    <div style="position: fixed; bottom: 10px; right: 10px; z-index: 1000;">
+        <a href="{os.path.join(os.path.dirname(__file__), 'static', 'analytics_debug.html')}" 
+           target="_blank" 
+           style="background: #f8f9fa; color: #666; padding: 5px 10px; border-radius: 5px; 
+                  text-decoration: none; font-size: 12px; border: 1px solid #ddd;">
+            GA Debug
+        </a>
+    </div>
+    '''
+    st.markdown(debug_link_html, unsafe_allow_html=True)
     
-    # Add Google Analytics - updated implementation
+    # Add enhanced Google Analytics implementation
     st.markdown(
         """
-        <!-- Google tag (gtag.js) -->
+        <!-- Google tag (gtag.js) with enhanced configuration -->
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', 'G-EGVJQG5M34');
             
-            // Add event to track page views in Streamlit
+            // Enhanced configuration with IP anonymization and force SSL
+            gtag('config', 'G-EGVJQG5M34', {
+                'anonymize_ip': true,
+                'transport_url': 'https://www.google-analytics.com/g/collect',
+                'transport_type': 'beacon',
+                'allow_google_signals': true,
+                'allow_ad_personalization_signals': false,
+                'cookie_domain': 'auto',
+                'cookie_flags': 'SameSite=None;Secure',
+                'debug_mode': true
+            });
+            
+            console.log("Enhanced Google Analytics configuration loaded");
+            
+            // Better event handling for Streamlit's single-page application model
+            // Track page views when content changes
             document.addEventListener('DOMContentLoaded', function() {
-                const callback = function() {
-                    gtag('event', 'page_view', {
-                        'page_location': window.location.href
-                    });
-                };
+                // Send initial page view
+                gtag('event', 'page_view', {
+                    'page_title': document.title,
+                    'page_location': window.location.href,
+                    'page_path': window.location.pathname + window.location.search
+                });
                 
-                // Try to detect Streamlit page changes
-                const observer = new MutationObserver(callback);
+                // Create a more robust observer for Streamlit content changes
+                const observer = new MutationObserver((mutations) => {
+                    // Use debouncing to prevent multiple rapid-fire events
+                    clearTimeout(window.streamlitNavTimer);
+                    window.streamlitNavTimer = setTimeout(() => {
+                        gtag('event', 'page_view', {
+                            'page_title': document.title,
+                            'page_location': window.location.href,
+                            'page_path': window.location.pathname + window.location.search
+                        });
+                        console.log('Google Analytics page view event sent');
+                    }, 300);
+                });
+                
+                // Wait for Streamlit to fully load
                 setTimeout(() => {
                     const mainContent = document.querySelector('.main');
                     if (mainContent) {
-                        observer.observe(mainContent, { childList: true, subtree: true });
-                        console.log('Google Analytics initialized and tracking page views');
+                        observer.observe(mainContent, { 
+                            childList: true, 
+                            subtree: true,
+                            attributes: false,
+                            characterData: false
+                        });
+                        console.log('Google Analytics enhanced tracking initialized');
+                    } else {
+                        console.error('Could not find Streamlit main content for GA tracking');
                     }
                 }, 2000);
+                
+                // Also track when hash changes (can happen in Streamlit)
+                window.addEventListener('hashchange', function() {
+                    gtag('event', 'page_view', {
+                        'page_title': document.title,
+                        'page_location': window.location.href,
+                        'page_path': window.location.pathname + window.location.search + window.location.hash
+                    });
+                });
             });
         </script>
         """,
@@ -130,7 +188,7 @@ def main():
         
         # Add admin pages if user is admin
         if is_admin():
-            pages.extend(["User Management", "System Logs"])
+            pages.extend(["User Management", "System Logs", "Analytics Dashboard"])
             
         page = st.sidebar.radio("Go to", pages)
         
@@ -141,6 +199,8 @@ def main():
             st.session_state.page = 'admin_users'
         elif page == "System Logs" and is_admin():
             st.session_state.page = 'system_logs'
+        elif page == "Analytics Dashboard" and is_admin():
+            st.session_state.page = 'analytics'
     else:
         # Not authenticated, simplified menu
         pages = ["Jobs Dashboard", "Login"]
@@ -170,6 +230,14 @@ def main():
         # Check if user is admin for protected pages
         if is_admin():
             display_logs_page()
+        else:
+            st.error("You don't have permission to view this page")
+            st.session_state.page = 'jobs'
+            st.rerun()
+    elif current_page == 'analytics':
+        # Check if user is admin for protected pages
+        if is_admin():
+            display_analytics_page()
         else:
             st.error("You don't have permission to view this page")
             st.session_state.page = 'jobs'
