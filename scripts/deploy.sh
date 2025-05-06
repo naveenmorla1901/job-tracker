@@ -58,7 +58,7 @@ echo "Pip version: $(pip --version || echo 'Pip not working properly')"
 # Check if pip is broken and fix if needed
 if ! pip --version &> /dev/null; then
   echo "Pip appears to be broken. Reinstalling..."
-  curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+  curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py
   python get-pip.py --force-reinstall pip==23.0.1
 fi
 
