@@ -62,7 +62,7 @@ if ! pip --version &> /dev/null; then
   python get-pip.py --force-reinstall pip==23.0.1
 fi
 
-# Install dependencies
+# Install dependencies 1
 echo "Installing dependencies..."
 
 # Try pip upgrade with retry
