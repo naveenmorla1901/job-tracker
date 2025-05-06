@@ -35,8 +35,8 @@ echo "Pip in venv: $(pip --version || echo 'Pip not working')"
 
 # 3. Fix pip
 echo "Step 3: Reinstalling pip..."
-curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-python get-pip.py --force-reinstall pip==23.0.1
+curl https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py
+python get-pip.py --force-reinstall pip==23.3
 
 # Verify pip installation
 which pip

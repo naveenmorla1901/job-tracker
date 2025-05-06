@@ -17,8 +17,8 @@ source venv/bin/activate
 
 # Try to fix pip by reinstalling it completely
 echo "Reinstalling pip..."
-curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-python get-pip.py --force-reinstall pip==23.0.1
+curl https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py
+python get-pip.py --force-reinstall pip==23.3
 
 # Verify pip is working
 echo "Verifying pip installation..."

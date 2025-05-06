@@ -59,7 +59,7 @@ echo "Pip version: $(pip --version || echo 'Pip not working properly')"
 if ! pip --version &> /dev/null; then
   echo "Pip appears to be broken. Reinstalling..."
   curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py
-  python get-pip.py --force-reinstall pip==23.0.1
+  python get-pip.py --force-reinstall pip==23.3
 fi
 
 # Install dependencies 1
@@ -67,7 +67,7 @@ echo "Installing dependencies..."
 
 # Try pip upgrade with retry
 for i in {1..3}; do
-  python -m pip install --upgrade pip==23.0.1 && break || echo "Attempt $i failed. Retrying..."
+  python -m pip install --upgrade pip==23.3 && break || echo "Attempt $i failed. Retrying..."
   sleep 2
 done
 
