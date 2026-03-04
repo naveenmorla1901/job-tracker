@@ -5,55 +5,67 @@ from datetime import datetime, timedelta
 import concurrent.futures
 
 def get_hartford_jobs(roles, days=7):
-    base_url = "https://thehartford.wd5.myworkdayjobs.com/wday/cxs/thehartford/Careers_External/jobs"
+    """Main function to retrieve Hartford jobs structured by roles"""
+    
+    def fetch_role_jobs(target_role):
+        """Fetch jobs for a single role"""
+        base_url = "https://thehartford.wd5.myworkdayjobs.com/wday/cxs/thehartford/Careers_External/jobs"
 
-    payload = {
-        "appliedFacets": {
-            "locationCountry": ["bc33aa3152ec42d4995f4791a106ed09"]
-        },
-        "searchText": roles,
-        "limit": 20,
-        "offset": 0
-    }
+        payload = {
+            "appliedFacets": {
+                "locationCountry": ["bc33aa3152ec42d4995f4791a106ed09"]
+            },
+            "searchText": target_role,
+            "limit": 20,
+            "offset": 0
+        }
 
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Referer": "https://thehartford.wd5.myworkdayjobs.com/Careers_External"
-    }
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Referer": "https://thehartford.wd5.myworkdayjobs.com/Careers_External"
+        }
 
-    try:
-        response = requests.post(base_url, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = requests.post(base_url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
 
-        seen_ids = set()
-        jobs_to_process = []
-        cutoff_date = datetime.now() - timedelta(days=days)
+            seen_ids = set()
+            jobs_to_process = []
+            cutoff_date = datetime.now() - timedelta(days=days)
 
-        for job in data.get('jobPostings', []):
-            job_id = extract_hartford_job_id(job)
-            if job_id and job_id not in seen_ids:
-                seen_ids.add(job_id)
-                jobs_to_process.append(job)
+            for job in data.get('jobPostings', []):
+                job_id = extract_hartford_job_id(job)
+                if job_id and job_id not in seen_ids:
+                    seen_ids.add(job_id)
+                    jobs_to_process.append(job)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_job = {
-                executor.submit(process_hartford_job, job, cutoff_date): job
-                for job in jobs_to_process
-            }
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_job = {
+                    executor.submit(process_hartford_job, job, cutoff_date): job
+                    for job in jobs_to_process
+                }
 
-            results = []
-            for future in concurrent.futures.as_completed(future_to_job):
-                result = future.result()
-                if result:
-                    results.append(result)
+                results = []
+                for future in concurrent.futures.as_completed(future_to_job):
+                    result = future.result()
+                    if result:
+                        results.append(result)
 
-        print_hartford_output(results, roles, days)
+            return sorted(results, key=lambda x: x['date_posted'], reverse=True)
 
-    except Exception as e:
-        print(f"Error fetching jobs: {str(e)}")
+        except Exception as e:
+            print(f"Error fetching {target_role} jobs: {str(e)}")
+            return []
+
+    # Structure results by role
+    structured_results = {}
+    for role in roles:
+        structured_results[role] = fetch_role_jobs(role)
+
+    return structured_results
 
 def process_hartford_job(job, cutoff_date):
     try:
