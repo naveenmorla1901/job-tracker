@@ -95,6 +95,7 @@ COMPANY_NAMES = {
     "nshs": "Northwell Health",
     "nvidia": "NVIDIA",
     "okgov": "State of Oklahoma",
+    "oclc": "OCLC",
     "oregon": "State of Oregon",
     "otis": "Otis Worldwide",
     "osu":"ohio state university",
@@ -187,152 +188,47 @@ def run_scraper(scraper_name, roles=None, days_back=7):
     total_scrapers = len(get_all_scrapers())
     
     # Default roles to use for all scrapers
-    DS="Data Scientist python SQL"
-    DA="Data Analyst visualization"
-    MLE="Machine Learning Engineer python SQL"
-    AI="AI Engineer python SQL"
-    AIR= "AI Research Engineer python"
-    NLP= "Natural Language Processing Engineer AI python"
-    CVE= "Computer Vision Engineer AI python"
-    GAE= "Generative AI Engineer python"
-    default_roles = [DS, DA, MLE, AI, AIR, NLP, CVE, GAE]
+    DS = "Data Science"
+    DSPS = "Data Scientist python SQL"
+    DA = "Data Analyst"
+    DAV = "Data Analyst visualization"
+    MLE = "Machine Learning Engineer python SQL"
+    AI = "AI Engineer python SQL"
+    AIR = "AI Research Engineer python"
+    NLP = "Natural Language Processing Engineer AI python"
+    CVE = "Computer Vision Engineer AI python"
+    GAE = "Generative AI Engineer python"
+    # default list includes both analyst variants and Data Analyst for backward compatibility
+    default_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE]
     
     # Define custom roles for specific scrapers if needed
-    custom_roles = {
-        "accenture": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "acxiom": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "abbott": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "adobe": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "aep": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "allstate": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "appliedmaterials": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "airliquide": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "airbus": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "asmglobal": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "assurant": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "att": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "autodesk": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "az": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "baptist": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "bah": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "belron": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "boeing": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "broadridge": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "card": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "cardinal": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "cat": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "centrica": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "chanel": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "citi": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "clevelandclinic": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "cocacola": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "comcast": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "covetrus": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "cox": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "cscc": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "cushmanwakefield": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "cvshealth": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "davita": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "deluxe": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "denverhealth": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "deutsche": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "discover": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "disney": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "encova": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "expedia": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "etsy": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "fidelity": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "fractal": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "gartner": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "geico": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "gm": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "greif": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "grubhub": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "hartford": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "hitachi": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "homedepot": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "humana": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "huntington": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "iheart": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "igs": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "iqvia": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "illuminate": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "jll": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "jonas": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "leidos": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "lilly": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "kbr": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "kohls": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "kyndryl": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "logitech": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "marmon": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "mcgill": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "mckesson": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "milwaukee": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "montrose": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "motorola": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "msd": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "nationwide": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "nissan": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "noblecorp": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "nordic": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "nordstrom": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "nrel": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "nshs": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "nvidia": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "okgov": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "oregon": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "osu": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "otis": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "ohiohealth": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "pennstate": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "premier": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "prologis": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "progressiveleasing": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "prysmian": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "radian": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "rakuten": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "republic": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "reliaquest": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "relx": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "rochester": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "rockwell": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "ryan": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "salesforce": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "samsung": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "sanofi": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "scottsmiracle": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "smg": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "snc": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "socure": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "statestreet": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "sunlife": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "takeda": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "target": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "thermofisher": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "travelers": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "tyson": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "ulse": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "umd": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "unhcr": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "ups": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "ur": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "usaa": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "usbank": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "verily": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "verizon": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "walmart": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "warnerbros": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "wellsfargo": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "wellsky": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "woodward": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "workday": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "worldvision": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "x": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "xpanse": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "zillow": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE],
-        "zoom": [DS, DA, MLE, AI, AIR, NLP, CVE, GAE]
-    }
+    # construct a base list once and copy it for each company
+    base_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE]
+    companies_with_custom_roles = [
+        "oclc", "accenture", "acxiom", "abbott", "adobe", "aep", "allstate",
+        "appliedmaterials", "airliquide", "airbus", "asmglobal", "assurant",
+        "att", "autodesk", "az", "baptist", "bah", "belron", "boeing",
+        "broadridge", "card", "cardinal", "cat", "centrica", "chanel",
+        "citi", "clevelandclinic", "cocacola", "comcast", "covetrus", "cox",
+        "cscc", "cushmanwakefield", "cvshealth", "davita", "deluxe",
+        "denverhealth", "deutsche", "discover", "disney", "encova", "expedia",
+        "etsy", "fidelity", "fractal", "gartner", "geico", "gm", "greif",
+        "grubhub", "hartford", "hitachi", "homedepot", "humana", "huntington",
+        "iheart", "igs", "iqvia", "illuminate", "jll", "jonas", "leidos",
+        "lilly", "kbr", "kohls", "kyndryl", "logitech", "marmon", "mcgill",
+        "mckesson", "milwaukee", "montrose", "motorola", "msd", "nationwide",
+        "nissan", "noblecorp", "nordic", "nordstrom", "nrel", "nshs", "nvidia",
+        "okgov", "oregon", "osu", "otis", "ohiohealth", "pennstate", "premier",
+        "prologis", "progressiveleasing", "prysmian", "radian", "rakuten",
+        "republic", "reliaquest", "relx", "rochester", "rockwell", "ryan",
+        "salesforce", "samsung", "sanofi", "scottsmiracle", "smg", "snc",
+        "socure", "statestreet", "sunlife", "takeda", "target", "thermofisher",
+        "travelers", "tyson", "ulse", "umd", "unhcr", "ups", "ur", "usaa",
+        "usbank", "verily", "verizon", "walmart", "warnerbros", "wellsfargo",
+        "wellsky", "woodward", "workday", "worldvision", "x", "xpanse",
+        "zillow", "zoom"
+    ]
+    custom_roles = {name: list(base_roles) for name in companies_with_custom_roles}
     
     # If roles not provided, use company-specific custom roles or default test 1
     if roles is None:
@@ -401,11 +297,13 @@ def run_scraper(scraper_name, roles=None, days_back=7):
         logger.info(f"Scraper {scraper_name} completed: {jobs_added} added, {jobs_updated} updated, {expired_count} expired")
         
     except Exception as e:
-        # Log the error and update the scraper run record
-        logger.error(f"Error running scraper {scraper_name}: {str(e)}")
+        # Log the error with full context and update the scraper run record
+        error_msg = str(e)
+        logger.error(f"SCRAPER FAILURE: {scraper_name} | Error: {error_msg}")
+        logger.error(f"Full traceback for {scraper_name}:", exc_info=True)
         scraper_run.status = "failure"
         scraper_run.end_time = datetime.now(timezone.utc)
-        scraper_run.error_message = str(e)
+        scraper_run.error_message = error_msg
         global_stats["scraper_errors"] += 1
     
     finally:

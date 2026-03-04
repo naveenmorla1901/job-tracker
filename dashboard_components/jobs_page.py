@@ -64,9 +64,9 @@ def display_jobs_page():
                         # Only include non-empty, non-General roles
                         available_roles.add(role.strip())
 
-    # If no roles were found, add some defaults to prevent empty dropdown
+    # If no roles were found, leave the set empty – filters will just show nothing
     if not available_roles:
-        available_roles = {"Software Engineer", "Data Scientist", "Data Analyst"}
+        available_roles = set()
 
     # Get companies and employment types
     companies_data = fetch_data("jobs/companies") or {"companies": []}

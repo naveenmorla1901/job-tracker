@@ -30,8 +30,8 @@ def display_logs_page():
         deleted_count = cleanup_old_logs(days=2)
         st.sidebar.success(f"Deleted {deleted_count} old log files")
 
-    # Display API logs, Dashboard logs, System info, Nginx logs, and Postgres logs in tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["API Logs", "Dashboard Logs", "System Info", "Nginx Logs", "Postgres Logs"])
+    # Display API logs, Dashboard logs, System info, Scraper runs, Nginx logs, and Postgres logs in tabs
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["API Logs", "Dashboard Logs", "System Info", "Scraper Runs", "Nginx Logs", "Postgres Logs"])
 
     # Read API logs
     with tab1:
@@ -45,12 +45,16 @@ def display_logs_page():
     with tab3:
         _display_system_info()
 
-    # Nginx Logs
+    # Scraper Runs and Failures
     with tab4:
+        _display_scraper_runs()
+
+    # Nginx Logs
+    with tab5:
         _display_nginx_logs()
 
     # Postgres Logs
-    with tab5:
+    with tab6:
         _display_postgres_logs()
 
     # Information about logs cleanup
@@ -290,6 +294,64 @@ def _display_system_info():
 
     except Exception as e:
         st.error(f"Error getting system information: {str(e)}")
+
+def _display_scraper_runs():
+    """Display scraper run summary and failures"""
+    st.subheader("Scraper Runs & Failure Log")
+    
+    try:
+        # Fetch scraper runs data from API
+        import requests
+        from dashboard_components.utils import get_api_url
+        
+        api_url = get_api_url()
+        response = requests.get(f"{api_url}/stats/scraper-runs?limit=100")
+        
+        if response.status_code == 200:
+            data = response.json()
+            summary = data.get("summary", {})
+            failures = data.get("failures", [])
+            
+            # Display summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Total Runs", summary.get("total_runs", 0))
+            col2.metric("Successful", summary.get("successful", 0))
+            col3.metric("Failed", summary.get("failed", 0))
+            col4.metric("Success Rate", f"{summary.get('success_rate', 0):.1f}%")
+            
+            # Display failures if any
+            if failures:
+                st.warning(f"⚠️ {len(failures)} Scraper Failure(s) Detected")
+                
+                # Create a dataframe for better visualization
+                failures_df = pd.DataFrame([
+                    {
+                        "Scraper": f["scraper_name"],
+                        "Error": f["error_message"][:100] + "..." if len(f["error_message"] or "") > 100 else f["error_message"],
+                        "Time": f["end_time"][:19] if f["end_time"] else "N/A"
+                    }
+                    for f in failures
+                ])
+                
+                st.dataframe(failures_df, use_container_width=True)
+                
+                # Show detailed error messages in expandable sections
+                with st.expander("View Detailed Error Messages", expanded=False):
+                    for i, failure in enumerate(failures, 1):
+                        with st.container():
+                            st.markdown(f"**Failure #{i}: {failure['scraper_name']}**")
+                            st.markdown(f"**Time:** {failure['end_time']}")
+                            st.markdown(f"**Error Message:**")
+                            st.code(failure['error_message'], language="text")
+                            st.divider()
+            else:
+                st.success("✅ All scraper runs completed successfully!")
+                
+        else:
+            st.error(f"Error fetching scraper runs data: {response.status_code}")
+            
+    except Exception as e:
+        st.error(f"Error displaying scraper runs: {str(e)}")
 
 def _display_nginx_logs():
     """Display Nginx logs in a tab"""

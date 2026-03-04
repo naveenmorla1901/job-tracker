@@ -92,3 +92,50 @@ def get_job_trend(db: Session = Depends(get_db), days: int = 30):
     except Exception as e:
         logger.error(f"Error generating trend data: {str(e)}")
         return {"error": "Failed to generate trend data"}
+
+@router.get("/scraper-runs")
+def get_scraper_runs(db: Session = Depends(get_db), limit: int = 50):
+    """Get recent scraper runs with focus on failures"""
+    try:
+        # Get recent scraper runs
+        recent_runs = db.query(ScraperRun).order_by(ScraperRun.id.desc()).limit(limit).all()
+        
+        # Extract failure details
+        failed_runs = []
+        successful_runs = []
+        
+        for run in recent_runs:
+            run_data = {
+                "id": run.id,
+                "scraper_name": run.scraper_name,
+                "status": run.status,
+                "start_time": run.start_time.isoformat() if run.start_time else None,
+                "end_time": run.end_time.isoformat() if run.end_time else None,
+                "jobs_added": run.jobs_added,
+                "jobs_updated": run.jobs_updated,
+                "error_message": run.error_message
+            }
+            
+            if run.status == "failure":
+                failed_runs.append(run_data)
+            else:
+                successful_runs.append(run_data)
+        
+        # Calculate failure summary
+        total_runs = len(recent_runs)
+        failure_count = len(failed_runs)
+        success_rate = ((total_runs - failure_count) / total_runs * 100) if total_runs > 0 else 0
+        
+        return {
+            "summary": {
+                "total_runs": total_runs,
+                "successful": len(successful_runs),
+                "failed": failure_count,
+                "success_rate": round(success_rate, 2)
+            },
+            "failures": failed_runs,
+            "recent_runs": successful_runs
+        }
+    except Exception as e:
+        logger.error(f"Error getting scraper runs: {str(e)}")
+        return {"error": f"Failed to get scraper runs: {str(e)}"}

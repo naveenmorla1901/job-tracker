@@ -14,6 +14,7 @@ class TestScrapers:
         """Test BaseScraper initialization"""
         scraper = BaseScraper("Test Company")
         assert scraper.company_name == "Test Company"
+
     
     def test_get_recent_date(self):
         """Test the get_recent_date method"""
