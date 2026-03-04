@@ -14,6 +14,11 @@ else
   echo "Python 3 is installed: $(python3 --version)"
 fi
 
+# 1.5. Install system dependencies for lxml and other packages
+echo "Step 1.5: Installing system dependencies..."
+sudo apt-get update
+sudo apt-get install -y libxml2-dev libxslt1-dev zlib1g-dev
+
 # 2. Create a fresh virtual environment
 echo "Step 2: Creating fresh virtual environment..."
 cd ~/job-tracker

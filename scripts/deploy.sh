@@ -38,6 +38,11 @@ if ! command -v python3 &> /dev/null; then
   sudo apt-get install -y python3 python3-venv
 fi
 
+# Install system dependencies required for lxml and other packages
+echo "Installing system dependencies..."
+sudo apt-get update
+sudo apt-get install -y libxml2-dev libxslt1-dev zlib1g-dev
+
 # Load environment variables
 if [ -f .env ]; then
   export $(cat .env | grep -v '^#' | xargs)
