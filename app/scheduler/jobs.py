@@ -198,12 +198,25 @@ def run_scraper(scraper_name, roles=None, days_back=7):
     NLP = "Natural Language Processing Engineer AI python"
     CVE = "Computer Vision Engineer AI python"
     GAE = "Generative AI Engineer python"
+    SQL = "SQL Developer"
+    LLM = "LLM Engineer"
+    PE = "Prompt Engineer"
+    MLOPS = "MLOps Engineer"
+    AIARCH = "AI/ML Architect"
+    AIIE = "AI Infrastructure Engineer"
+    DE = "Data Engineer"
+    # Generative AI Roles
+    GENAI_ARCH = "Generative AI Architect"
+    LLMR = "AI/LLM Researcher"
+    FME = "Foundation Model Engineer"
+    RAG_ENG = "RAG Engineer"
+    AIAG = "AI Agent Engineer"
     # default list includes both analyst variants and Data Analyst for backward compatibility
-    default_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE]
+    default_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE, SQL, LLM, PE, MLOPS, AIARCH, AIIE, DE, GENAI_ARCH, LLMR, FME, RAG_ENG, AIAG]
     
     # Define custom roles for specific scrapers if needed
     # construct a base list once and copy it for each company
-    base_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE]
+    base_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE, SQL, LLM, PE, MLOPS, AIARCH, AIIE, DE, GENAI_ARCH, LLMR, FME, RAG_ENG, AIAG]
     companies_with_custom_roles = [
         "oclc", "accenture", "acxiom", "abbott", "adobe", "aep", "allstate",
         "appliedmaterials", "airliquide", "airbus", "asmglobal", "assurant",

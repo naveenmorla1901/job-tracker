@@ -31,17 +31,37 @@ VALID_ROLE_KEYWORDS = {
     "neural network", "deep learning", "computer vision", "cv", "nlp", "natural language",
     "generative ai", "reinforcement learning", "data mining",
 
+    # Database & SQL
+    "sql developer", "sql engineer", "database engineer", "database", "sql",
+
+    # LLM & Prompt Engineering
+    "llm engineer", "large language model", "prompt engineer", "prompt engineering",
+    "llm researcher", "ai researcher",
+
+    # MLOps & ML Infrastructure
+    "mlops", "mlops engineer", "ml engineer", "ml infrastructure", "model ops",
+    "ai infrastructure", "infrastructure engineer", "infrastructure",
+
+    # Data Engineering
+    "data engineer", "etl", "data pipeline", "data platform",
+
+    # Generative AI Specialized Roles
+    "generative ai", "genai", "generative ai architect", "gen ai",
+    "foundation model", "foundation model engineer", "fme",
+    "rag", "retrieval augmented generation", "rag engineer",
+    "ai agent", "ai agent engineer", "agent framework",
+
     # Technical Roles
-    "data engineer", "devops", "sre", "site reliability", "cloud", "architect",
-    "database", "sql", "python", "java", "javascript", "typescript", "react", "node",
-    "security", "network", "systems", "infrastructure", "operations",
+    "devops", "sre", "site reliability", "cloud", "architect",
+    "python", "java", "javascript", "typescript", "react", "node",
+    "security", "network", "systems", "infrastructure", "operations", "kubernetes", "docker",
 
     # Management & Leadership
     "lead", "manager", "director", "head", "principal", "senior", "staff", "technical lead",
 
     # Additional roles that might be getting filtered out
     "analyst", "specialist", "consultant", "scientist", "researcher", "administrator",
-    "architect", "designer", "product", "project", "program", "solution", "support",
+    "designer", "product", "project", "program", "solution", "support",
     "tech", "technology", "it", "information technology", "application", "platform"
 }
 
