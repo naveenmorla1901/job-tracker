@@ -31,12 +31,13 @@ def get_api_stats() -> Dict[str, Any]:
             # Count roles
             roles = db.query(Role).count()
             
-            # Count recent scraper runs
-            recent_runs = db.query(ScraperRun).order_by(ScraperRun.id.desc()).limit(100).all()
-            
+            # Count recent scraper runs (use 500 to cover multiple full cycles)
+            recent_runs = db.query(ScraperRun).order_by(ScraperRun.id.desc()).limit(500).all()
+            total_scraper_runs = db.query(ScraperRun).count()
+
             success_runs = sum(1 for run in recent_runs if run.status == "success")
             failure_runs = sum(1 for run in recent_runs if run.status == "failure")
-            
+
             # Calculate success rate
             if recent_runs:
                 success_rate = (success_runs / len(recent_runs)) * 100
@@ -74,7 +75,7 @@ def get_api_stats() -> Dict[str, Any]:
                 "inactive_jobs": inactive_jobs,
                 "companies": companies,
                 "roles": roles,
-                "recent_scraper_runs": len(recent_runs),
+                "recent_scraper_runs": total_scraper_runs,
                 "success_rate": round(success_rate, 2),
                 "jobs_by_date": jobs_by_date,
                 "jobs_by_role": jobs_by_role

@@ -234,8 +234,9 @@ def _display_system_info():
             if "database" in api_stats:
                 db_stats = api_stats["database"]
                 total_jobs = db_stats.get("total_jobs", 0)
+                active_jobs = db_stats.get("active_jobs", 0)
                 st.metric("Total Jobs", total_jobs)
-                st.metric("Active Jobs", total_jobs)  # Show total as active
+                st.metric("Active Jobs", active_jobs)
                 st.metric("Companies", db_stats.get("companies", 0))
 
                 # Scraper success rate
@@ -305,7 +306,7 @@ def _display_scraper_runs():
         from dashboard_components.utils import get_api_url
         
         api_url = get_api_url()
-        response = requests.get(f"{api_url}/stats/scraper-runs?limit=100")
+        response = requests.get(f"{api_url}/stats/scraper-runs?limit=500")
         
         if response.status_code == 200:
             data = response.json()

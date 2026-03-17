@@ -94,16 +94,19 @@ def get_job_trend(db: Session = Depends(get_db), days: int = 30):
         return {"error": "Failed to generate trend data"}
 
 @router.get("/scraper-runs")
-def get_scraper_runs(db: Session = Depends(get_db), limit: int = 50):
+def get_scraper_runs(db: Session = Depends(get_db), limit: int = 500):
     """Get recent scraper runs with focus on failures"""
     try:
+        # Get total count from DB (all time)
+        total_db_count = db.query(func.count(ScraperRun.id)).scalar() or 0
+
         # Get recent scraper runs
         recent_runs = db.query(ScraperRun).order_by(ScraperRun.id.desc()).limit(limit).all()
-        
+
         # Extract failure details
         failed_runs = []
         successful_runs = []
-        
+
         for run in recent_runs:
             run_data = {
                 "id": run.id,
@@ -115,20 +118,21 @@ def get_scraper_runs(db: Session = Depends(get_db), limit: int = 50):
                 "jobs_updated": run.jobs_updated,
                 "error_message": run.error_message
             }
-            
+
             if run.status == "failure":
                 failed_runs.append(run_data)
             else:
                 successful_runs.append(run_data)
-        
-        # Calculate failure summary
-        total_runs = len(recent_runs)
+
+        # Calculate summary based on fetched window
+        fetched_count = len(recent_runs)
         failure_count = len(failed_runs)
-        success_rate = ((total_runs - failure_count) / total_runs * 100) if total_runs > 0 else 0
-        
+        success_rate = ((fetched_count - failure_count) / fetched_count * 100) if fetched_count > 0 else 0
+
         return {
             "summary": {
-                "total_runs": total_runs,
+                "total_runs": fetched_count,
+                "total_all_time": total_db_count,
                 "successful": len(successful_runs),
                 "failed": failure_count,
                 "success_rate": round(success_rate, 2)

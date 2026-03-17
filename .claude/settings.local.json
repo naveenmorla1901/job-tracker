@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -1 /c/projects/job_tracker/app/scrapers/*.py)"
+      "Bash(ls -1 /c/projects/job_tracker/app/scrapers/*.py)",
+      "Bash(ls c:/projects/job_tracker/app/scrapers/*.py)"
     ]
   }
 }
