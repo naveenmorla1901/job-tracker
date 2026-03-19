@@ -370,36 +370,29 @@ def _display_nginx_logs():
         log_file = log_files[1]
 
     # Try to read the log file
-    if not os.path.exists(log_file):
-        st.warning(f"Nginx log file not found: {log_file}")
-    else:
-        # Attempt 1: direct read (works when dashboard runs as a user with access)
-        try:
-            with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.readlines()
-            if len(content) > 1000:
-                content = content[-1000:]
-            st.code("".join(content), language="text")
-        except PermissionError:
-            # Attempt 2: sudo tail (only when sudo is available and passwordless)
-            try:
-                import subprocess
-                result = subprocess.run(
-                    ["sudo", "tail", "-n", "1000", log_file],
-                    capture_output=True, text=True, timeout=10
-                )
-                if result.returncode == 0 and result.stdout:
-                    st.code(result.stdout, language="text")
-                else:
-                    st.warning(
-                        f"Permission denied reading {log_file}. "
-                        "Grant the dashboard user read access or add a passwordless sudo rule."
-                    )
-            except (FileNotFoundError, Exception) as e:
-                st.warning(
-                    f"Cannot read Nginx log ({log_file}): permission denied and sudo is not available "
-                    f"({type(e).__name__}). Grant the dashboard process read access to the log file."
-                )
+    try:
+        if os.path.exists(log_file):
+            # Read the log file using the system command
+            import subprocess
+            result = subprocess.run(["sudo", "tail", "-n", "1000", log_file], capture_output=True, text=True)
+
+            if result.returncode == 0 and result.stdout:
+                st.code(result.stdout, language="text")
+            else:
+                # Try a direct file read as fallback
+                try:
+                    with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.readlines()
+                        # Take last 1000 lines
+                        if len(content) > 1000:
+                            content = content[-1000:]
+                        st.code("".join(content), language="text")
+                except Exception as e:
+                    st.warning(f"Could not read Nginx log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        else:
+            st.warning(f"Nginx log file {log_file} not found")
+    except Exception as e:
+        st.error(f"Error accessing Nginx logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
 
 def _display_postgres_logs():
     """Display PostgreSQL logs in a tab"""
@@ -422,33 +415,27 @@ def _display_postgres_logs():
         # Let user select which log file to view
         selected_log = st.selectbox("Select PostgreSQL log file:", all_logs)
 
-        # Attempt 1: direct read
+        # Try to read the selected log file
         try:
-            with open(selected_log, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.readlines()
-            if len(content) > 1000:
-                content = content[-1000:]
-            st.code("".join(content), language="text")
-        except PermissionError:
-            # Attempt 2: sudo tail (only when sudo is available and passwordless)
-            try:
-                import subprocess
-                result = subprocess.run(
-                    ["sudo", "tail", "-n", "1000", selected_log],
-                    capture_output=True, text=True, timeout=10
-                )
-                if result.returncode == 0 and result.stdout:
-                    st.code(result.stdout, language="text")
-                else:
-                    st.warning(
-                        f"Permission denied reading {selected_log}. "
-                        "Grant the dashboard user read access or add a passwordless sudo rule."
-                    )
-            except (FileNotFoundError, Exception) as e:
-                st.warning(
-                    f"Cannot read PostgreSQL log ({selected_log}): permission denied and sudo is not "
-                    f"available ({type(e).__name__}). Grant the dashboard process read access to the log file."
-                )
+            # Use system command to read logs with proper permissions
+            import subprocess
+            result = subprocess.run(["sudo", "tail", "-n", "1000", selected_log], capture_output=True, text=True)
+
+            if result.returncode == 0 and result.stdout:
+                st.code(result.stdout, language="text")
+            else:
+                # Try a direct file read as fallback
+                try:
+                    with open(selected_log, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.readlines()
+                        # Take last 1000 lines
+                        if len(content) > 1000:
+                            content = content[-1000:]
+                        st.code("".join(content), language="text")
+                except Exception as e:
+                    st.warning(f"Could not read PostgreSQL log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        except Exception as e:
+            st.error(f"Error accessing PostgreSQL logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
     else:
         # If no log files found, show a message about checking PostgreSQL processes
         st.warning("No PostgreSQL log files found at common locations")

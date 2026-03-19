@@ -89,10 +89,6 @@ pip install psutil
 echo "Running database migrations..."
 python run.py update_db
 
-# Back-fill DS / Non-DS category roles for existing jobs
-echo "Back-filling Data Science category roles on existing jobs..."
-python backfill_ds_categories.py || echo "Backfill script failed (non-fatal, will retry on next deploy)"
-
 # Create logs directory if it doesn't exist
 if [ ! -d "logs" ]; then
   echo "Creating logs directory..."
@@ -119,16 +115,9 @@ pkill -f "streamlit run dashboard.py" || echo "No dashboard running"
 sleep 3
 
 echo "Starting services..."
-# Start via systemctl only — avoid duplicate processes caused by mixing
-# nohup starts with systemctl.
-sudo systemctl start job-tracker-api.service || {
-  echo "systemctl start failed for API, falling back to nohup..."
-  nohup uvicorn main:app --host 0.0.0.0 --port 8001 > api.log 2>&1 &
-}
-sudo systemctl start job-tracker-dashboard.service || {
-  echo "systemctl start failed for dashboard, falling back to nohup..."
-  nohup streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &
-}
+# Start services using nohup for initial deployment
+nohup uvicorn main:app --host 0.0.0.0 --port 8001 > api.log 2>&1 &
+nohup streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &
 
 # Sleep to ensure services are up before continuing
 sleep 5

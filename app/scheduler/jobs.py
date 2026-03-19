@@ -289,15 +289,10 @@ def run_scraper(scraper_name, roles=None, days_back=7):
         
         # Run the scraper
         jobs_data = get_jobs_func(roles=roles, days=days_back)
-        if not isinstance(jobs_data, dict):
-            logger.warning(f"Scraper {scraper_name} returned non-dict jobs_data; treating as empty")
-            jobs_data = {}
         
-        # Count total jobs found (no filtering; we categorize later on job content)
+        # Count total jobs found
         total_jobs_found = sum(len(jobs) for jobs in jobs_data.values())
-        logger.info(
-            f"Scraper {scraper_name} found {total_jobs_found} jobs across {len(jobs_data)} roles"
-        )
+        logger.info(f"Scraper {scraper_name} found {total_jobs_found} jobs across {len(jobs_data)} roles")
         
         # Track active job IDs for this company
         active_job_ids = []
