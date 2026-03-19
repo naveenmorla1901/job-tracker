@@ -9,6 +9,7 @@ import time
 
 from app.db.models import Job, Role
 from app.db.database import get_db
+from app.scrapers.role_specific_matcher import is_data_science_job
 
 # Set up logger
 logger = logging.getLogger('job_tracker.crud')
@@ -51,6 +52,13 @@ def clean_role_name(role_name: str) -> str:
     
     # Clean and normalize role name
     cleaned = role_name.strip()
+
+    # Preserve our DS/non-DS category role names exactly.
+    cleaned_lower = cleaned.lower()
+    if cleaned_lower == "data science":
+        return "Data Science"
+    if cleaned_lower in ["non data science", "non-data science", "non_ds", "non ds"]:
+        return "Non Data Science"
     
     # Find the closest match in valid roles if needed
     if cleaned not in VALID_ROLES:
@@ -100,6 +108,21 @@ def add_role_to_job(db: Session, job: Job, role: Role) -> bool:
         db.rollback()
         logger.error(f"Error adding role to job: {str(e)}")
     return False
+
+
+def _attach_ds_category_role(db: Session, job: Job, job_data: Dict[str, Any]) -> None:
+    """
+    Attach one of our top-level category roles based on job content:
+      - "Data Science" (DS/AI related)
+      - "Non Data Science"
+    """
+    job_title = (job_data.get("job_title") or "") if isinstance(job_data, dict) else ""
+    description = (job_data.get("description") or "") if isinstance(job_data, dict) else ""
+    text = f"{job_title}\n{description}".strip()
+
+    category_role_name = "Data Science" if is_data_science_job(text) else "Non Data Science"
+    category_role = get_or_create_role(db, category_role_name)
+    add_role_to_job(db, job, category_role)
 
 def safely_get_job_by_id(db: Session, job_id: str, company: str, max_retries: int = 3) -> Job:
     """
@@ -171,6 +194,7 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
             
             # Check if this role is already associated with the job
             add_role_to_job(db, existing_job, role)
+            _attach_ds_category_role(db, existing_job, job_data)
             
             return False, existing_job, False
         except Exception as update_error:
@@ -191,6 +215,7 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
                 logger.info(f"Potential duplicate found: {job_data.get('job_title')} at {job_data.get('location')} (existing job_id: {potential_duplicate.job_id}, new job_id: {job_id})")
                 # Add this role to the existing duplicate if needed
                 add_role_to_job(db, potential_duplicate, role)
+                _attach_ds_category_role(db, potential_duplicate, job_data)
                 return False, potential_duplicate, True
         except Exception as dup_error:
             logger.error(f"Error checking for duplicates for job {job_id}: {str(dup_error)}")
@@ -241,6 +266,7 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
             
             if job:
                 add_role_to_job(db, job, role)
+                _attach_ds_category_role(db, job, job_data)
                 return is_insert, job, False
             else:
                 logger.error(f"Failed to retrieve job {job_id} after upsert")
@@ -268,6 +294,7 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
                 if job:
                     logger.info(f"Successfully found existing job {job_id} after IntegrityError")
                     add_role_to_job(new_db, job, role)
+                    _attach_ds_category_role(new_db, job, job_data)
                     return False, job, True
                 else:
                     logger.error(f"Failed to find job {job_id} after IntegrityError")

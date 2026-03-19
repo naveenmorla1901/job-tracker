@@ -12,16 +12,13 @@ is_test = ENVIRONMENT == "test"
 
 logger = logging.getLogger("app.scrapers")
 
-# Role validation has been removed
-
 # Dictionary to store scraper functions
 scrapers = {}
 
-# Simple pass-through decorator (role filtering removed)
+# Simple pass-through decorator (no filtering; categorize later)
 def apply_role_filtering(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # Just call the original function without any filtering
         return func(*args, **kwargs)
 
     return wrapper
@@ -59,7 +56,7 @@ def get_all_scrapers():
 # Export specific scrapers for backward compatibility
 try:
     from app.scrapers.salesforce import get_salesforce_jobs
-    # Apply role filtering to the export as well
+    # Keep behavior consistent with apply_role_filtering (pass-through)
     get_salesforce_jobs = apply_role_filtering(get_salesforce_jobs)
 except ImportError:
     pass

@@ -6,6 +6,8 @@ import logging
 from typing import List, Dict, Any
 # Role validation imports removed
 # Define fallback functions
+
+
 def extract_roles_from_title(title, roles=None):
     """Simple function to extract roles from a job title"""
     return ["Software Engineer"]  # Default role
@@ -27,8 +29,7 @@ def validate_scraped_jobs(jobs: List[Dict[str, Any]], search_roles: List[str] = 
     Returns:
         Filtered list of jobs with valid roles
     """
-    # Role validation removed - return all jobs
-    logger.info(f"Role validation disabled, returning all {len(jobs) if jobs else 0} jobs")
+    # Categorization happens later during DB upsert; we should not drop jobs here.
     return jobs if jobs else []
 
 def extract_roles_for_job(job: Dict[str, Any], search_roles: List[str] = None) -> List[str]:
