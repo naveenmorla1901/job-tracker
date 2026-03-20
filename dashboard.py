@@ -19,6 +19,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # Import dashboard components
 from dashboard_components.jobs_page import display_jobs_page
+from dashboard_components.ai_jobs_page import display_ai_jobs_page
 from app.dashboard.logs import display_logs_page
 from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required, check_for_auth_cookie
 from app.dashboard.user_jobs import tracked_jobs_page
@@ -136,7 +137,7 @@ def main():
     
     # Different navigation options based on auth status
     if is_authenticated():
-        pages = ["Jobs Dashboard"]
+        pages = ["Jobs Dashboard", "AI & DS Jobs"]
         
         # Add admin pages if user is admin
         if is_admin():
@@ -147,6 +148,8 @@ def main():
         # Map selected page to session state
         if page == "Jobs Dashboard":
             st.session_state.page = 'jobs'
+        elif page == "AI & DS Jobs":
+            st.session_state.page = 'ai_jobs'
         elif page == "User Management" and is_admin():
             st.session_state.page = 'admin_users'
         elif page == "System Logs" and is_admin():
@@ -154,11 +157,13 @@ def main():
         # Analytics page removed as requested
     else:
         # Not authenticated, simplified menu
-        pages = ["Jobs Dashboard", "Login"]
+        pages = ["Jobs Dashboard", "AI & DS Jobs", "Login"]
         page = st.sidebar.radio("Go to", pages)
         
         if page == "Jobs Dashboard":
             st.session_state.page = 'jobs'
+        elif page == "AI & DS Jobs":
+            st.session_state.page = 'ai_jobs'
         elif page == "Login":
             st.session_state.page = 'login'
     
@@ -167,6 +172,8 @@ def main():
     
     if current_page == 'jobs':
         display_jobs_page()
+    elif current_page == 'ai_jobs':
+        display_ai_jobs_page()
     elif current_page == 'tracked_jobs':
         tracked_jobs_page()
     elif current_page == 'admin_users':
@@ -191,7 +198,6 @@ def main():
     elif current_page == 'settings':
         user_settings_page()
     else:
-        # Default to jobs page
         display_jobs_page()
 
 if __name__ == "__main__":
