@@ -22,6 +22,55 @@ from dashboard_components.custom_jobs_table import display_custom_jobs_table
 logger = logging.getLogger('job_tracker.dashboard.ai_jobs_page')
 
 # ---------------------------------------------------------------------------
+# Title-level keyword filter (applied client-side after the API response).
+# Scrapers sometimes return loosely-matched results from company job boards
+# (e.g. "Construction Engineer" when searching "AI Engineer").
+# Any job whose title does NOT match at least one pattern below is excluded.
+# ---------------------------------------------------------------------------
+import re
+
+AI_TITLE_PATTERNS = [
+    r"data\s+scien",           # data scientist, data science
+    r"machine\s+learning",
+    r"\bml\b",                 # ML Engineer, ML Ops …
+    r"\bai\b",                 # AI Engineer, AI Researcher …
+    r"\bartificial\s+intelligence\b",
+    r"natural\s+language",
+    r"\bnlp\b",
+    r"computer\s+vision",
+    r"generative\s+ai",
+    r"\bllm\b",
+    r"large\s+language\s+model",
+    r"foundation\s+model",
+    r"\brag\b",                # RAG Engineer
+    r"prompt\s+engineer",
+    r"\bmlops\b",
+    r"deep\s+learning",
+    r"neural\s+network",
+    r"reinforcement\s+learning",
+    r"data\s+engineer",
+    r"ai/ml",
+    r"ml/ai",
+    r"ai\s+architect",
+    r"ml\s+architect",
+    r"ai\s+agent",
+    r"ai\s+platform",
+    r"ai\s+infrastructure",
+    r"ai\s+research",
+    r"applied\s+scientist",
+    r"research\s+scientist",   # common AI/ML job title
+    r"quantitative\s+researcher",
+]
+
+_AI_PATTERN = re.compile("|".join(AI_TITLE_PATTERNS), re.IGNORECASE)
+
+
+def _is_ai_ds_title(title: str) -> bool:
+    """Return True if the job title looks like an AI/DS role."""
+    return bool(_AI_PATTERN.search(title or ""))
+
+
+# ---------------------------------------------------------------------------
 # Target roles – these are the exact Role.name values stored in the database
 # (after crud.clean_role_name() normalisation).
 # ---------------------------------------------------------------------------
@@ -212,16 +261,31 @@ def display_ai_jobs_page():
 
     # -- Fetch jobs ------------------------------------------------------
     jobs_data = fetch_data_with_params("jobs", request_params) or {"jobs": [], "total": 0}
-    total_jobs = jobs_data.get("total", 0)
-    st.markdown(
-        f"<h4 style='margin-bottom:0; padding-bottom:0;'>Found {total_jobs} AI/DS jobs matching your criteria</h4>",
-        unsafe_allow_html=True,
-    )
+    # Note: total shown after client-side title filter is applied below
+    api_total = jobs_data.get("total", 0)
 
     # -- Process & display -----------------------------------------------
     if jobs_data.get("jobs"):
         try:
             df_jobs = pd.DataFrame(jobs_data["jobs"])
+
+            # ---------------------------------------------------------------
+            # Client-side title filter – remove jobs whose titles don't match
+            # any AI/DS keyword, regardless of which role tag the scraper
+            # assigned them.
+            # ---------------------------------------------------------------
+            if "job_title" in df_jobs.columns:
+                before = len(df_jobs)
+                df_jobs = df_jobs[df_jobs["job_title"].apply(_is_ai_ds_title)]
+                removed = before - len(df_jobs)
+                if removed:
+                    logger.info(f"Title filter removed {removed} non-AI/DS jobs from display")
+
+            st.markdown(
+                f"<h4 style='margin-bottom:0; padding-bottom:0;'>"
+                f"Found {len(df_jobs)} AI/DS jobs matching your criteria</h4>",
+                unsafe_allow_html=True,
+            )
 
             # Client-side date filtering
             if "date_posted" in df_jobs.columns:
@@ -327,6 +391,10 @@ def display_ai_jobs_page():
             logger.error(f"Error processing job data: {str(e)}")
             logger.error(traceback.format_exc())
     else:
+        st.markdown(
+            "<h4 style='margin-bottom:0; padding-bottom:0;'>Found 0 AI/DS jobs matching your criteria</h4>",
+            unsafe_allow_html=True,
+        )
         st.info(
             "No AI/DS jobs found for the selected filters. "
             "Try extending the time period or clearing extra filters."
