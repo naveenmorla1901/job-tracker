@@ -131,46 +131,52 @@ def fetch_data_with_params(endpoint, params_list):
         return None
 
 def format_job_date(date_str):
-    """Format job date with better handling of parsing and display, including exact time"""
+    """Format job date relative to Eastern Time (US/Eastern).
+
+    - Today's posts: "X hours ago at 3:45 PM" / "X minutes ago at 3:45 PM"
+    - Yesterday: "Yesterday at 3:45 PM"
+    - Older: "2026-04-11 at 3:45 PM"
+    """
     try:
-        # Convert to datetime object
+        import pytz
+        eastern = pytz.timezone('US/Eastern')
+
         date_obj = pd.to_datetime(date_str)
 
-        # Get current time in UTC (same timezone as our database timestamps)
-        now = pd.Timestamp.now(tz='UTC')
-        today = now.normalize()
-        yesterday = today - pd.Timedelta(days=1)
-
-        # Ensure date_obj is in UTC for comparison
         if date_obj.tzinfo is None:
             date_obj = date_obj.tz_localize('UTC')
 
-        # Format the time part (remove leading zero for hours)
-        time_str = date_obj.strftime("%I:%M %p").lstrip('0')  # 12-hour format with AM/PM
+        date_eastern = date_obj.astimezone(eastern)
+        now_eastern = pd.Timestamp.now(tz=eastern)
 
-        # Normalize the date for comparison (strip time part)
-        normalized_date = date_obj.normalize()
+        time_str = date_eastern.strftime("%I:%M %p").lstrip('0')
 
-        # Log for debugging
-        logger.debug(f"Date comparison - Input: {date_str}, Parsed: {date_obj}, Normalized: {normalized_date}")
-        logger.debug(f"Today: {today}, Yesterday: {yesterday}")
-        logger.debug(f"Is today? {normalized_date == today}, Is yesterday? {normalized_date == yesterday}")
+        today_eastern = now_eastern.normalize()
+        yesterday_eastern = today_eastern - pd.Timedelta(days=1)
+        normalized_date = date_eastern.normalize()
 
-        # Calculate days difference for more accurate comparison
-        days_diff = (today - normalized_date).days
+        days_diff = (today_eastern - normalized_date).days
 
-        # Format based on when the date is
         if days_diff == 0:
-            return f"Today at {time_str}"
+            delta = now_eastern - date_eastern
+            total_seconds = int(delta.total_seconds())
+
+            if total_seconds < 60:
+                ago_str = "Just now"
+            elif total_seconds < 3600:
+                mins = total_seconds // 60
+                ago_str = f"{mins} min{'s' if mins != 1 else ''} ago"
+            else:
+                hours = total_seconds // 3600
+                ago_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
+
+            return f"{ago_str} at {time_str} ET"
         elif days_diff == 1:
-            return f"Yesterday at {time_str}"
+            return f"Yesterday at {time_str} ET"
         else:
-            # For older dates, show date and time
-            return date_obj.strftime("%Y-%m-%d at %I:%M %p").replace(' 0', ' ')
+            return date_eastern.strftime("%Y-%m-%d at %I:%M %p").replace(' 0', ' ') + " ET"
     except Exception as e:
-        # Log the error for debugging
         logger.error(f"Error formatting date '{date_str}': {str(e)}")
-        # Return original if parsing fails
         return date_str
 
 def check_api_status():
