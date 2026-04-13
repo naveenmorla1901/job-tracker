@@ -2,7 +2,9 @@
 Jobs table with colour-coded Apply button that auto-tracks applications.
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
+import html as html_lib
 from dashboard_components.utils import format_job_date
 from app.dashboard.auth import is_authenticated, get_current_user
 from app.db.database import get_db
@@ -93,99 +95,8 @@ def display_custom_jobs_table(df_jobs):
         job_id_str = st.query_params["mark_applied"]
         if job_id_str not in applied_ids:
             mark_job_applied(user_email, int(job_id_str))
+            applied_ids.add(job_id_str)
         st.query_params.clear()
-        st.rerun()
-
-    # --- CSS ---------------------------------------------------------------
-    st.markdown("""
-    <style>
-    .stContainer, .block-container, .element-container {
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
-    }
-    div.stMarkdown p {
-        margin-bottom: 0 !important;
-        margin-top: 0 !important;
-        line-height: 1 !important;
-        padding: 0 !important;
-    }
-    div[data-testid="stTable"] table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 0;
-        padding: 0;
-        font-size: 0.9rem;
-    }
-    div[data-testid="stTable"] th {
-        background-color: #1E1E1E !important;
-        color: white !important;
-        text-align: left !important;
-        padding: 8px !important;
-        font-size: 0.9rem !important;
-        font-weight: bold !important;
-        border-bottom: 1px solid #444 !important;
-    }
-    div[data-testid="stTable"] td {
-        padding: 8px !important;
-        border-bottom: 1px solid #333 !important;
-        vertical-align: middle !important;
-    }
-    div[data-testid="stTable"] tr:hover {
-        background-color: rgba(200, 200, 200, 0.1) !important;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-        table-layout: fixed;
-        max-width: 100%;
-    }
-    .stMarkdown {
-        margin-left: -20px;
-        margin-right: -20px;
-        width: calc(100% + 40px);
-    }
-
-    /* Column widths */
-    table th:nth-child(1), table td:nth-child(1) { width: 25%; }              /* Job Title */
-    table th:nth-child(2), table td:nth-child(2) { width: 18%; }              /* Company */
-    table th:nth-child(3), table td:nth-child(3) { width: 17%; }              /* Location */
-    table th:nth-child(4), table td:nth-child(4) {                            /* Posted Date */
-        width: 20%;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold;
-    }
-    table th:nth-child(5), table td:nth-child(5) { width: 12%; }              /* Job Type */
-    table th:nth-child(6), table td:nth-child(6) { width: 8%; text-align: center; }  /* Apply */
-
-    th {
-        background-color: #1E1E1E; color: white;
-        text-align: left; padding: 8px;
-        font-size: 0.9rem; font-weight: bold;
-        border-bottom: 1px solid #444;
-    }
-    td { padding: 8px; border-bottom: 1px solid #333; vertical-align: middle; }
-    tr:hover { background-color: rgba(200, 200, 200, 0.1); }
-
-    /* Apply / Applied button */
-    .apply-btn {
-        display: inline-block; padding: 4px 10px;
-        text-decoration: none; border-radius: 4px;
-        font-size: 0.78rem; text-align: center;
-        min-width: 80px; cursor: pointer; border: none;
-        transition: opacity 0.2s;
-    }
-    .apply-btn:hover { opacity: 0.85; }
-    .apply-btn-new {
-        background-color: #1E90FF; color: white;
-    }
-    .apply-btn-done {
-        background-color: #4CAF50; color: white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     st.header("Job Listings")
 
@@ -195,12 +106,16 @@ def display_custom_jobs_table(df_jobs):
     else:
         df_jobs = df_jobs.sort_values(by="date_posted", ascending=False)
 
-    # --- Build table rows ---------------------------------------------------
-    table_data = []
+    # --- Build HTML table rows ----------------------------------------------
+    rows_html = ""
     for _, row in df_jobs.iterrows():
         job_id = str(row["id"])
-        date_posted = format_job_date(row.get("first_seen", row["date_posted"]))
-        job_url = row["job_url"].strip() if isinstance(row.get("job_url"), str) else "#"
+        date_posted = html_lib.escape(str(format_job_date(row.get("first_seen", row["date_posted"]))))
+        job_url = html_lib.escape(row["job_url"].strip() if isinstance(row.get("job_url"), str) else "#")
+        title = html_lib.escape(str(row["job_title"]))
+        company = html_lib.escape(str(row["company"]))
+        location = html_lib.escape(str(row["location"]))
+        job_type = html_lib.escape(str(row.get("employment_type", "N/A")))
         already_applied = job_id in applied_ids
 
         if user_email:
@@ -213,7 +128,7 @@ def display_custom_jobs_table(df_jobs):
                 btn = (
                     f"<a href='{job_url}' target='_blank' "
                     f"class='apply-btn apply-btn-new' "
-                    f"onclick=\"markApplied('{job_id}')\">Apply Now</a>"
+                    f"data-job-id='{job_id}'>Apply Now</a>"
                 )
         else:
             btn = (
@@ -221,28 +136,90 @@ def display_custom_jobs_table(df_jobs):
                 f"class='apply-btn apply-btn-new'>Apply Now</a>"
             )
 
-        table_data.append({
-            "Job Title": row["job_title"],
-            "Company": row["company"],
-            "Location": row["location"],
-            "Posted Date": date_posted,
-            "Job Type": row.get("employment_type", "N/A"),
-            "Apply": btn,
-        })
+        rows_html += (
+            f"<tr>"
+            f"<td>{title}</td>"
+            f"<td>{company}</td>"
+            f"<td>{location}</td>"
+            f"<td>{date_posted}</td>"
+            f"<td>{job_type}</td>"
+            f"<td style='text-align:center'>{btn}</td>"
+            f"</tr>\n"
+        )
 
-    df_display = pd.DataFrame(table_data)
-    html_table = df_display.to_html(escape=False, index=False)
-    st.markdown(html_table, unsafe_allow_html=True)
+    num_rows = len(df_jobs)
+    table_height = min(60 + num_rows * 42, 2000)
 
-    # --- JS: mark applied via query-param round-trip ------------------------
-    if user_email:
-        st.markdown("""
-        <script>
-        function markApplied(jobId) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('mark_applied', jobId);
-            // Small delay so the browser opens the job link first
-            setTimeout(() => { window.location.href = url.toString(); }, 300);
-        }
-        </script>
-        """, unsafe_allow_html=True)
+    full_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: "Source Sans Pro", sans-serif; font-size: 0.9rem; color: #fafafa; background: transparent; }}
+        table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+        th {{ background-color: #1E1E1E; color: white; text-align: left; padding: 8px;
+              font-size: 0.9rem; font-weight: bold; border-bottom: 1px solid #444;
+              position: sticky; top: 0; z-index: 2; }}
+        td {{ padding: 8px; border-bottom: 1px solid #333; vertical-align: middle;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+        tr:hover {{ background-color: rgba(200, 200, 200, 0.1); }}
+
+        th:nth-child(1), td:nth-child(1) {{ width: 25%; }}
+        th:nth-child(2), td:nth-child(2) {{ width: 18%; }}
+        th:nth-child(3), td:nth-child(3) {{ width: 17%; }}
+        th:nth-child(4), td:nth-child(4) {{ width: 20%; font-weight: bold; }}
+        th:nth-child(5), td:nth-child(5) {{ width: 12%; }}
+        th:nth-child(6), td:nth-child(6) {{ width: 8%; text-align: center; }}
+
+        .apply-btn {{
+            display: inline-block; padding: 4px 10px;
+            text-decoration: none; border-radius: 4px;
+            font-size: 0.78rem; text-align: center;
+            min-width: 80px; cursor: pointer; border: none;
+            transition: background-color 0.3s;
+        }}
+        .apply-btn:hover {{ opacity: 0.85; }}
+        .apply-btn-new {{ background-color: #1E90FF; color: white; }}
+        .apply-btn-done {{ background-color: #4CAF50; color: white; }}
+    </style>
+    </head>
+    <body>
+    <table>
+        <thead>
+            <tr>
+                <th>Job Title</th><th>Company</th><th>Location</th>
+                <th>Posted Date</th><th>Job Type</th><th>Apply</th>
+            </tr>
+        </thead>
+        <tbody>
+            {rows_html}
+        </tbody>
+    </table>
+    <script>
+        document.querySelectorAll('a.apply-btn-new[data-job-id]').forEach(function(btn) {{
+            btn.addEventListener('click', function(e) {{
+                var jobId = this.getAttribute('data-job-id');
+
+                // Immediately flip the button to green "Applied"
+                this.classList.remove('apply-btn-new');
+                this.classList.add('apply-btn-done');
+                this.textContent = 'Applied';
+                this.removeAttribute('data-job-id');
+
+                // Tell Streamlit (parent frame) to persist via query param
+                try {{
+                    var parentUrl = new URL(window.parent.location.href);
+                    parentUrl.searchParams.set('mark_applied', jobId);
+                    window.parent.location.href = parentUrl.toString();
+                }} catch(err) {{
+                    console.error('Could not notify parent:', err);
+                }}
+            }});
+        }});
+    </script>
+    </body>
+    </html>
+    """
+
+    components.html(full_html, height=table_height, scrolling=True)

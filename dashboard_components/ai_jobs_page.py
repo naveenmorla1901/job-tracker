@@ -12,10 +12,9 @@ import traceback
 from dashboard_components.utils import (
     fetch_data,
     fetch_data_with_params,
-    format_job_date,
     get_api_url
 )
-from app.dashboard.auth import is_authenticated, api_request
+from app.dashboard.auth import is_authenticated
 from dashboard_components.custom_jobs_table import display_custom_jobs_table
 
 logger = logging.getLogger('job_tracker.dashboard.ai_jobs_page')
@@ -204,18 +203,7 @@ def display_ai_jobs_page():
     st.markdown(f"Showing jobs for: **{', '.join(selected_time_labels)}**")
     st.markdown(f"Date range: **{start_date.strftime('%Y-%m-%d')}** to **{today.strftime('%Y-%m-%d')}**")
 
-    # Role sub-filter (within the AI/DS set)
-    st.sidebar.subheader("Filter by AI/DS Role")
-    st.sidebar.caption("Leave all unchecked to show every AI/DS role.")
-    role_sub_cols = st.sidebar.columns(2)
-    selected_sub_roles = []
-    for idx, role in enumerate(AI_DS_ROLES):
-        label = ROLE_DISPLAY_LABELS.get(role, role)
-        col = role_sub_cols[idx % 2]
-        if col.checkbox(label, value=False, key=f"ai_role_{idx}"):
-            selected_sub_roles.append(role)
-
-    # Additional filters
+    # Search and company filters
     search_term = st.sidebar.text_input("Search by Keyword", key="ai_search")
 
     companies_data = fetch_data("jobs/companies") or {"companies": []}
@@ -224,37 +212,20 @@ def display_ai_jobs_page():
         "Companies (select multiple)", companies, default=[], key="ai_companies"
     )
 
-    location = st.sidebar.text_input("Location", "", key="ai_location")
-
-    employment_types_data = fetch_data("jobs/employment-types") or {"employment_types": []}
-    employment_types = ["All"] + sorted(
-        [t for t in employment_types_data.get("employment_types", []) if t]
-    )
-    selected_employment_type = st.sidebar.selectbox(
-        "Employment Type", employment_types, key="ai_emp_type"
-    )
-
-    if search_term or selected_companies or location or selected_employment_type != "All":
-        if st.sidebar.button("Clear Extra Filters", key="ai_clear"):
+    if search_term or selected_companies:
+        if st.sidebar.button("Clear Filters", key="ai_clear"):
             for k in list(st.session_state.keys()):
                 if k.startswith("ai_") and k != "ai_time_filters":
                     del st.session_state[k]
             st.rerun()
 
     # -- Build API request params ----------------------------------------
-    # Use the sub-filter selection if any; otherwise apply ALL AI_DS_ROLES
-    active_roles = selected_sub_roles if selected_sub_roles else AI_DS_ROLES
-
     request_params = [("days", selected_days), ("limit", 1000)]
-    for role in active_roles:
+    for role in AI_DS_ROLES:
         request_params.append(("role", role))
     if selected_companies:
         for company in selected_companies:
             request_params.append(("company", company))
-    if location:
-        request_params.append(("location", location))
-    if selected_employment_type != "All":
-        request_params.append(("employment_type", selected_employment_type))
     if search_term:
         request_params.append(("search", search_term))
 
