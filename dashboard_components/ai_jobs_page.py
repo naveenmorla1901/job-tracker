@@ -13,7 +13,6 @@ from dashboard_components.utils import (
     fetch_data,
     fetch_data_with_params,
     format_job_date,
-    check_api_status,
     get_api_url
 )
 from app.dashboard.auth import is_authenticated, api_request
@@ -404,8 +403,3 @@ def display_ai_jobs_page():
     dashboard_time = time.time() - dashboard_start
     st.sidebar.write("---")
     st.sidebar.info(f"Page loaded in {dashboard_time:.2f}s")
-    api_status, status_message = check_api_status()
-    if api_status:
-        st.sidebar.success(status_message)
-    else:
-        st.sidebar.error(status_message)

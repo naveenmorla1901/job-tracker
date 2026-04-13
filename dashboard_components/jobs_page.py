@@ -13,7 +13,6 @@ from dashboard_components.utils import (
     fetch_data,
     fetch_data_with_params,
     format_job_date,
-    check_api_status,
     get_api_url
 )
 from app.dashboard.auth import is_authenticated, api_request
@@ -50,27 +49,8 @@ def display_jobs_page():
     except Exception as e:
         logger.error(f"Error displaying job statistics: {str(e)}")
 
-    # Fetch filter data (roles, companies, employment types)
-    # Get existing roles from job data rather than from roles endpoint
-    jobs_data_all = fetch_data("jobs", {"days": 7, "limit": 1000}) or {"jobs": []}
-
-    # Extract roles from actual job data with validation
-    available_roles = set()
-    if jobs_data_all.get("jobs"):
-        for job in jobs_data_all.get("jobs"):
-            if job.get("roles"):
-                for role in job.get("roles"):
-                    if role and role.strip() and role != "General":
-                        # Only include non-empty, non-General roles
-                        available_roles.add(role.strip())
-
-    # If no roles were found, leave the set empty – filters will just show nothing
-    if not available_roles:
-        available_roles = set()
-
-    # Get companies and employment types
+    # Fetch filter data (companies)
     companies_data = fetch_data("jobs/companies") or {"companies": []}
-    employment_types_data = fetch_data("jobs/employment-types") or {"employment_types": []}
 
     # Time period selector with multiple selection options
     st.sidebar.subheader("Time Period")
@@ -139,70 +119,27 @@ def display_jobs_page():
     # Search box
     search_term = st.sidebar.text_input("Search by Keyword")
 
-    # Role filter (multi-select based on available data from actual jobs)
-    # Show all roles directly without dropdown for better visibility
-    st.sidebar.subheader("Select Roles")
-    selected_roles = []
-
-    # Create columns to display roles in multiple columns
-    role_cols = st.sidebar.columns(2)
-    sorted_roles = sorted(list(available_roles))
-    half_length = len(sorted_roles) // 2 + len(sorted_roles) % 2
-
-    # Display roles in two columns
-    for i, role in enumerate(sorted_roles[:half_length]):
-        if role_cols[0].checkbox(role, key=f"role_{i}"):
-            selected_roles.append(role)
-
-    for i, role in enumerate(sorted_roles[half_length:]):
-        if role_cols[1].checkbox(role, key=f"role_{i+half_length}"):
-            selected_roles.append(role)
-
     # Company filter (multi-select based on available data)
     companies = sorted(companies_data["companies"])
     selected_companies = st.sidebar.multiselect("Companies (select multiple)", companies, default=[])
 
-    # Location filter
-    location = st.sidebar.text_input("Location", "")
-
-    # Employment type filter (dynamic based on available data)
-    employment_types = ["All"] + sorted([t for t in employment_types_data.get("employment_types", []) if t])
-    selected_employment_type = st.sidebar.selectbox("Employment Type", employment_types)
-
     # Add Clear Filters button if any filters are applied
-    if search_term or selected_roles or selected_companies or location or selected_employment_type != "All":
+    if search_term or selected_companies:
         if st.sidebar.button("Clear All Filters"):
             st.session_state.clear()
             st.rerun()
 
-    # Create requests-compatible params
-    # For single parameters, use simple key-value
-    # For lists (multi-select), use multiple instances of the same key
+    # Build request params
     request_params = []
-
-    # Add days parameter for the API request
-    # We'll fetch data for the max days and then filter client-side
     request_params.append(("days", selected_days))
-
-    # Add multi-select filters if any options are selected
-    if selected_roles:
-        for role in selected_roles:
-            request_params.append(("role", role))
 
     if selected_companies:
         for company in selected_companies:
             request_params.append(("company", company))
 
-    if location:
-        request_params.append(("location", location))
-
-    if selected_employment_type != "All":
-        request_params.append(("employment_type", selected_employment_type))
-
     if search_term:
         request_params.append(("search", search_term))
 
-    # Add limit parameter to get more results
     request_params.append(("limit", 1000))
 
     # Fetch job listings with custom params
@@ -215,30 +152,6 @@ def display_jobs_page():
     # Add analytics tracking for search
     if search_term:
         st.markdown(f"<script>trackSearch('{search_term}', {total_jobs});</script>", unsafe_allow_html=True)
-
-    # Add analytics tracking for filters
-    if selected_roles or selected_companies or location or selected_employment_type != "All":
-        filters_used = []
-
-        if selected_roles:
-            filters_used.append(f"roles: {','.join(selected_roles)}")
-
-        if selected_companies:
-            filters_used.append(f"companies: {','.join(selected_companies)}")
-
-        if location:
-            filters_used.append(f"location: {location}")
-
-        if selected_employment_type != "All":
-            filters_used.append(f"type: {selected_employment_type}")
-
-        filter_str = '; '.join(filters_used)
-        st.markdown(f"<script>trackFilter('combined', '{filter_str}');</script>", unsafe_allow_html=True)
-
-    # Add analytics tracking for time period
-    selected_time_labels = [option['label'] for option in time_options if option['key'] in selected_time_keys]
-    time_period_str = ", ".join(selected_time_labels)
-    st.markdown(f"<script>trackFilter('time_period', '{time_period_str}');</script>", unsafe_allow_html=True)
 
     # Process data for visualization and display
     if jobs_data.get("jobs"):
@@ -413,13 +326,6 @@ def display_jobs_page():
 
     st.sidebar.write("---")
     st.sidebar.info(f"Dashboard loaded in {dashboard_time:.2f} seconds")
-
-    # Add API connection status
-    api_status, status_message = check_api_status()
-    if api_status:
-        st.sidebar.success(status_message)
-    else:
-        st.sidebar.error(status_message)
 
 def _display_jobs_table(df_jobs):
     """Helper function to display jobs table with formatting"""
