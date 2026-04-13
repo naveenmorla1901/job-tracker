@@ -6,6 +6,7 @@ import sys
 import os
 import logging
 import argparse
+import pathlib
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +26,42 @@ from app.dashboard.auth import login_page, user_settings_page, user_menu, is_aut
 from app.dashboard.user_jobs import tracked_jobs_page
 from app.dashboard.admin import admin_users_page
 # Analytics page removed as requested
+
+GA_TRACKING_ID = "G-EGVJQG5M34"
+
+GA_SNIPPET = f"""<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={GA_TRACKING_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){{dataLayer.push(arguments);}}
+  gtag('js', new Date());
+  gtag('config', '{GA_TRACKING_ID}');
+</script>"""
+
+
+def _inject_ga_into_streamlit_index():
+    """Patch Streamlit's index.html to include Google Analytics in the <head>.
+
+    Streamlit's st.markdown strips <script> tags and st.components.v1.html
+    renders inside an iframe, so neither can place the GA tag in the main
+    document.  The only reliable approach is to modify the served index.html
+    directly.  The patch is idempotent — it checks for the tracking ID before
+    writing.
+    """
+    index_path = pathlib.Path(st.__file__).parent / "static" / "index.html"
+    try:
+        html = index_path.read_text(encoding="utf-8")
+        if GA_TRACKING_ID in html:
+            return  # already patched
+        html = html.replace("<head>", f"<head>\n{GA_SNIPPET}", 1)
+        index_path.write_text(html, encoding="utf-8")
+        logger.info("Google Analytics tag injected into Streamlit index.html")
+    except Exception as e:
+        logger.warning(f"Could not patch Streamlit index.html for GA: {e}")
+
+
+_inject_ga_into_streamlit_index()
+
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -78,48 +115,8 @@ def main():
     with open(os.path.join(os.path.dirname(__file__), "static", "analytics.js")) as f:
         st.markdown(f"<script>{f.read()}</script>", unsafe_allow_html=True)
         
-    # Analytics debug link removed as requested
-    
-    # Simplified Google Analytics Implementation for better compatibility
-    st.markdown(
-        """
-        <!-- Simplified Google tag (gtag.js) for improved compatibility -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGVJQG5M34"></script>
-        <script>
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            
-            // Basic configuration without complex options that might cause issues
-            gtag('config', 'G-EGVJQG5M34');
-            
-            // Simple event tracking for Streamlit
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log('Google Analytics initialized');
-                
-                // Basic observer for Streamlit content changes
-                const observer = new MutationObserver(() => {
-                    gtag('event', 'page_view', {
-                        'page_title': document.title,
-                        'page_location': window.location.href,
-                    });
-                });
-                
-                // Wait for Streamlit to fully load
-                setTimeout(() => {
-                    const mainContent = document.querySelector('.main');
-                    if (mainContent) {
-                        observer.observe(mainContent, { 
-                            childList: true, 
-                            subtree: true
-                        });
-                    }
-                }, 2000);
-            });
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
+    # GA tag is injected into Streamlit's index.html at module load time
+    # (see _inject_ga_into_streamlit_index above)
     
     # API URL is configured behind the scenes
     from dashboard_components.utils import get_api_url
