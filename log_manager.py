@@ -4,7 +4,9 @@ Simplified log management utilities for job tracker
 This module provides functions to read, clean, and rotate log files
 """
 import os
+import re
 import logging
+from collections import deque
 from datetime import datetime, timedelta
 import glob
 import pytz
@@ -34,6 +36,94 @@ def get_log_files(log_dir="logs"):
     except Exception as e:
         logger.error(f"Error reading log files: {str(e)}")
         return []
+
+def default_api_log_paths():
+    """Paths checked for API / scheduler scraper output (same order as dashboard API tab)."""
+    return [
+        "job_tracker.log",
+        "/var/log/job-tracker/api.log",
+        "/home/ubuntu/job-tracker/job_tracker.log",
+    ]
+
+
+def _read_log_tail_raw_lines(log_file, max_lines):
+    """Return up to the last max_lines from a log file (no timezone rewriting)."""
+    if not os.path.exists(log_file):
+        return []
+    try:
+        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.readlines()
+        if len(all_lines) <= max_lines:
+            return all_lines
+        return all_lines[-max_lines:]
+    except Exception as e:
+        logger.error(f"Error tailing log file {log_file}: {str(e)}")
+        return []
+
+
+def _merged_tail_lines_from_paths(log_paths, max_lines_per_file):
+    """Read tails from each path, merge and sort by leading timestamp."""
+    collected = []
+    for path in log_paths:
+        collected.extend(_read_log_tail_raw_lines(path, max_lines_per_file))
+
+    def sort_key(line):
+        try:
+            if len(line) > 19 and line[4] == "-" and line[7] == "-" and line[10] == " ":
+                return datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
+        return datetime.min
+
+    collected.sort(key=sort_key)
+    return collected
+
+
+def _scraper_line_matcher(scraper_name):
+    """Match lines emitted by app.scheduler.jobs run_scraper for this module name."""
+    e = re.escape(scraper_name)
+    return re.compile(
+        rf"(?:Running scraper \d+/\d+: {e}\b|"
+        rf"Scraper {e} |"
+        rf"SCRAPER FAILURE: {e} \|"
+        rf"Using custom roles for {e}:|"
+        rf"Full traceback for {e}:)"
+    )
+
+
+def get_scraper_log_snippets(
+    scraper_names,
+    log_paths=None,
+    lines_per_scraper=12,
+    max_tail_lines_per_file=80_000,
+):
+    """
+    For each scraper module name, return the last ``lines_per_scraper`` log lines
+    that refer to that scraper's scheduler run (from merged API log tails).
+    """
+    if log_paths is None:
+        log_paths = default_api_log_paths()
+
+    existing = [p for p in log_paths if os.path.exists(p)]
+    if not existing:
+        return {}
+
+    merged = _merged_tail_lines_from_paths(existing, max_tail_lines_per_file)
+    if not merged:
+        return {name: [] for name in scraper_names}
+
+    matchers = {name: _scraper_line_matcher(name) for name in scraper_names}
+    buffers = {name: deque(maxlen=lines_per_scraper) for name in scraper_names}
+    for line in merged:
+        low = line.lower()
+        if "scraper" not in low and "custom roles" not in low:
+            continue
+        for name, rx in matchers.items():
+            if rx.search(line):
+                buffers[name].append(line)
+
+    return {name: list(buf) for name, buf in buffers.items()}
+
 
 def read_log_content(log_file, max_lines=5000):
     """

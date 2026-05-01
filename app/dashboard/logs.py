@@ -10,7 +10,7 @@ import logging
 
 # Add parent directory to path to import log_manager
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from log_manager import get_log_files, read_log_content, cleanup_old_logs
+from log_manager import get_log_files, read_log_content, cleanup_old_logs, get_scraper_log_snippets, default_api_log_paths
 from system_info import get_system_info, get_api_stats, format_system_info
 
 # Configure logging
@@ -30,8 +30,16 @@ def display_logs_page():
         deleted_count = cleanup_old_logs(days=2)
         st.sidebar.success(f"Deleted {deleted_count} old log files")
 
-    # Display API logs, Dashboard logs, System info, Scraper runs, Nginx logs, and Postgres logs in tabs
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["API Logs", "Dashboard Logs", "System Info", "Scraper Runs", "Nginx Logs", "Postgres Logs"])
+    # API / dashboard / system / scraper summary / per-scraper lines / nginx / postgres
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "API Logs",
+        "Dashboard Logs",
+        "System Info",
+        "Scraper Runs",
+        "Scraper output",
+        "Nginx Logs",
+        "Postgres Logs",
+    ])
 
     # Read API logs
     with tab1:
@@ -49,12 +57,16 @@ def display_logs_page():
     with tab4:
         _display_scraper_runs()
 
-    # Nginx Logs
+    # Recent API log lines per scraper (roles, job counts, failures)
     with tab5:
+        _display_scraper_log_snippets()
+
+    # Nginx Logs
+    with tab6:
         _display_nginx_logs()
 
     # Postgres Logs
-    with tab6:
+    with tab7:
         _display_postgres_logs()
 
     # Information about logs cleanup
@@ -353,6 +365,67 @@ def _display_scraper_runs():
             
     except Exception as e:
         st.error(f"Error displaying scraper runs: {str(e)}")
+
+
+def _display_scraper_log_snippets():
+    """Show the last several API log lines per scraper (scheduler output)."""
+    st.subheader("Recent log lines per scraper")
+    st.caption(
+        "Pulled from the API log tail (same files as the API Logs tab). "
+        "Shows scheduler lines for each module: roles used, jobs found, upsert counts, and failures."
+    )
+
+    lines_per = st.slider("Lines to keep per scraper", min_value=10, max_value=15, value=12, step=1)
+
+    log_paths = default_api_log_paths()
+    if not any(os.path.exists(p) for p in log_paths):
+        st.warning("No API log files found at the configured paths.")
+        return
+
+    try:
+        from app.scrapers import get_all_scrapers
+        from app.scheduler.jobs import COMPANY_NAMES
+
+        scraper_names = sorted(get_all_scrapers().keys())
+        if not scraper_names:
+            st.info("No scrapers registered (check ENVIRONMENT / imports).")
+            return
+
+        snippets = get_scraper_log_snippets(
+            scraper_names,
+            log_paths=log_paths,
+            lines_per_scraper=lines_per,
+        )
+
+        filter_choice = st.radio(
+            "Show",
+            ["All scrapers", "Only scrapers with recent log lines", "Only scrapers with no log lines"],
+            horizontal=True,
+        )
+
+        shown = 0
+        for name in scraper_names:
+            lines = snippets.get(name, [])
+            if filter_choice == "Only scrapers with recent log lines" and not lines:
+                continue
+            if filter_choice == "Only scrapers with no log lines" and lines:
+                continue
+
+            label = COMPANY_NAMES.get(name, name)
+            with st.expander(f"{label} (`{name}`)", expanded=False):
+                if lines:
+                    st.code("".join(lines), language="text")
+                else:
+                    st.caption("No matching lines in the current log tail.")
+            shown += 1
+
+        if shown == 0:
+            st.info("Nothing to show for this filter.")
+
+    except Exception as e:
+        logger.exception("Scraper log snippets failed")
+        st.error(f"Could not load scraper log snippets: {e}")
+
 
 def _display_nginx_logs():
     """Display Nginx logs in a tab"""
