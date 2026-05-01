@@ -368,12 +368,12 @@ def _display_scraper_runs():
 
 
 def _display_scraper_output_preview():
-    """Run scrapers without DB writes and show dict structure + sample job JSON."""
-    st.subheader("Scraper return value (structure and sample output)")
+    """Fetch all scrapers once and show sample JSON per module (no DB writes)."""
+    st.subheader("Sample scraper output (JSON)")
     st.caption(
-        "Each module implements `get_<name>_jobs(roles=..., days=...)` → `dict[str, list[dict]]` "
-        "(role label → job rows). Fetches use the same role lists as the scheduler unless you cap roles. "
-        "Nothing is written to the database."
+        "One run loads every `get_<name>_jobs` with the same role rules as the scheduler. "
+        "Nothing is written to the database. "
+        "Use a Max roles cap if loading all companies is too slow."
     )
 
     c1, c2, c3 = st.columns(3)
@@ -382,45 +382,62 @@ def _display_scraper_output_preview():
     with c2:
         max_roles = st.number_input("Max roles (0 = all)", min_value=0, max_value=80, value=0, step=1)
     with c3:
-        sample_jobs = st.number_input("Job dicts in sample JSON", min_value=1, max_value=20, value=5, step=1)
+        sample_jobs = st.number_input("Job dicts per scraper", min_value=1, max_value=20, value=5, step=1)
 
-    if st.button("Clear cached previews"):
-        st.session_state.pop("scraper_preview_cache", None)
-        st.rerun()
+    st.caption("days / max roles apply the next time you fetch all. Changing job dict count updates display immediately.")
+
+    btn_cols = st.columns(2)
+    with btn_cols[0]:
+        fetch_all = st.button("Fetch sample JSON for all scrapers", type="primary")
+    with btn_cols[1]:
+        if st.button("Clear cached previews"):
+            st.session_state.pop("scraper_preview_cache", None)
+            st.rerun()
 
     try:
         from app.scrapers import get_all_scrapers
         from app.scheduler.jobs import COMPANY_NAMES, resolve_roles_for_scraper, fetch_scraper_jobs_raw
-        from app.dashboard.scraper_preview import summarize_jobs_by_role, build_sample_json
+        from app.dashboard.scraper_preview import build_sample_json
 
         scraper_names = sorted(get_all_scrapers().keys())
         if not scraper_names:
             st.info("No scrapers registered (check ENVIRONMENT / imports).")
             return
 
-        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        cache = st.session_state.setdefault("scraper_preview_cache", {})
+        if fetch_all:
+            progress = st.progress(0.0)
+            status = st.empty()
+            new_cache = {}
+            n = len(scraper_names)
+            for idx, name in enumerate(scraper_names):
+                status.text(f"Fetching {name} ({idx + 1} / {n})…")
+                try:
+                    roles = resolve_roles_for_scraper(name)
+                    if max_roles > 0:
+                        roles = roles[:max_roles]
+                    data = fetch_scraper_jobs_raw(name, roles=roles, days_back=int(days_back))
+                    new_cache[name] = {"data": data, "error": None}
+                except Exception as e:
+                    logger.exception("Scraper preview fetch failed for %s", name)
+                    new_cache[name] = {"data": None, "error": str(e)}
+                progress.progress((idx + 1) / n if n else 1.0)
+            st.session_state["scraper_preview_cache"] = new_cache
+            status.empty()
+            progress.empty()
+            st.success(f"Loaded samples for {n} scrapers.")
+
+        cache = st.session_state.get("scraper_preview_cache") or {}
+
+        if not cache:
+            st.info('Click **Fetch sample JSON for all scrapers** to load every module.')
+            return
 
         for name in scraper_names:
             label = COMPANY_NAMES.get(name, name)
-            mod_path = os.path.join(proj_root, "app", "scrapers", f"{name}.py")
-            path_hint = mod_path if os.path.isfile(mod_path) else f"app.scrapers.{name}"
             with st.expander(f"{label} (`{name}`)", expanded=False):
-                st.caption(path_hint)
-                if st.button("Fetch output", key=f"fetch_scraper_out_{name}"):
-                    try:
-                        roles = resolve_roles_for_scraper(name)
-                        if max_roles > 0:
-                            roles = roles[:max_roles]
-                        data = fetch_scraper_jobs_raw(name, roles=roles, days_back=int(days_back))
-                        cache[name] = {"data": data, "error": None}
-                    except Exception as e:
-                        logger.exception("Scraper preview fetch failed for %s", name)
-                        cache[name] = {"data": None, "error": str(e)}
-
                 entry = cache.get(name)
                 if not entry:
-                    st.caption('Click "Fetch output" to run this scraper.')
+                    st.caption("Missing from cache; run **Fetch sample JSON for all scrapers** again.")
                     continue
                 if entry.get("error"):
                     st.error(entry["error"])
@@ -428,9 +445,6 @@ def _display_scraper_output_preview():
                 data = entry.get("data")
                 if data is None:
                     continue
-                st.markdown("**Structure**")
-                st.json(summarize_jobs_by_role(data))
-                st.markdown("**Sample output (JSON)**")
                 st.code(build_sample_json(data, max_jobs=int(sample_jobs)), language="json")
 
     except Exception as e:
