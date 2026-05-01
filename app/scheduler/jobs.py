@@ -164,6 +164,83 @@ COMPANY_NAMES = {
     "zoom": "Zoom"
 }
 
+
+def _init_scraper_role_maps():
+    DS = "Data Science"
+    DSPS = "Data Scientist python SQL"
+    DA = "Data Analyst"
+    DAV = "Data Analyst visualization"
+    MLE = "Machine Learning Engineer python SQL"
+    AI = "AI Engineer python SQL"
+    AIR = "AI Research Engineer python"
+    NLP = "Natural Language Processing Engineer AI python"
+    CVE = "Computer Vision Engineer AI python"
+    GAE = "Generative AI Engineer python"
+    SQL = "SQL Developer"
+    LLM = "LLM Engineer"
+    PE = "Prompt Engineer"
+    MLOPS = "MLOps Engineer"
+    AIARCH = "AI/ML Architect"
+    AIIE = "AI Infrastructure Engineer"
+    DE = "Data Engineer"
+    GENAI_ARCH = "Generative AI Architect"
+    LLMR = "AI/LLM Researcher"
+    FME = "Foundation Model Engineer"
+    RAG_ENG = "RAG Engineer"
+    AIAG = "AI Agent Engineer"
+    default_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE, SQL, LLM, PE, MLOPS, AIARCH, AIIE, DE, GENAI_ARCH, LLMR, FME, RAG_ENG, AIAG]
+    base_roles = list(default_roles)
+    companies_with_custom_roles = [
+        "oclc", "accenture", "acxiom", "acxiomllc", "abbott", "adobe", "aep",
+        "allstate", "americanelectricpower", "amplify",
+        "appliedmaterials", "airliquide", "airbus", "asmglobal", "assurant",
+        "att", "autodesk", "az", "baptist", "bah", "belron", "boeing",
+        "broadridge", "cadence", "card", "cardinal", "carmax", "carrier", "cat",
+        "centrica", "chanel", "citi", "clevelandclinic", "cocacola", "comcast",
+        "covetrus", "cox", "cscc", "cushmanwakefield", "cvshealth", "davita",
+        "deluxe", "denverhealth", "deutsche", "discover", "disney", "encova",
+        "expedia", "etsy", "factset", "fedex", "fidelity", "fractal", "gartner",
+        "geico", "gilead", "gm", "greif", "grubhub", "hartford", "hitachi",
+        "homedepot", "humana", "huntington", "iheart", "igs", "intel", "iqvia",
+        "illuminate", "ivy", "jll", "jonas", "leidos", "lilly", "kbr", "kohls",
+        "kyndryl", "logitech", "marmon", "mcgill", "mckesson", "milwaukee",
+        "montrose", "morganstanley", "motorola", "msd", "mtbank", "nationwide",
+        "nissan", "noblecorp", "nordic", "nordstrom", "nrel", "nshs", "nvidia",
+        "okgov", "oregon", "osu", "otis", "ohiohealth", "pennstate", "premier",
+        "prologis", "progressiveleasing", "prysmian", "radian", "rakuten",
+        "republic", "reliaquest", "relx", "rochester", "rockwell", "ryan",
+        "salesforce", "samsung", "sanofi", "scottsmiracle", "smg", "snc",
+        "socure", "statestreet", "sunlife", "takeda", "target", "thermofisher",
+        "travelers", "tyson", "ulse", "umd", "unhcr", "ups", "ur", "usaa",
+        "usbank", "verily", "verizon", "walmart", "warnerbros", "wellsfargo",
+        "wellsky", "woodward", "workday", "worldvision", "x", "xpanse",
+        "zillow", "zoom"
+    ]
+    custom_roles = {name: list(base_roles) for name in companies_with_custom_roles}
+    return default_roles, custom_roles
+
+
+_DEFAULT_ROLES, _CUSTOM_ROLES = _init_scraper_role_maps()
+
+
+def resolve_roles_for_scraper(scraper_name, roles=None):
+    """Return the role query list for a scraper (same rules as run_scraper when roles is None)."""
+    if roles is not None:
+        return roles
+    return _CUSTOM_ROLES.get(scraper_name, _DEFAULT_ROLES)
+
+
+def fetch_scraper_jobs_raw(scraper_name, roles=None, days_back=7):
+    """
+    Run get_{scraper_name}_jobs with the same role resolution as the scheduler,
+    without writing to the database.
+    """
+    resolved = resolve_roles_for_scraper(scraper_name, roles)
+    scraper_module = importlib.import_module(f"app.scrapers.{scraper_name}")
+    get_jobs_func = getattr(scraper_module, f"get_{scraper_name}_jobs")
+    return get_jobs_func(roles=resolved, days=days_back)
+
+
 # Running statistics
 global_stats = {
     "total_jobs_added": 0,
@@ -200,67 +277,9 @@ def run_scraper(scraper_name, roles=None, days_back=7):
     current_scraper = global_stats["scrapers_run"]
     total_scrapers = len(get_all_scrapers())
     
-    # Default roles to use for all scrapers
-    DS = "Data Science"
-    DSPS = "Data Scientist python SQL"
-    DA = "Data Analyst"
-    DAV = "Data Analyst visualization"
-    MLE = "Machine Learning Engineer python SQL"
-    AI = "AI Engineer python SQL"
-    AIR = "AI Research Engineer python"
-    NLP = "Natural Language Processing Engineer AI python"
-    CVE = "Computer Vision Engineer AI python"
-    GAE = "Generative AI Engineer python"
-    SQL = "SQL Developer"
-    LLM = "LLM Engineer"
-    PE = "Prompt Engineer"
-    MLOPS = "MLOps Engineer"
-    AIARCH = "AI/ML Architect"
-    AIIE = "AI Infrastructure Engineer"
-    DE = "Data Engineer"
-    # Generative AI Roles
-    GENAI_ARCH = "Generative AI Architect"
-    LLMR = "AI/LLM Researcher"
-    FME = "Foundation Model Engineer"
-    RAG_ENG = "RAG Engineer"
-    AIAG = "AI Agent Engineer"
-    # default list includes both analyst variants and Data Analyst for backward compatibility
-    default_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE, SQL, LLM, PE, MLOPS, AIARCH, AIIE, DE, GENAI_ARCH, LLMR, FME, RAG_ENG, AIAG]
-    
-    # Define custom roles for specific scrapers if needed
-    # construct a base list once and copy it for each company
-    base_roles = [DS, DSPS, DAV, DA, MLE, AI, AIR, NLP, CVE, GAE, SQL, LLM, PE, MLOPS, AIARCH, AIIE, DE, GENAI_ARCH, LLMR, FME, RAG_ENG, AIAG]
-    companies_with_custom_roles = [
-        "oclc", "accenture", "acxiom", "acxiomllc", "abbott", "adobe", "aep",
-        "allstate", "americanelectricpower", "amplify",
-        "appliedmaterials", "airliquide", "airbus", "asmglobal", "assurant",
-        "att", "autodesk", "az", "baptist", "bah", "belron", "boeing",
-        "broadridge", "cadence", "card", "cardinal", "carmax", "carrier", "cat",
-        "centrica", "chanel", "citi", "clevelandclinic", "cocacola", "comcast",
-        "covetrus", "cox", "cscc", "cushmanwakefield", "cvshealth", "davita",
-        "deluxe", "denverhealth", "deutsche", "discover", "disney", "encova",
-        "expedia", "etsy", "factset", "fedex", "fidelity", "fractal", "gartner",
-        "geico", "gilead", "gm", "greif", "grubhub", "hartford", "hitachi",
-        "homedepot", "humana", "huntington", "iheart", "igs", "intel", "iqvia",
-        "illuminate", "ivy", "jll", "jonas", "leidos", "lilly", "kbr", "kohls",
-        "kyndryl", "logitech", "marmon", "mcgill", "mckesson", "milwaukee",
-        "montrose", "morganstanley", "motorola", "msd", "mtbank", "nationwide",
-        "nissan", "noblecorp", "nordic", "nordstrom", "nrel", "nshs", "nvidia",
-        "okgov", "oregon", "osu", "otis", "ohiohealth", "pennstate", "premier",
-        "prologis", "progressiveleasing", "prysmian", "radian", "rakuten",
-        "republic", "reliaquest", "relx", "rochester", "rockwell", "ryan",
-        "salesforce", "samsung", "sanofi", "scottsmiracle", "smg", "snc",
-        "socure", "statestreet", "sunlife", "takeda", "target", "thermofisher",
-        "travelers", "tyson", "ulse", "umd", "unhcr", "ups", "ur", "usaa",
-        "usbank", "verily", "verizon", "walmart", "warnerbros", "wellsfargo",
-        "wellsky", "woodward", "workday", "worldvision", "x", "xpanse",
-        "zillow", "zoom"
-    ]
-    custom_roles = {name: list(base_roles) for name in companies_with_custom_roles}
-    
-    # If roles not provided, use company-specific custom roles or default test 1
+    # If roles not provided, use company-specific custom roles or default
     if roles is None:
-        roles = custom_roles.get(scraper_name, default_roles)
+        roles = resolve_roles_for_scraper(scraper_name)
         logger.info(f"Using custom roles for {scraper_name}: {roles}")
     
     # Log the start of this scraper

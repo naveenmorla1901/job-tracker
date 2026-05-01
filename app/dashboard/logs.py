@@ -10,7 +10,7 @@ import logging
 
 # Add parent directory to path to import log_manager
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from log_manager import get_log_files, read_log_content, cleanup_old_logs, get_scraper_log_snippets, default_api_log_paths
+from log_manager import get_log_files, read_log_content, cleanup_old_logs
 from system_info import get_system_info, get_api_stats, format_system_info
 
 # Configure logging
@@ -36,7 +36,7 @@ def display_logs_page():
         "Dashboard Logs",
         "System Info",
         "Scraper Runs",
-        "Scraper output",
+        "Scraper data output",
         "Nginx Logs",
         "Postgres Logs",
     ])
@@ -57,9 +57,9 @@ def display_logs_page():
     with tab4:
         _display_scraper_runs()
 
-    # Recent API log lines per scraper (roles, job counts, failures)
+    # Live scraper return structure + sample JSON (same tab)
     with tab5:
-        _display_scraper_log_snippets()
+        _display_scraper_output_preview()
 
     # Nginx Logs
     with tab6:
@@ -367,64 +367,75 @@ def _display_scraper_runs():
         st.error(f"Error displaying scraper runs: {str(e)}")
 
 
-def _display_scraper_log_snippets():
-    """Show the last several API log lines per scraper (scheduler output)."""
-    st.subheader("Recent log lines per scraper")
+def _display_scraper_output_preview():
+    """Run scrapers without DB writes and show dict structure + sample job JSON."""
+    st.subheader("Scraper return value (structure and sample output)")
     st.caption(
-        "Pulled from the API log tail (same files as the API Logs tab). "
-        "Shows scheduler lines for each module: roles used, jobs found, upsert counts, and failures."
+        "Each module implements `get_<name>_jobs(roles=..., days=...)` → `dict[str, list[dict]]` "
+        "(role label → job rows). Fetches use the same role lists as the scheduler unless you cap roles. "
+        "Nothing is written to the database."
     )
 
-    lines_per = st.slider("Lines to keep per scraper", min_value=10, max_value=15, value=12, step=1)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        days_back = st.number_input("days", min_value=1, max_value=90, value=7, step=1)
+    with c2:
+        max_roles = st.number_input("Max roles (0 = all)", min_value=0, max_value=80, value=0, step=1)
+    with c3:
+        sample_jobs = st.number_input("Job dicts in sample JSON", min_value=1, max_value=20, value=5, step=1)
 
-    log_paths = default_api_log_paths()
-    if not any(os.path.exists(p) for p in log_paths):
-        st.warning("No API log files found at the configured paths.")
-        return
+    if st.button("Clear cached previews"):
+        st.session_state.pop("scraper_preview_cache", None)
+        st.rerun()
 
     try:
         from app.scrapers import get_all_scrapers
-        from app.scheduler.jobs import COMPANY_NAMES
+        from app.scheduler.jobs import COMPANY_NAMES, resolve_roles_for_scraper, fetch_scraper_jobs_raw
+        from app.dashboard.scraper_preview import summarize_jobs_by_role, build_sample_json
 
         scraper_names = sorted(get_all_scrapers().keys())
         if not scraper_names:
             st.info("No scrapers registered (check ENVIRONMENT / imports).")
             return
 
-        snippets = get_scraper_log_snippets(
-            scraper_names,
-            log_paths=log_paths,
-            lines_per_scraper=lines_per,
-        )
+        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        cache = st.session_state.setdefault("scraper_preview_cache", {})
 
-        filter_choice = st.radio(
-            "Show",
-            ["All scrapers", "Only scrapers with recent log lines", "Only scrapers with no log lines"],
-            horizontal=True,
-        )
-
-        shown = 0
         for name in scraper_names:
-            lines = snippets.get(name, [])
-            if filter_choice == "Only scrapers with recent log lines" and not lines:
-                continue
-            if filter_choice == "Only scrapers with no log lines" and lines:
-                continue
-
             label = COMPANY_NAMES.get(name, name)
+            mod_path = os.path.join(proj_root, "app", "scrapers", f"{name}.py")
+            path_hint = mod_path if os.path.isfile(mod_path) else f"app.scrapers.{name}"
             with st.expander(f"{label} (`{name}`)", expanded=False):
-                if lines:
-                    st.code("".join(lines), language="text")
-                else:
-                    st.caption("No matching lines in the current log tail.")
-            shown += 1
+                st.caption(path_hint)
+                if st.button("Fetch output", key=f"fetch_scraper_out_{name}"):
+                    try:
+                        roles = resolve_roles_for_scraper(name)
+                        if max_roles > 0:
+                            roles = roles[:max_roles]
+                        data = fetch_scraper_jobs_raw(name, roles=roles, days_back=int(days_back))
+                        cache[name] = {"data": data, "error": None}
+                    except Exception as e:
+                        logger.exception("Scraper preview fetch failed for %s", name)
+                        cache[name] = {"data": None, "error": str(e)}
 
-        if shown == 0:
-            st.info("Nothing to show for this filter.")
+                entry = cache.get(name)
+                if not entry:
+                    st.caption('Click "Fetch output" to run this scraper.')
+                    continue
+                if entry.get("error"):
+                    st.error(entry["error"])
+                    continue
+                data = entry.get("data")
+                if data is None:
+                    continue
+                st.markdown("**Structure**")
+                st.json(summarize_jobs_by_role(data))
+                st.markdown("**Sample output (JSON)**")
+                st.code(build_sample_json(data, max_jobs=int(sample_jobs)), language="json")
 
     except Exception as e:
-        logger.exception("Scraper log snippets failed")
-        st.error(f"Could not load scraper log snippets: {e}")
+        logger.exception("Scraper output preview failed")
+        st.error(f"Could not load scraper output preview: {e}")
 
 
 def _display_nginx_logs():
