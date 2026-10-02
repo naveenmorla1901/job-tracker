@@ -33,9 +33,15 @@ fi
 echo "Testing Nginx configuration..."
 sudo nginx -t
 
-# Restart Nginx
-echo "Restarting Nginx..."
-sudo systemctl restart nginx
+# Reload (graceful) rather than restart: a restart drops open dashboard
+# websockets and logs "open socket ... left in connection" / "aborting"
+if systemctl is-active --quiet nginx; then
+    echo "Reloading Nginx..."
+    sudo systemctl reload nginx
+else
+    echo "Starting Nginx..."
+    sudo systemctl start nginx
+fi
 
 echo "Nginx setup complete!"
 echo "Job Tracker should now be accessible at:"

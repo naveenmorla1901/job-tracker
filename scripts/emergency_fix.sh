@@ -1,108 +1,54 @@
 #!/bin/bash
+# Fallback run by the deploy workflow when scripts/deploy.sh fails.
+# Repairs dependencies in place and restarts the systemd units. It never starts
+# its own nohup copies: those held ports 8001/8501 while the units (Restart=always)
+# retried every 5s, filling dashboard.log with "Port 8501 is already in use".
 set -e
 
 echo "Running emergency deployment fix..."
 echo "=============================="
-
-# 1. Verify Python installation
-echo "Step 1: Checking Python installation..."
-if ! which python3 &>/dev/null; then
-  echo "Python 3 not found. Installing..."
-  sudo apt-get update
-  sudo apt-get install -y python3 python3-venv
-else
-  echo "Python 3 is installed: $(python3 --version)"
-fi
-
-# 1.5. Install system dependencies for lxml and other packages
-echo "Step 1.5: Installing system dependencies..."
-sudo apt-get update
-sudo apt-get install -y libxml2-dev libxslt1-dev zlib1g-dev
-
-# 2. Create a fresh virtual environment
-echo "Step 2: Creating fresh virtual environment..."
 cd ~/job-tracker
 
-# Backup old venv if it exists
-if [ -d "venv" ]; then
-  echo "Backing up old virtual environment..."
-  mv venv venv_old_backup
+echo "Step 1: Installing system dependencies..."
+sudo apt-get update || echo "apt-get update failed; continuing with cached package lists"
+sudo apt-get install -y python3 python3-venv libxml2-dev libxslt1-dev zlib1g-dev nginx
+
+echo "Step 2: Checking the virtual environment..."
+# Rebuild only when the existing venv is actually broken
+if [ ! -x venv/bin/python ] || ! venv/bin/python -m pip --version &>/dev/null; then
+  echo "venv is missing or broken; recreating it..."
+  rm -rf venv_old_backup
+  [ -d venv ] && mv venv venv_old_backup
+  python3 -m venv venv
+  curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py
+  venv/bin/python get-pip.py --force-reinstall pip==23.3
+  rm -f get-pip.py
 fi
-
-# Create new venv
-echo "Creating new virtual environment with python3..."
-python3 -m venv venv
 source venv/bin/activate
-
-# Verify Python in venv
 echo "Python in venv: $(python --version)"
-echo "Pip in venv: $(pip --version || echo 'Pip not working')"
 
-# 3. Fix pip
-echo "Step 3: Reinstalling pip..."
-curl https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py
-python get-pip.py --force-reinstall pip==23.3
+echo "Step 3: Installing Python dependencies..."
+python -m pip install -r requirements.txt
 
-# Verify pip installation
-which pip
-pip --version
+echo "Step 4: Setting up Nginx..."
+bash scripts/setup_nginx.sh
 
-# 4. Install dependencies
-echo "Step 4: Installing dependencies..."
-pip install -r requirements.txt
-
-# Verify core dependencies are installed
-echo "Verifying uvicorn installation..."
-which uvicorn || echo "uvicorn not in PATH"
-echo "Verifying streamlit installation..."
-which streamlit || echo "streamlit not in PATH"
-
-# 5. Setup Nginx
-echo "Step 5: Setting up Nginx..."
-sudo apt-get install -y nginx
-sudo cp scripts/job-tracker-nginx.conf /etc/nginx/sites-available/job-tracker
-sudo ln -sf /etc/nginx/sites-available/job-tracker /etc/nginx/sites-enabled/job-tracker
-# Remove default site if it exists
-sudo rm -f /etc/nginx/sites-enabled/default
-# Test and reload nginx
-sudo nginx -t && sudo systemctl restart nginx
-
-# 6. Setup services
-echo "Step 6: Setting up systemd services..."
+echo "Step 5: Restarting services under systemd..."
 sudo cp scripts/job-tracker-api.service /etc/systemd/system/
 sudo cp scripts/job-tracker-dashboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl restart job-tracker-api || echo "Failed to restart API service"
-sudo systemctl restart job-tracker-dashboard || echo "Failed to restart Dashboard service"
+sudo systemctl enable job-tracker-api job-tracker-dashboard
+sudo systemctl stop job-tracker-api job-tracker-dashboard || true
+# Kill strays left by older deploys that started nohup copies
+pkill -f "uvicorn main:app --host 0.0.0.0 --port 8001" || true
+pkill -f "streamlit run dashboard.py" || true
+sleep 3
+sudo systemctl start job-tracker-api job-tracker-dashboard
 
-# 7. Start services manually if systemd fails
-echo "Step 7: Starting services manually as fallback..."
-cd ~/job-tracker
-source venv/bin/activate
-
-# Kill any existing processes
-pkill -f "uvicorn main:app" || echo "No API process to kill"
-pkill -f "streamlit run dashboard.py" || echo "No dashboard process to kill"
-
-# Start services
-nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8001 > api.log 2>&1 &
-nohup venv/bin/streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &
-
-echo "Services started. Waiting to verify..."
+echo "Step 6: Verifying services..."
 sleep 5
+systemctl --no-pager --lines=5 status job-tracker-api job-tracker-dashboard || true
+curl -sf -o /dev/null http://localhost:8001/api/health && echo "API responding" || echo "API not responding"
+curl -sf -o /dev/null http://localhost:8501 && echo "Dashboard responding" || echo "Dashboard not responding"
 
-# 8. Verify services
-echo "Step 8: Verifying services..."
-ps aux | grep uvicorn
-ps aux | grep streamlit
-curl -s http://localhost:8001/api/docs || echo "API not responding"
-curl -s http://localhost:8501 || echo "Dashboard not responding"
-
-echo "Fix completed. The application should now be accessible at:"
-echo "Dashboard: http://$(hostname -I | awk '{print $1}')"
-echo "API: http://$(hostname -I | awk '{print $1}')/api"
-echo ""
-echo "If you're still having issues, please check the logs:"
-echo "API log: ~/job-tracker/api.log"
-echo "Dashboard log: ~/job-tracker/dashboard.log"
-echo "Nginx error log: sudo tail -f /var/log/nginx/error.log"
+echo "Fix completed. Logs: ~/job-tracker/api.log, ~/job-tracker/dashboard.log"
