@@ -1,9 +1,13 @@
 # app/scheduler/jobs.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import contextlib
 import importlib
+import io
 import logging
+import re
+import sys
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -350,6 +354,67 @@ def reset_global_stats():
         "scraper_errors": 0
     }
 
+# Scrapers catch their own request errors and print() them instead of raising,
+# so a run that failed every request still "completes". We tee stdout while a
+# scraper runs and count those printed errors to judge the run honestly.
+_ERROR_LINE = re.compile(r"\b(error|exception|traceback|failed)\b", re.IGNORECASE)
+STALE_RUN_AFTER = timedelta(hours=2)
+
+
+class _TeeStdout(io.TextIOBase):
+    """Write to the real stdout and keep a copy for error counting."""
+
+    def __init__(self, original):
+        self.original = original
+        self.buffer_text = io.StringIO()
+
+    def write(self, text):
+        self.buffer_text.write(text)
+        try:
+            return self.original.write(text)
+        except Exception:
+            return len(text)
+
+    def flush(self):
+        try:
+            self.original.flush()
+        except Exception:
+            pass
+
+
+def classify_run(jobs_found, error_lines):
+    """Return (status, message) for a finished scraper run.
+
+    success  jobs returned and no errors printed
+    partial  jobs returned but some requests errored
+    empty    ran cleanly, nothing matched the searched roles
+    failure  no jobs and errors printed (blocked, bad URL, API change)
+    """
+    sample = "\n".join(error_lines[:5])
+    if jobs_found > 0 and not error_lines:
+        return "success", None
+    if jobs_found > 0:
+        return "partial", f"{jobs_found} jobs returned; {len(error_lines)} error line(s):\n{sample}"
+    if not error_lines:
+        return "empty", "Ran without errors but returned 0 jobs for the searched roles"
+    return "failure", f"Returned 0 jobs; {len(error_lines)} error line(s):\n{sample}"
+
+
+def close_stale_runs(db):
+    """Mark runs stuck in 'running' (process restarted mid-run) as interrupted."""
+    cutoff = datetime.now(timezone.utc) - STALE_RUN_AFTER
+    stale = db.query(ScraperRun).filter(
+        ScraperRun.status == "running",
+        ScraperRun.start_time < cutoff.replace(tzinfo=None),
+    ).all()
+    for run in stale:
+        run.status = "interrupted"
+        run.error_message = "Process stopped before this run finished (restart or deploy)"
+    if stale:
+        db.commit()
+    return len(stale)
+
+
 def run_scraper(scraper_name, roles=None, days_back=7):
     """
     Run a specific scraper and update the database with results
@@ -395,9 +460,16 @@ def run_scraper(scraper_name, roles=None, days_back=7):
         # Get the main function from the module
         get_jobs_func = getattr(scraper_module, f"get_{scraper_name}_jobs")
         
-        # Run the scraper
-        jobs_data = get_jobs_func(roles=roles, days=days_back)
-        
+        # Run the scraper, keeping a copy of what it prints so swallowed
+        # request errors still count against the run
+        tee = _TeeStdout(sys.stdout)
+        with contextlib.redirect_stdout(tee):
+            jobs_data = get_jobs_func(roles=roles, days=days_back) or {}
+        error_lines = [
+            line.strip() for line in tee.buffer_text.getvalue().splitlines()
+            if _ERROR_LINE.search(line)
+        ]
+
         # Count total jobs found
         total_jobs_found = sum(len(jobs) for jobs in jobs_data.values())
         logger.info(f"Scraper {scraper_name} found {total_jobs_found} jobs across {len(jobs_data)} roles")
@@ -425,12 +497,19 @@ def run_scraper(scraper_name, roles=None, days_back=7):
         global_stats["total_jobs_expired"] += expired_count
         
         # Update the scraper run record
-        scraper_run.status = "success"
+        status, message = classify_run(total_jobs_found, error_lines)
+        scraper_run.status = status
+        scraper_run.error_message = message
         scraper_run.end_time = datetime.now(timezone.utc)
         scraper_run.jobs_added = jobs_added
         scraper_run.jobs_updated = jobs_updated
-        
-        logger.info(f"Scraper {scraper_name} completed: {jobs_added} added, {jobs_updated} updated, {expired_count} expired")
+        if status == "failure":
+            global_stats["scraper_errors"] += 1
+
+        logger.info(
+            f"Scraper {scraper_name} {status}: {total_jobs_found} found, {jobs_added} added, "
+            f"{jobs_updated} updated, {expired_count} expired, {len(error_lines)} error line(s)"
+        )
         
     except Exception as e:
         # Log the error with full context and update the scraper run record
@@ -470,6 +549,14 @@ def run_all_scrapers():
     
     # Reset the global stats before starting a new run
     reset_global_stats()
+
+    db = next(get_db())
+    try:
+        stale = close_stale_runs(db)
+        if stale:
+            logger.info(f"Marked {stale} stale scraper run(s) as interrupted")
+    finally:
+        db.close()
     
     # Get all available scrapers
     available_scrapers = get_all_scrapers()

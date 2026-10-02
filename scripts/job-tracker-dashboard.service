@@ -5,13 +5,14 @@ After=network.target job-tracker-api.service
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/job-tracker
-Environment="PATH=/home/ubuntu/job-tracker/venv/bin"
+Environment="PATH=/home/ubuntu/job-tracker/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="JOB_TRACKER_API_URL=http://localhost:8001/api"
+Environment="STREAMLIT_BROWSER_GATHER_USAGE_STATS=false"
 ExecStart=/home/ubuntu/job-tracker/venv/bin/streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0
 Restart=always
 RestartSec=5
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=append:/home/ubuntu/job-tracker/dashboard.log
+StandardError=append:/home/ubuntu/job-tracker/dashboard.log
 SyslogIdentifier=job-tracker-dashboard
 
 [Install]

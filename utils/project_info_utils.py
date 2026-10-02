@@ -36,24 +36,19 @@ def get_project_info() -> Dict[str, Any]:
                     total_size += file_size
                     file_count += 1
             
-            # Add this directory's size to our structure
+            # Roll this directory's files up into its top-level and second-level
+            # folders so each entry is the full recursive size of that folder
             rel_path = os.path.relpath(dirpath, project_dir)
             if rel_path == '.':
-                rel_path = 'root'
-                
-            # Track all subdirectories for more detailed view
+                folder_sizes['root'] = folder_sizes.get('root', 0) + path_size
+                continue
+
             parts = rel_path.split(os.sep)
-            
-            # Store first level directories
-            if rel_path == 'root' or len(parts) == 1:
-                folder_sizes[rel_path] = path_size
-                
-            # Store second level directories too
-            if len(parts) == 2:
-                parent = parts[0]
-                subfolder_name = f"{parent}/{parts[1]}"
-                subfolder_sizes[subfolder_name] = path_size
-        
+            folder_sizes[parts[0]] = folder_sizes.get(parts[0], 0) + path_size
+            if len(parts) >= 2:
+                subfolder_name = f"{parts[0]}/{parts[1]}"
+                subfolder_sizes[subfolder_name] = subfolder_sizes.get(subfolder_name, 0) + path_size
+
         project_info["size_bytes"] = total_size
         project_info["size_mb"] = round(total_size / (1024 * 1024), 2)
         project_info["size_gb"] = round(total_size / (1024 * 1024 * 1024), 3)

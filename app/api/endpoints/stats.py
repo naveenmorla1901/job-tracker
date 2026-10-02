@@ -94,51 +94,61 @@ def get_job_trend(db: Session = Depends(get_db), days: int = 30):
         return {"error": "Failed to generate trend data"}
 
 @router.get("/scraper-runs")
-def get_scraper_runs(db: Session = Depends(get_db), limit: int = 500):
-    """Get recent scraper runs with focus on failures"""
+def get_scraper_runs(db: Session = Depends(get_db)):
+    """Latest run of every registered scraper, plus all-time counts by status.
+
+    One row per scraper answers "is each company working right now?" — a
+    window of the last N rows mixes several cycles and hides scrapers that
+    never ran.
+    """
     try:
-        # Get total count from DB (all time)
-        total_db_count = db.query(func.count(ScraperRun.id)).scalar() or 0
+        from app.scrapers import get_all_scrapers
+        from app.scheduler.jobs import COMPANY_NAMES
 
-        # Get recent scraper runs
-        recent_runs = db.query(ScraperRun).order_by(ScraperRun.id.desc()).limit(limit).all()
+        registered = sorted(get_all_scrapers().keys())
 
-        # Extract failure details
-        failed_runs = []
-        successful_runs = []
+        latest_ids = db.query(func.max(ScraperRun.id)).group_by(ScraperRun.scraper_name)
+        latest_runs = {
+            run.scraper_name: run
+            for run in db.query(ScraperRun).filter(ScraperRun.id.in_(latest_ids)).all()
+        }
 
-        for run in recent_runs:
-            run_data = {
-                "id": run.id,
-                "scraper_name": run.scraper_name,
-                "status": run.status,
-                "start_time": run.start_time.isoformat() if run.start_time else None,
-                "end_time": run.end_time.isoformat() if run.end_time else None,
-                "jobs_added": run.jobs_added,
-                "jobs_updated": run.jobs_updated,
-                "error_message": run.error_message
-            }
+        scrapers = []
+        counts = {s: 0 for s in ("success", "partial", "empty", "failure", "interrupted", "running", "never_run")}
+        for name in registered:
+            run = latest_runs.get(name)
+            status = run.status if run else "never_run"
+            counts[status] = counts.get(status, 0) + 1
+            scrapers.append({
+                "scraper_name": name,
+                "company": COMPANY_NAMES.get(name, name),
+                "status": status,
+                "jobs_added": run.jobs_added if run else 0,
+                "jobs_updated": run.jobs_updated if run else 0,
+                "start_time": run.start_time.isoformat() if run and run.start_time else None,
+                "end_time": run.end_time.isoformat() if run and run.end_time else None,
+                "error_message": run.error_message if run else None,
+            })
 
-            if run.status == "failure":
-                failed_runs.append(run_data)
-            else:
-                successful_runs.append(run_data)
-
-        # Calculate summary based on fetched window
-        fetched_count = len(recent_runs)
-        failure_count = len(failed_runs)
-        success_rate = ((fetched_count - failure_count) / fetched_count * 100) if fetched_count > 0 else 0
+        ran = len(registered) - counts["never_run"]
+        working = counts["success"] + counts["partial"]
+        all_time = dict(
+            db.query(ScraperRun.status, func.count(ScraperRun.id)).group_by(ScraperRun.status).all()
+        )
+        last_run = db.query(func.max(ScraperRun.end_time)).scalar()
 
         return {
             "summary": {
-                "total_runs": fetched_count,
-                "total_all_time": total_db_count,
-                "successful": len(successful_runs),
-                "failed": failure_count,
-                "success_rate": round(success_rate, 2)
+                "registered": len(registered),
+                "ran": ran,
+                "working": working,
+                "working_rate": round(working / ran * 100, 1) if ran else 0,
+                "by_status": counts,
+                "last_run": last_run.isoformat() if last_run else None,
+                "all_time": all_time,
+                "total_all_time": sum(all_time.values()),
             },
-            "failures": failed_runs,
-            "recent_runs": successful_runs
+            "scrapers": scrapers,
         }
     except Exception as e:
         logger.error(f"Error getting scraper runs: {str(e)}")

@@ -5,13 +5,13 @@ After=network.target
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/job-tracker
-Environment="PATH=/home/ubuntu/job-tracker/venv/bin"
+Environment="PATH=/home/ubuntu/job-tracker/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PORT=8001"
 ExecStart=/home/ubuntu/job-tracker/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8001
 Restart=always
 RestartSec=5
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=append:/home/ubuntu/job-tracker/api.log
+StandardError=append:/home/ubuntu/job-tracker/api.log
 SyslogIdentifier=job-tracker-api
 
 [Install]
