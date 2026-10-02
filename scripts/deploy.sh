@@ -101,26 +101,32 @@ python scheduled_cleanup.py > /dev/null 2>&1 &
 echo "Setting up Nginx as reverse proxy..."
 bash scripts/setup_nginx.sh
 
-echo "Stopping any existing services..."
-# Better approach for stopping services - use both systemctl and direct process killing
-# Try stopping via systemctl first
-sudo systemctl stop job-tracker-api || echo "No API service to stop"
-sudo systemctl stop job-tracker-dashboard || echo "No dashboard service to stop"
+# Install/refresh the systemd units first so the restart below uses them
+echo "Setting up systemd services..."
+sudo cp scripts/job-tracker-api.service /etc/systemd/system/
+sudo cp scripts/job-tracker-dashboard.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable job-tracker-api.service
+sudo systemctl enable job-tracker-dashboard.service
 
-# Also kill any stray processes
-pkill -f "uvicorn main:app" || echo "No API process running"
-pkill -f "streamlit run dashboard.py" || echo "No dashboard running"
+# Let the dashboard read nginx/postgres logs without sudo (adm group owns /var/log/*)
+sudo usermod -aG adm ubuntu || true
 
-# Wait for processes to completely terminate
+echo "Restarting services..."
+# systemd is the only process manager. Starting extra nohup copies here made
+# them race the units (Restart=always) for ports 8001/8501 ("Port 8501 is
+# already in use") and could leave two API processes each running the scheduler.
+sudo systemctl stop job-tracker-api job-tracker-dashboard || true
+# Kill strays left by older deploys that started nohup copies
+pkill -f "uvicorn main:app --host 0.0.0.0 --port 8001" || true
+pkill -f "streamlit run dashboard.py" || true
 sleep 3
-
-echo "Starting services..."
-# Start services using nohup for initial deployment
-nohup uvicorn main:app --host 0.0.0.0 --port 8001 > api.log 2>&1 &
-nohup streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &
+sudo systemctl start job-tracker-api
+sudo systemctl start job-tracker-dashboard
 
 # Sleep to ensure services are up before continuing
 sleep 5
+systemctl --no-pager --lines=0 status job-tracker-api job-tracker-dashboard || true
 
 echo "Cleaning up old logs..."
 python -c "from log_manager import cleanup_old_logs; cleanup_old_logs(days=2)"
@@ -171,14 +177,6 @@ bash scripts/cleanup_processes.sh
 echo "Services restarted successfully!"
 EOL
 chmod +x .git/hooks/post-receive
-
-# Ensure we have the systemd service files installed and enabled
-echo "Setting up systemd services..."
-sudo cp scripts/job-tracker-api.service /etc/systemd/system/
-sudo cp scripts/job-tracker-dashboard.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable job-tracker-api.service
-sudo systemctl enable job-tracker-dashboard.service
 
 # Set up sudo permissions for the ubuntu user
 echo "Setting up sudo permissions..."

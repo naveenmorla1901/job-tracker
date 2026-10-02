@@ -516,13 +516,12 @@ def api_request(endpoint: str, method: str = "GET", data: Dict = None, params: D
     logger.info(f"API URL: {api_url}, Endpoint: {endpoint}, Full URL: {url}")
     
     try:
-        logger.info(f"Making {method} request to {url} with headers {headers}")
+        logger.info(f"Making {method} request to {url}")
         
         # For GET and DELETE requests, don't set Content-Type to application/json as it might cause issues
         if method.upper() in ["GET", "DELETE"]:
             headers = {"Authorization": f"Bearer {token}"}
             
-        logger.info(f"Using headers: {headers}")
         
         if method.upper() == "GET":
             response = requests.get(url, headers=headers, params=params, timeout=10)
@@ -546,7 +545,8 @@ def api_request(endpoint: str, method: str = "GET", data: Dict = None, params: D
             return None
             
         if response.status_code == 204:
-            return {}
+            # Truthy so callers can use `if api_request(...)` for DELETE too
+            return {"success": True}
             
         try:
             return response.json()

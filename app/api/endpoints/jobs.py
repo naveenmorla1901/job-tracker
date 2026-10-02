@@ -8,6 +8,7 @@ import logging
 from app.db.database import get_db
 from app.db.models import Job, Role
 from app.db.crud import get_or_create_role
+from app.role_categories import CATEGORIES, classify_title
 
 # Configure logger
 logger = logging.getLogger("job_tracker.api")
@@ -129,6 +130,69 @@ def get_jobs(
             logger.error(f"Error formatting job {job.id}: {str(e)}")
     
     return {"jobs": jobs_list, "total": total}
+
+def _day_start_cutoff(days: int) -> datetime:
+    """Start of the day `days` days ago (UTC), with the same 12h buffer as get_jobs."""
+    date_cutoff = datetime.utcnow() - timedelta(days=days, hours=12)
+    return datetime(date_cutoff.year, date_cutoff.month, date_cutoff.day)
+
+
+@router.get("/ai-ds")
+def get_ai_ds_jobs(
+    db: Session = Depends(get_db),
+    days: int = Query(7, ge=1, le=60),
+    category: Optional[List[str]] = Query(None, description="Subset of /ai-ds/categories"),
+    company: Optional[List[str]] = Query(None),
+    search: Optional[str] = None,
+):
+    """Active AI / data jobs, classified by title on the server.
+
+    Filtering by title (not the scraper's search-term role tag) drops loose
+    matches like "Construction Engineer", and doing it before counting means
+    the total is exact with no 1000-row truncation.
+    """
+    wanted = set(category or CATEGORIES)
+
+    query = db.query(
+        Job.id, Job.job_id, Job.job_title, Job.company, Job.location,
+        Job.job_url, Job.date_posted, Job.employment_type, Job.first_seen,
+    ).filter(Job.is_active == True, Job.date_posted >= _day_start_cutoff(days))
+
+    if company:
+        query = query.filter(Job.company.in_(company))
+    if search:
+        term = f"%{search}%"
+        query = query.filter(or_(Job.job_title.ilike(term), Job.description.ilike(term)))
+
+    jobs_list = []
+    category_counts = {name: 0 for name in CATEGORIES}
+    for row in query.order_by(Job.date_posted.desc()).all():
+        categories = [c for c in classify_title(row.job_title) if c in wanted]
+        if not categories:
+            continue
+        for c in categories:
+            category_counts[c] += 1
+        jobs_list.append({
+            "id": row.id,
+            "job_id": row.job_id,
+            "job_title": row.job_title,
+            "company": row.company,
+            "location": row.location,
+            "job_url": row.job_url,
+            "date_posted": row.date_posted.strftime("%Y-%m-%d") if row.date_posted else None,
+            "employment_type": row.employment_type,
+            "categories": categories,
+            "first_seen": row.first_seen.strftime("%Y-%m-%d %H:%M:%S") if row.first_seen else None,
+        })
+
+    return {"jobs": jobs_list, "total": len(jobs_list), "category_counts": category_counts}
+
+
+@router.get("/ai-ds/categories")
+def get_ai_ds_categories():
+    """Category names accepted by /ai-ds."""
+    return {"categories": CATEGORIES}
+
 
 @router.get("/roles")
 def get_roles(db: Session = Depends(get_db)):

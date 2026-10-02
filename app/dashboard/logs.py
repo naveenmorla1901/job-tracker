@@ -249,11 +249,17 @@ def _display_system_info():
                 active_jobs = db_stats.get("active_jobs", 0)
                 st.metric("Total Jobs", total_jobs)
                 st.metric("Active Jobs", active_jobs)
-                st.metric("Companies", db_stats.get("companies", 0))
+                st.metric("Scrapers Registered", db_stats.get("registered_scrapers", 0))
+                st.metric(
+                    "Companies With Active Jobs",
+                    db_stats.get("companies_active", 0),
+                    f"{db_stats.get('companies', 0)} have any jobs in the database",
+                    delta_color="off",
+                )
 
-                # Scraper success rate
+                # Share of scrapers whose latest run returned jobs
                 if "success_rate" in db_stats:
-                    st.metric("Scraper Success Rate", f"{db_stats['success_rate']:.1f}%")
+                    st.metric("Scrapers Working (latest run)", f"{db_stats['success_rate']:.1f}%")
 
             # Project Information
             if "project" in system_info:
@@ -308,61 +314,100 @@ def _display_system_info():
     except Exception as e:
         st.error(f"Error getting system information: {str(e)}")
 
+STATUS_LABELS = {
+    "success": "✅ Success",
+    "partial": "⚠️ Partial",
+    "empty": "➖ Empty",
+    "failure": "❌ Failure",
+    "interrupted": "⏹️ Interrupted",
+    "running": "⏳ Running",
+    "never_run": "⚪ Never run",
+}
+
+
 def _display_scraper_runs():
-    """Display scraper run summary and failures"""
-    st.subheader("Scraper Runs & Failure Log")
-    
+    """Latest run of every registered scraper, with what each status means."""
+    st.subheader("Scraper Runs (latest run per scraper)")
+
     try:
-        # Fetch scraper runs data from API
         import requests
         from dashboard_components.utils import get_api_url
-        
-        api_url = get_api_url()
-        response = requests.get(f"{api_url}/stats/scraper-runs?limit=500")
-        
-        if response.status_code == 200:
-            data = response.json()
-            summary = data.get("summary", {})
-            failures = data.get("failures", [])
-            
-            # Display summary metrics
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total Runs", summary.get("total_runs", 0))
-            col2.metric("Successful", summary.get("successful", 0))
-            col3.metric("Failed", summary.get("failed", 0))
-            col4.metric("Success Rate", f"{summary.get('success_rate', 0):.1f}%")
-            
-            # Display failures if any
-            if failures:
-                st.warning(f"⚠️ {len(failures)} Scraper Failure(s) Detected")
-                
-                # Create a dataframe for better visualization
-                failures_df = pd.DataFrame([
-                    {
-                        "Scraper": f["scraper_name"],
-                        "Error": f["error_message"][:100] + "..." if len(f["error_message"] or "") > 100 else f["error_message"],
-                        "Time": f["end_time"][:19] if f["end_time"] else "N/A"
-                    }
-                    for f in failures
-                ])
-                
-                st.dataframe(failures_df, use_container_width=True)
-                
-                # Show detailed error messages in expandable sections
-                with st.expander("View Detailed Error Messages", expanded=False):
-                    for i, failure in enumerate(failures, 1):
-                        with st.container():
-                            st.markdown(f"**Failure #{i}: {failure['scraper_name']}**")
-                            st.markdown(f"**Time:** {failure['end_time']}")
-                            st.markdown(f"**Error Message:**")
-                            st.code(failure['error_message'], language="text")
-                            st.divider()
-            else:
-                st.success("✅ All scraper runs completed successfully!")
-                
-        else:
+
+        response = requests.get(f"{get_api_url()}/stats/scraper-runs", timeout=30)
+        if response.status_code != 200:
             st.error(f"Error fetching scraper runs data: {response.status_code}")
-            
+            return
+        data = response.json()
+        if data.get("error"):
+            st.error(data["error"])
+            return
+
+        summary = data.get("summary", {})
+        counts = summary.get("by_status", {})
+
+        if summary.get("last_run"):
+            st.caption(f"Last scraper finished: {summary['last_run'][:19].replace('T', ' ')} (server time)")
+
+        row1 = st.columns(4)
+        row1[0].metric("Scrapers Registered", summary.get("registered", 0))
+        row1[1].metric("Have Run", summary.get("ran", 0))
+        row1[2].metric("Working", summary.get("working", 0), "success + partial", delta_color="off")
+        row1[3].metric("Working Rate", f"{summary.get('working_rate', 0):.1f}%")
+
+        row2 = st.columns(6)
+        for col, key in zip(row2, ("success", "partial", "empty", "failure", "interrupted", "never_run")):
+            col.metric(STATUS_LABELS[key], counts.get(key, 0))
+
+        with st.expander("What each status means", expanded=False):
+            st.markdown(
+                "- **Success**: returned jobs and printed no errors.\n"
+                "- **Partial**: returned jobs, but some requests errored (e.g. one job page timed out).\n"
+                "- **Empty**: ran cleanly but no postings matched the searched roles in the date window.\n"
+                "- **Failure**: returned nothing *and* errored, or crashed: blocked, URL changed, API changed.\n"
+                "- **Interrupted**: the process restarted while the scraper was running.\n"
+                "- **Never run**: registered but no run recorded yet (new scrapers wait for the next scheduled cycle)."
+            )
+
+        scrapers = data.get("scrapers", [])
+        if not scrapers:
+            st.info("No scrapers registered.")
+            return
+
+        df = pd.DataFrame([
+            {
+                "Company": s["company"],
+                "Scraper": s["scraper_name"],
+                "Status": STATUS_LABELS.get(s["status"], s["status"]),
+                "Added": s["jobs_added"] or 0,
+                "Updated": s["jobs_updated"] or 0,
+                "Finished": (s["end_time"] or "")[:19].replace("T", " "),
+                "Details": (s["error_message"] or "").splitlines()[0] if s["error_message"] else "",
+                "_status": s["status"],
+            }
+            for s in scrapers
+        ])
+
+        options = [STATUS_LABELS[k] for k in STATUS_LABELS if counts.get(k)]
+        default = [STATUS_LABELS[k] for k in ("failure", "partial", "interrupted") if counts.get(k)]
+        chosen = st.multiselect("Show statuses", options, default=default or options)
+        view = df[df["Status"].isin(chosen)] if chosen else df
+        st.dataframe(view.drop(columns=["_status"]), use_container_width=True, hide_index=True)
+
+        problems = [s for s in scrapers if s["status"] in ("failure", "partial") and s["error_message"]]
+        if problems:
+            with st.expander(f"Error details ({len(problems)})", expanded=False):
+                for s in problems:
+                    st.markdown(f"**{s['company']}** (`{s['scraper_name']}`): {STATUS_LABELS[s['status']]}")
+                    st.code(s["error_message"], language="text")
+
+        all_time = summary.get("all_time", {})
+        if all_time:
+            st.caption(
+                f"All-time runs: {summary.get('total_all_time', 0)} ("
+                + ", ".join(f"{k}: {v}" for k, v in sorted(all_time.items()))
+                + "). Runs recorded before this change were labelled 'success' whenever the scraper didn't crash."
+            )
+
     except Exception as e:
         st.error(f"Error displaying scraper runs: {str(e)}")
 
@@ -452,99 +497,80 @@ def _display_scraper_output_preview():
         st.error(f"Could not load scraper output preview: {e}")
 
 
+def _tail_file(path, lines=1000):
+    """Return the last `lines` lines of a log file, or raise with a clear reason.
+
+    Reads directly first (on Ubuntu, /var/log/nginx and /var/log/postgresql are
+    readable by the adm group). Falls back to passwordless sudo only when it
+    exists, so a missing sudo binary no longer surfaces as an error.
+    """
+    import shutil
+    import subprocess
+    from collections import deque
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return "".join(deque(f, maxlen=lines))
+    except PermissionError:
+        sudo = shutil.which("sudo") or ("/usr/bin/sudo" if os.path.exists("/usr/bin/sudo") else None)
+        if not sudo:
+            raise PermissionError(
+                f"No read permission for {path}. Run `sudo usermod -aG adm ubuntu` on the server "
+                "and restart the dashboard service."
+            )
+        result = subprocess.run(
+            [sudo, "-n", "tail", "-n", str(lines), path], capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            raise PermissionError(
+                f"No read permission for {path} and passwordless sudo is not allowed for tail. "
+                "Run `sudo usermod -aG adm ubuntu` on the server and restart the dashboard service."
+            )
+        return result.stdout
+
+
 def _display_nginx_logs():
     """Display Nginx logs in a tab"""
     st.subheader("Nginx Logs")
 
-    # Check common Nginx log file locations
-    log_files = ["/var/log/nginx/error.log", "/var/log/nginx/access.log"]
-
-    # Use a dropdown to select which Nginx log to view
     log_type = st.radio("Select Nginx log type:", ["Error Log", "Access Log"], horizontal=True)
+    log_file = "/var/log/nginx/error.log" if log_type == "Error Log" else "/var/log/nginx/access.log"
 
-    if log_type == "Error Log":
-        log_file = log_files[0]
-    else:  # Access Log
-        log_file = log_files[1]
-
-    # Try to read the log file
+    if not os.path.exists(log_file):
+        st.warning(f"Nginx log file {log_file} not found")
+        return
     try:
-        if os.path.exists(log_file):
-            # Read the log file using the system command
-            import subprocess
-            result = subprocess.run(["sudo", "tail", "-n", "1000", log_file], capture_output=True, text=True)
-
-            if result.returncode == 0 and result.stdout:
-                st.code(result.stdout, language="text")
-            else:
-                # Try a direct file read as fallback
-                try:
-                    with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-                        content = f.readlines()
-                        # Take last 1000 lines
-                        if len(content) > 1000:
-                            content = content[-1000:]
-                        st.code("".join(content), language="text")
-                except Exception as e:
-                    st.warning(f"Could not read Nginx log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        content = _tail_file(log_file)
+        if content.strip():
+            st.code(content, language="text")
         else:
-            st.warning(f"Nginx log file {log_file} not found")
+            st.info(f"{log_file} is empty")
     except Exception as e:
-        st.error(f"Error accessing Nginx logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
+        st.warning(str(e))
+
 
 def _display_postgres_logs():
     """Display PostgreSQL logs in a tab"""
     st.subheader("PostgreSQL Logs")
 
-    # Common PostgreSQL log locations
+    import glob
     log_paths = [
         "/var/log/postgresql/postgresql-*.log",  # Debian/Ubuntu
         "/var/lib/pgsql/data/log/*.log",         # RHEL/CentOS
         "/usr/local/var/postgres/server.log"     # macOS Homebrew
     ]
+    all_logs = sorted({p for pattern in log_paths for p in glob.glob(pattern)})
 
-    # Find the actual log files
-    import glob
-    all_logs = []
-    for path in log_paths:
-        all_logs.extend(glob.glob(path))
-
-    if all_logs:
-        # Let user select which log file to view
-        selected_log = st.selectbox("Select PostgreSQL log file:", all_logs)
-
-        # Try to read the selected log file
-        try:
-            # Use system command to read logs with proper permissions
-            import subprocess
-            result = subprocess.run(["sudo", "tail", "-n", "1000", selected_log], capture_output=True, text=True)
-
-            if result.returncode == 0 and result.stdout:
-                st.code(result.stdout, language="text")
-            else:
-                # Try a direct file read as fallback
-                try:
-                    with open(selected_log, 'r', encoding='utf-8', errors='replace') as f:
-                        content = f.readlines()
-                        # Take last 1000 lines
-                        if len(content) > 1000:
-                            content = content[-1000:]
-                        st.code("".join(content), language="text")
-                except Exception as e:
-                    st.warning(f"Could not read PostgreSQL log file: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
-        except Exception as e:
-            st.error(f"Error accessing PostgreSQL logs: {str(e)}\nYou may need to run the dashboard with sudo privileges to access system logs.")
-    else:
-        # If no log files found, show a message about checking PostgreSQL processes
+    if not all_logs:
         st.warning("No PostgreSQL log files found at common locations")
+        return
 
-        # Show PostgreSQL processes
-        st.subheader("PostgreSQL Processes")
-        try:
-            import subprocess
-            result = subprocess.run(["ps", "aux", "|", "grep", "postgres"], shell=True, capture_output=True, text=True)
-            st.code(result.stdout, language="text")
-        except Exception as e:
-            st.error(f"Error checking PostgreSQL processes: {str(e)}")
-
-# Filtered roles display function removed
+    selected_log = st.selectbox("Select PostgreSQL log file:", all_logs)
+    try:
+        content = _tail_file(selected_log)
+        if content.strip():
+            st.code(content, language="text")
+        else:
+            st.info(f"{selected_log} is empty")
+    except Exception as e:
+        st.warning(str(e))
