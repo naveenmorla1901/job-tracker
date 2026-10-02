@@ -1,6 +1,7 @@
 """
 Database connection handling
 """
+import atexit
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -27,6 +28,11 @@ else:
     # Use PostgreSQL for production
     logger.info(f"Using database: {SQLALCHEMY_DATABASE_URL}")
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
+# Close pooled connections on a clean exit (systemctl stop/restart sends
+# SIGTERM). Otherwise Postgres logs "could not receive data from client:
+# Connection reset by peer" for every pooled connection on each deploy.
+atexit.register(engine.dispose)
 
 # Create database session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

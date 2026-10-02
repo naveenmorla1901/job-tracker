@@ -153,8 +153,19 @@ async def startup_event():
             logger.error(f"Could not free port {port}, API may not start properly")
 
     # Setup the scheduler
-    setup_scheduler()
+    app.state.scheduler = setup_scheduler()
     logger.info("Startup complete!")
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    """Stop the scheduler and close pooled DB connections on systemctl stop/restart."""
+    scheduler = getattr(app.state, "scheduler", None)
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
+    from app.db.database import engine
+    engine.dispose()
+    logger.info("Shutdown complete")
 
 @app.get("/")
 def read_root():

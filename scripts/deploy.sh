@@ -1,5 +1,8 @@
 #!/bin/bash
 set -e
+# Name the failing step in the Actions log; any failure here makes the
+# workflow fall back to scripts/emergency_fix.sh
+trap 'echo "deploy.sh FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 echo "Starting deployment process..."
 
@@ -96,7 +99,9 @@ if [ ! -d "logs" ]; then
 fi
 
 echo "Setting up scheduled cleanup..."
-python scheduled_cleanup.py > /dev/null 2>&1 &
+# One background cleaner only: each deploy used to add another copy
+pkill -f "python scheduled_cleanup.py" || true
+nohup python scheduled_cleanup.py > /dev/null 2>&1 &
 
 echo "Setting up Nginx as reverse proxy..."
 bash scripts/setup_nginx.sh
