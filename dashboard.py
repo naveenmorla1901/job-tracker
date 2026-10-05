@@ -124,7 +124,7 @@ def main():
     
     # Initialize session state for page navigation if not exists
     if 'page' not in st.session_state:
-        st.session_state.page = 'jobs'
+        st.session_state.page = 'ai_jobs'
     
     # Display user auth menu in sidebar
     user_menu()
@@ -134,7 +134,8 @@ def main():
     
     # Different navigation options based on auth status
     if is_authenticated():
-        pages = ["Jobs Dashboard", "AI & DS Jobs"]
+        # AI & DS first so it is the page that opens by default
+        pages = ["AI & DS Jobs", "Jobs Dashboard"]
         
         # Add admin pages if user is admin
         if is_admin():
@@ -154,7 +155,7 @@ def main():
         # Analytics page removed as requested
     else:
         # Not authenticated, simplified menu
-        pages = ["Jobs Dashboard", "AI & DS Jobs", "Login"]
+        pages = ["AI & DS Jobs", "Jobs Dashboard", "Login"]
         page = st.sidebar.radio("Go to", pages)
         
         if page == "Jobs Dashboard":

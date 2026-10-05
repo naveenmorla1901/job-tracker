@@ -16,7 +16,7 @@ def get_radian_jobs(roles, days=7):
     return aggregated_jobs
 
 def fetch_compass_jobs(target_role, days=7):
-    base_url = "https://compass.wd5.myworkdayjobs.com/wday/cxs/compass/Radian_External_Career_Site/jobs"
+    base_url = "https://compass.wd501.myworkdayjobs.com/wday/cxs/compass/Radian_External_Career_Site/jobs"
     payload = {
         "searchText": target_role,
         "limit": 20,
@@ -29,7 +29,7 @@ def fetch_compass_jobs(target_role, days=7):
         "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/91.0.4472.124 Safari/537.36"),
-        "Referer": "https://compass.wd5.myworkdayjobs.com/Radian_External_Career_Site"
+        "Referer": "https://compass.wd501.myworkdayjobs.com/Radian_External_Career_Site"
     }
 
     try:
@@ -69,7 +69,7 @@ def fetch_compass_jobs(target_role, days=7):
 
 def process_compass_job(job, cutoff_date):
     try:
-        job_url = f"https://compass.wd5.myworkdayjobs.com/Radian_External_Career_Site{job.get('externalPath', '')}"
+        job_url = f"https://compass.wd501.myworkdayjobs.com/Radian_External_Career_Site{job.get('externalPath', '')}"
         metadata = get_compass_job_details(job_url)
         if not metadata.get('datePosted'):
             return None
@@ -114,7 +114,7 @@ def format_compass_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_compass_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://compass.wd5.myworkdayjobs.com/Radian_External_Career_Site{job.get('externalPath', '')}",
+        "job_url": f"https://compass.wd501.myworkdayjobs.com/Radian_External_Career_Site{job.get('externalPath', '')}",
         "date_posted": format_compass_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

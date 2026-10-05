@@ -53,7 +53,7 @@ def display_ai_jobs_page():
 
     # -- Sidebar filters -------------------------------------------------
     st.sidebar.header("Filters")
-    time_label = st.sidebar.radio("Posted", list(TIME_OPTIONS.keys()), index=3, key="ai_time")
+    time_label = st.sidebar.radio("Posted", list(TIME_OPTIONS.keys()), index=0, key="ai_time")
     request_days, date_rule = TIME_OPTIONS[time_label]
 
     categories_data = fetch_data("jobs/ai-ds/categories") or {}

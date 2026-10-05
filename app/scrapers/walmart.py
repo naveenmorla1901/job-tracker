@@ -9,7 +9,7 @@ def get_walmart_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://walmart.wd5.myworkdayjobs.com/wday/cxs/walmart/WalmartExternal/jobs"
+        base_url = "https://walmart.wd504.myworkdayjobs.com/wday/cxs/walmart/WalmartExternal/jobs"
         payload = {
             "appliedFacets": {
                 "timeType": ["b181d8271e36017533d4ca68eee44f00"],
@@ -23,7 +23,7 @@ def get_walmart_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal"
+            "Referer": "https://walmart.wd504.myworkdayjobs.com/WalmartExternal"
         }
 
         try:
@@ -68,7 +68,7 @@ def get_walmart_jobs(roles, days=7):
 
 def process_single_job(job, cutoff_date):
     try:
-        job_url = f"https://walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal{job.get('externalPath', '')}"
+        job_url = f"https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal{job.get('externalPath', '')}"
         metadata = get_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -117,7 +117,7 @@ def format_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal{job.get('externalPath', '')}",
+        "job_url": f"https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal{job.get('externalPath', '')}",
         "date_posted": format_date(metadata.get('datePosted', 'N/A')),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

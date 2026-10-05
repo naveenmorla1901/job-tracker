@@ -9,7 +9,7 @@ def get_lilly_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://lilly.wd5.myworkdayjobs.com/wday/cxs/lilly/LLY/jobs"
+        base_url = "https://lilly.wd115.myworkdayjobs.com/wday/cxs/lilly/LLY/jobs"
         payload = {
             "appliedFacets": {
                 "locationCountry": ["bc33aa3152ec42d4995f4791a106ed09"]
@@ -22,7 +22,7 @@ def get_lilly_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://lilly.wd5.myworkdayjobs.com/LLY"
+            "Referer": "https://lilly.wd115.myworkdayjobs.com/LLY"
         }
 
         try:
@@ -67,7 +67,7 @@ def get_lilly_jobs(roles, days=7):
 
 def process_lilly_job(job, cutoff_date):
     try:
-        job_url = f"https://lilly.wd5.myworkdayjobs.com/en-US/LLY{job.get('externalPath', '')}"
+        job_url = f"https://lilly.wd115.myworkdayjobs.com/en-US/LLY{job.get('externalPath', '')}"
         metadata = get_lilly_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -116,7 +116,7 @@ def format_lilly_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_lilly_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://lilly.wd5.myworkdayjobs.com/en-US/LLY{job.get('externalPath', '')}",
+        "job_url": f"https://lilly.wd115.myworkdayjobs.com/en-US/LLY{job.get('externalPath', '')}",
         "date_posted": format_lilly_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')
