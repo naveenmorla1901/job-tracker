@@ -1,11 +1,15 @@
 # app/scheduler/jobs.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 import contextlib
 import importlib
 import io
+import json
 import logging
+import multiprocessing
+import os
 import re
 import sys
 from sqlalchemy.orm import Session
@@ -415,139 +419,129 @@ def close_stale_runs(db):
     return len(stale)
 
 
-def run_scraper(scraper_name, roles=None, days_back=7):
+def fetch_scraper_output(scraper_name, roles, days_back=7):
+    """Run one scraper and capture its printed errors. No database access.
+
+    Runs inside a worker process during a full cycle, so it only returns plain
+    data: the jobs (JSON-normalised so they always pickle), the error lines the
+    scraper printed, and a crash message if it raised.
     """
-    Run a specific scraper and update the database with results
-    
-    Args:
-        scraper_name: Name of the scraper module (e.g., 'salesforce')
-        roles: List of roles to search for, if None uses company-specific custom roles
-        days_back: How many days back to check
-    """
-    global global_stats
-    
-    # Update counter
-    global_stats["scrapers_run"] += 1
-    current_scraper = global_stats["scrapers_run"]
-    total_scrapers = len(get_all_scrapers())
-    
-    # If roles not provided, use company-specific custom roles or default
-    if roles is None:
-        roles = resolve_roles_for_scraper(scraper_name)
-        logger.info(f"Using custom roles for {scraper_name}: {roles}")
-    
-    # Log the start of this scraper
-    logger.info(f"Running scraper {current_scraper}/{total_scrapers}: {scraper_name}")
-    
-    db = next(get_db())
-    
-    # Get proper company name for display
+    start_time = datetime.now(timezone.utc)
+    tee = _TeeStdout(sys.stdout)
+    crash = None
+    jobs_data = {}
+    try:
+        scraper_module = importlib.import_module(f"app.scrapers.{scraper_name}")
+        get_jobs_func = getattr(scraper_module, f"get_{scraper_name}_jobs")
+        with contextlib.redirect_stdout(tee):
+            jobs_data = get_jobs_func(roles=roles, days=days_back) or {}
+        jobs_data = json.loads(json.dumps(jobs_data, default=str))
+    except Exception as e:
+        crash = f"{type(e).__name__}: {e}"
+    error_lines = [
+        line.strip() for line in tee.buffer_text.getvalue().splitlines()
+        if _ERROR_LINE.search(line)
+    ]
+    return {
+        "scraper_name": scraper_name,
+        "jobs_data": jobs_data,
+        "error_lines": error_lines,
+        "crash": crash,
+        "start_time": start_time,
+        "end_time": datetime.now(timezone.utc),
+    }
+
+
+def record_scraper_result(result):
+    """Write one scraper's jobs and its ScraperRun row. Returns the run status."""
+    scraper_name = result["scraper_name"]
     company_display_name = COMPANY_NAMES.get(scraper_name, scraper_name.capitalize())
-    
-    # Create a scraper run record
+    jobs_data = result["jobs_data"]
+    error_lines = result["error_lines"]
+
+    db = next(get_db())
     scraper_run = ScraperRun(
         scraper_name=scraper_name,
-        start_time=datetime.now(timezone.utc),
-        status="running"
+        start_time=result["start_time"],
+        end_time=result["end_time"],
+        status="running",
     )
     db.add(scraper_run)
     db.commit()
-    
-    try:
-        # Dynamically import the scraper module
-        scraper_module = importlib.import_module(f"app.scrapers.{scraper_name}")
-        
-        # Get the main function from the module
-        get_jobs_func = getattr(scraper_module, f"get_{scraper_name}_jobs")
-        
-        # Run the scraper, keeping a copy of what it prints so swallowed
-        # request errors still count against the run
-        tee = _TeeStdout(sys.stdout)
-        with contextlib.redirect_stdout(tee):
-            jobs_data = get_jobs_func(roles=roles, days=days_back) or {}
-        error_lines = [
-            line.strip() for line in tee.buffer_text.getvalue().splitlines()
-            if _ERROR_LINE.search(line)
-        ]
 
-        # Count total jobs found
+    try:
+        if result["crash"]:
+            raise RuntimeError(result["crash"])
+
         total_jobs_found = sum(len(jobs) for jobs in jobs_data.values())
-        logger.info(f"Scraper {scraper_name} found {total_jobs_found} jobs across {len(jobs_data)} roles")
-        
-        # Track active job IDs for this company
-        active_job_ids = []
-        
-        # Update database with new job listings
         jobs_added, jobs_updated = upsert_jobs(db, jobs_data, company=company_display_name)
-        
-        # Collect active job IDs
-        for role_jobs in jobs_data.values():
-            for job in role_jobs:
-                if job.get("job_id"):
-                    active_job_ids.append(job.get("job_id"))
-        
-        # Mark jobs that are no longer active
+
+        active_job_ids = [
+            job["job_id"] for role_jobs in jobs_data.values() for job in role_jobs if job.get("job_id")
+        ]
         expired_count = 0
         if active_job_ids:
             expired_count = mark_inactive_jobs(db, company_display_name, active_job_ids)
-        
-        # Update global statistics
+
         global_stats["total_jobs_added"] += jobs_added
         global_stats["total_jobs_updated"] += jobs_updated
         global_stats["total_jobs_expired"] += expired_count
-        
-        # Update the scraper run record
+
         status, message = classify_run(total_jobs_found, error_lines)
         scraper_run.status = status
         scraper_run.error_message = message
-        scraper_run.end_time = datetime.now(timezone.utc)
         scraper_run.jobs_added = jobs_added
         scraper_run.jobs_updated = jobs_updated
-        if status == "failure":
-            global_stats["scraper_errors"] += 1
-
         logger.info(
             f"Scraper {scraper_name} {status}: {total_jobs_found} found, {jobs_added} added, "
             f"{jobs_updated} updated, {expired_count} expired, {len(error_lines)} error line(s)"
         )
-        
     except Exception as e:
-        # Log the error with full context and update the scraper run record
-        error_msg = str(e)
-        logger.error(f"SCRAPER FAILURE: {scraper_name} | Error: {error_msg}")
-        logger.error(f"Full traceback for {scraper_name}:", exc_info=True)
+        logger.error(f"SCRAPER FAILURE: {scraper_name} | Error: {e}")
+        db.rollback()
         scraper_run.status = "failure"
-        scraper_run.end_time = datetime.now(timezone.utc)
-        scraper_run.error_message = error_msg
-        global_stats["scraper_errors"] += 1
-    
-    finally:
-        db.commit()
-        db.close()
-        
-        # Print summary if this was the last scraper to run
-        if current_scraper == total_scrapers:
-            errors = global_stats["scraper_errors"]
-            success_rate = ((total_scrapers - errors) / total_scrapers) * 100 if total_scrapers > 0 else 0
-            
-            logger.info("=" * 50)
-            logger.info(f"SCRAPER RUN SUMMARY ({datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')})")
-            logger.info(f"Scrapers run: {total_scrapers}")
-            logger.info(f"Successful: {total_scrapers - errors} ({success_rate:.1f}%)")
-            logger.info(f"Failed: {errors}")
-            logger.info(f"Total jobs added: {global_stats['total_jobs_added']}")
-            logger.info(f"Total jobs updated: {global_stats['total_jobs_updated']}")
-            logger.info(f"Total jobs expired: {global_stats['total_jobs_expired']}")
-            logger.info("=" * 50)
-            
-            # Reset the global stats after logging the summary
-            reset_global_stats()
+        scraper_run.error_message = str(e)
+        status = "failure"
 
-def run_all_scrapers():
-    """Run all scrapers immediately"""
-    logger.info("Running all scrapers now...")
-    
-    # Reset the global stats before starting a new run
+    if status == "failure":
+        global_stats["scraper_errors"] += 1
+    global_stats["scrapers_run"] += 1
+    db.add(scraper_run)
+    db.commit()
+    db.close()
+    return status
+
+
+def run_scraper(scraper_name, roles=None, days_back=7):
+    """Run a single scraper in this process and record the result."""
+    if roles is None:
+        roles = resolve_roles_for_scraper(scraper_name)
+    return record_scraper_result(fetch_scraper_output(scraper_name, roles, days_back))
+
+
+def _log_cycle_summary(total, started):
+    errors = global_stats["scraper_errors"]
+    minutes = (datetime.now(timezone.utc) - started).total_seconds() / 60
+    logger.info("=" * 50)
+    logger.info(f"SCRAPER RUN SUMMARY ({datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC, {minutes:.1f} min)")
+    logger.info(f"Scrapers run: {global_stats['scrapers_run']}/{total}")
+    logger.info(f"Failed: {errors}")
+    logger.info(f"Total jobs added: {global_stats['total_jobs_added']}")
+    logger.info(f"Total jobs updated: {global_stats['total_jobs_updated']}")
+    logger.info(f"Total jobs expired: {global_stats['total_jobs_expired']}")
+    logger.info("=" * 50)
+
+
+def run_all_scrapers(days_back=7):
+    """Run every scraper, several at once, and record each result as it lands.
+
+    Scrapers run in worker processes (each with its own stdout, so printed
+    errors stay attributed to the right scraper). Results come back here and
+    are written to the database one at a time. Each scraper talks to a
+    different company's site, so parallelism doesn't raise per-site load.
+    SCRAPER_WORKERS sets the pool size (default 6, about 100 MB each).
+    """
+    started = datetime.now(timezone.utc)
     reset_global_stats()
 
     db = next(get_db())
@@ -557,17 +551,30 @@ def run_all_scrapers():
             logger.info(f"Marked {stale} stale scraper run(s) as interrupted")
     finally:
         db.close()
-    
-    # Get all available scrapers
-    available_scrapers = get_all_scrapers()
-    
-    # Log the number of scrapers found
-    logger.info(f"Found {len(available_scrapers)} scrapers to run")
-    
-    # Run each scraper with its custom roles
-    for scraper_name in available_scrapers:
-        # Custom roles will be used automatically in run_scraper
-        run_scraper(scraper_name)
+
+    names = list(get_all_scrapers())
+    workers = max(1, int(os.getenv("SCRAPER_WORKERS", "6")))
+    logger.info(f"Running {len(names)} scrapers with {workers} workers...")
+
+    # spawn, not fork: the API process has live threads and DB connections
+    context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+        futures = {
+            pool.submit(fetch_scraper_output, name, resolve_roles_for_scraper(name), days_back): name
+            for name in names
+        }
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                result = future.result()
+            except Exception as e:  # worker died (e.g. out of memory)
+                now = datetime.now(timezone.utc)
+                result = {"scraper_name": name, "jobs_data": {}, "error_lines": [],
+                          "crash": f"worker failed: {type(e).__name__}: {e}",
+                          "start_time": now, "end_time": now}
+            record_scraper_result(result)
+
+    _log_cycle_summary(len(names), started)
 
 def check_for_expired_jobs():
     """Check for and mark expired jobs"""
@@ -590,48 +597,31 @@ def check_for_expired_jobs():
 
 def setup_scheduler():
     """Configure and start the background scheduler"""
-    scheduler = BackgroundScheduler()
-    
-    # Get all available scrapers
+    scheduler = BackgroundScheduler(timezone="UTC")
     available_scrapers = get_all_scrapers()
-    
-    # Log the number of scrapers found
-    logger.info(f"Found {len(available_scrapers)} scrapers to schedule")
-    
-    # Schedule all scrapers to run hourly from 7 AM to 5 PM
+
+    # Every hour, around the clock: US postings keep landing into the evening,
+    # and the old 9-19 UTC window left them unseen until the next morning.
+    # A cycle takes well under an hour in parallel; if one overruns, the next
+    # trigger is skipped rather than stacked (max_instances=1, coalesce).
     scheduler.add_job(
         run_all_scrapers,
-        CronTrigger(hour='9-19', minute='0'),  # Run at the top of every hour from 7 AM to 5 PM
+        CronTrigger(minute=0),
         id="run_all_scrapers",
-        replace_existing=True
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=600,
     )
-    
-    # Schedule a job to check for expired jobs daily
+
     scheduler.add_job(
         check_for_expired_jobs,
-        CronTrigger(hour=18, minute=0),  # Run daily at 6 PM
+        CronTrigger(hour=18, minute=0),
         id="check_for_expired_jobs",
-        replace_existing=True
+        replace_existing=True,
     )
-    
-    # Run scrapers once at startup only if not already scheduled
-    if scheduler.get_job('run_all_scrapers') is None:
-        logger.warning("Scheduler reset detected, re-configuring all jobs")
-        scheduler.add_job(
-            run_all_scrapers,
-            CronTrigger(hour='7-17', minute='0'),
-            id="run_all_scrapers",
-            replace_existing=True
-        )
-        
-        scheduler.add_job(
-            check_for_expired_jobs,
-            CronTrigger(hour=18, minute=0),
-            id="check_for_expired_jobs",
-            replace_existing=True
-        )
-    
+
     scheduler.start()
-    logger.info(f"Scheduler started with {len(available_scrapers)} scrapers running hourly from 7 AM to 5 PM")
-    
+    logger.info(f"Scheduler started: {len(available_scrapers)} scrapers, every hour on the hour (UTC)")
+
     return scheduler
