@@ -539,7 +539,7 @@ def run_all_scrapers(days_back=7):
     errors stay attributed to the right scraper). Results come back here and
     are written to the database one at a time. Each scraper talks to a
     different company's site, so parallelism doesn't raise per-site load.
-    SCRAPER_WORKERS sets the pool size (default 6, about 100 MB each).
+    SCRAPER_WORKERS sets the pool size (default 10, about 75 MB each; mostly network-bound).
     """
     started = datetime.now(timezone.utc)
     reset_global_stats()
@@ -553,7 +553,7 @@ def run_all_scrapers(days_back=7):
         db.close()
 
     names = list(get_all_scrapers())
-    workers = max(1, int(os.getenv("SCRAPER_WORKERS", "6")))
+    workers = max(1, int(os.getenv("SCRAPER_WORKERS", "10")))
     logger.info(f"Running {len(names)} scrapers with {workers} workers...")
 
     # spawn, not fork: the API process has live threads and DB connections
