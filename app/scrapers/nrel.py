@@ -9,7 +9,7 @@ def get_nrel_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_api_url = "https://nrel.wd5.myworkdayjobs.com/wday/cxs/nrel/NREL/jobs"
+        base_api_url = "https://nrel.wd5.myworkdayjobs.com/wday/cxs/nrel/NLR/jobs"
 
         payload = {
             "appliedFacets": {},
@@ -22,7 +22,7 @@ def get_nrel_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://nrel.wd5.myworkdayjobs.com/NREL"
+            "Referer": "https://nrel.wd5.myworkdayjobs.com/NLR"
         }
 
         try:
@@ -67,7 +67,7 @@ def get_nrel_jobs(roles, days=7):
 
 def process_nrel_job(job, cutoff_date):
     try:
-        job_url = f"https://nrel.wd5.myworkdayjobs.com/en-US/NREL{job.get('externalPath', '')}"
+        job_url = f"https://nrel.wd5.myworkdayjobs.com/en-US/NLR{job.get('externalPath', '')}"
         metadata = get_nrel_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -114,7 +114,7 @@ def format_nrel_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_nrel_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://nrel.wd5.myworkdayjobs.com/en-US/NREL{job.get('externalPath', '')}",
+        "job_url": f"https://nrel.wd5.myworkdayjobs.com/en-US/NLR{job.get('externalPath', '')}",
         "date_posted": format_nrel_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

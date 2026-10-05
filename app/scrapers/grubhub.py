@@ -9,7 +9,7 @@ def get_grubhub_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://wd3.myworkdaysite.com/wday/cxs/takeaway/grubhubcareers/jobs"
+        base_url = "https://wonder.wd1.myworkdayjobs.com/wday/cxs/wonder/Grubhub_Careers/jobs"
 
         payload = {
             "searchText": target_role,
@@ -21,7 +21,7 @@ def get_grubhub_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://wd3.myworkdaysite.com/recruiting/takeaway/grubhubcareers"
+            "Referer": "https://wonder.wd1.myworkdayjobs.com/en-US/Grubhub_Careers"
         }
 
         try:
@@ -66,7 +66,7 @@ def get_grubhub_jobs(roles, days=7):
 
 def process_grubhub_job(job, cutoff_date):
     try:
-        job_url = f"https://wd3.myworkdaysite.com/recruiting/takeaway/grubhubcareers{job.get('externalPath', '')}"
+        job_url = f"https://wonder.wd1.myworkdayjobs.com/en-US/Grubhub_Careers{job.get('externalPath', '')}"
         metadata = get_grubhub_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -115,7 +115,7 @@ def format_grubhub_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_grubhub_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://wd3.myworkdaysite.com/recruiting/takeaway/grubhubcareers{job.get('externalPath', '')}",
+        "job_url": f"https://wonder.wd1.myworkdayjobs.com/en-US/Grubhub_Careers{job.get('externalPath', '')}",
         "date_posted": format_grubhub_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

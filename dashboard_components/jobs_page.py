@@ -66,7 +66,7 @@ def display_jobs_page():
 
     # Initialize session state for time filters if not present
     if "time_filters" not in st.session_state:
-        st.session_state.time_filters = {"days_7": True}  # Default to 7 days
+        st.session_state.time_filters = {"today": True}  # Default to today
 
     # Create checkboxes for each time option
     selected_time_keys = []
@@ -84,8 +84,8 @@ def display_jobs_page():
 
     # If nothing selected, default to 7 days
     if not selected_time_keys:
-        selected_time_keys = ["days_7"]
-        st.session_state.time_filters = {"days_7": True}
+        selected_time_keys = ["today"]
+        st.session_state.time_filters = {"today": True}
         st.rerun()
 
     # Calculate the maximum days to fetch based on selected options

@@ -9,7 +9,7 @@ def get_discover_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://discover.wd5.myworkdayjobs.com/wday/cxs/discover/Discover/jobs"
+        base_url = "https://capitalone.wd12.myworkdayjobs.com/wday/cxs/capitalone/Capital_One/jobs"
         payload = {
             "appliedFacets": {},
             "searchText": target_role,
@@ -20,7 +20,7 @@ def get_discover_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://discover.wd5.myworkdayjobs.com/Discover"
+            "Referer": "https://capitalone.wd12.myworkdayjobs.com/Capital_One"
         }
 
         try:
@@ -65,7 +65,7 @@ def get_discover_jobs(roles, days=7):
 
 def process_discover_job(job, cutoff_date):
     try:
-        job_url = f"https://discover.wd5.myworkdayjobs.com/en-US/Discover{job.get('externalPath', '')}"
+        job_url = f"https://capitalone.wd12.myworkdayjobs.com/en-US/Capital_One{job.get('externalPath', '')}"
         metadata = get_discover_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -114,7 +114,7 @@ def format_discover_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_discover_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://discover.wd5.myworkdayjobs.com/en-US/Discover{job.get('externalPath', '')}",
+        "job_url": f"https://capitalone.wd12.myworkdayjobs.com/en-US/Capital_One{job.get('externalPath', '')}",
         "date_posted": format_discover_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

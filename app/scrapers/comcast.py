@@ -9,7 +9,7 @@ def get_comcast_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://comcast.wd5.myworkdayjobs.com/wday/cxs/comcast/Comcast_Careers/jobs"
+        base_url = "https://comcast.wd115.myworkdayjobs.com/wday/cxs/comcast/Comcast_Careers/jobs"
 
         payload = {
             "appliedFacets": {},
@@ -22,7 +22,7 @@ def get_comcast_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://comcast.wd5.myworkdayjobs.com/Comcast_Careers"
+            "Referer": "https://comcast.wd115.myworkdayjobs.com/Comcast_Careers"
         }
 
         try:
@@ -67,7 +67,7 @@ def get_comcast_jobs(roles, days=7):
 
 def process_comcast_job(job, cutoff_date):
     try:
-        job_url = f"https://comcast.wd5.myworkdayjobs.com/en-US/Comcast_Careers{job.get('externalPath', '')}"
+        job_url = f"https://comcast.wd115.myworkdayjobs.com/en-US/Comcast_Careers{job.get('externalPath', '')}"
         metadata = get_comcast_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -114,7 +114,7 @@ def format_comcast_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_comcast_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://comcast.wd5.myworkdayjobs.com/en-US/Comcast_Careers{job.get('externalPath', '')}",
+        "job_url": f"https://comcast.wd115.myworkdayjobs.com/en-US/Comcast_Careers{job.get('externalPath', '')}",
         "date_posted": format_comcast_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

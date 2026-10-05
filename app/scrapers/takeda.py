@@ -9,7 +9,7 @@ def get_takeda_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://takeda.wd3.myworkdayjobs.com/wday/cxs/takeda/External/jobs"
+        base_url = "https://takeda.wd502.myworkdayjobs.com/wday/cxs/takeda/External/jobs"
 
         payload = {
             "searchText": target_role,
@@ -21,7 +21,7 @@ def get_takeda_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://takeda.wd3.myworkdayjobs.com/External"
+            "Referer": "https://takeda.wd502.myworkdayjobs.com/External"
         }
 
         try:
@@ -66,7 +66,7 @@ def get_takeda_jobs(roles, days=7):
 
 def process_takeda_job(job, cutoff_date):
     try:
-        job_url = f"https://takeda.wd3.myworkdayjobs.com/en-US/External{job.get('externalPath', '')}"
+        job_url = f"https://takeda.wd502.myworkdayjobs.com/en-US/External{job.get('externalPath', '')}"
         metadata = get_takeda_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -113,7 +113,7 @@ def format_takeda_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://takeda.wd3.myworkdayjobs.com/en-US/External{job.get('externalPath', '')}",
+        "job_url": f"https://takeda.wd502.myworkdayjobs.com/en-US/External{job.get('externalPath', '')}",
         "date_posted": format_takeda_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

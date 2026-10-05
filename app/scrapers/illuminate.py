@@ -9,7 +9,7 @@ def get_illuminate_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://illuminateusa.wd5.myworkdayjobs.com/wday/cxs/illuminateusa/Illuminate_Careers/jobs"
+        base_url = "https://illuminateusa.wd503.myworkdayjobs.com/wday/cxs/illuminateusa/Illuminate_Careers/jobs"
         payload = {
             "appliedFacets": {},
             "searchText": target_role,
@@ -20,7 +20,7 @@ def get_illuminate_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://illuminateusa.wd5.myworkdayjobs.com/Illuminate_Careers"
+            "Referer": "https://illuminateusa.wd503.myworkdayjobs.com/Illuminate_Careers"
         }
 
         try:
@@ -65,7 +65,7 @@ def get_illuminate_jobs(roles, days=7):
 
 def process_illuminate_job(job, cutoff_date):
     try:
-        job_url = f"https://illuminateusa.wd5.myworkdayjobs.com/Illuminate_Careers{job.get('externalPath', '')}"
+        job_url = f"https://illuminateusa.wd503.myworkdayjobs.com/Illuminate_Careers{job.get('externalPath', '')}"
         metadata = get_illuminate_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -114,7 +114,7 @@ def format_illuminate_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_illuminate_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://illuminateusa.wd5.myworkdayjobs.com/Illuminate_Careers{job.get('externalPath', '')}",
+        "job_url": f"https://illuminateusa.wd503.myworkdayjobs.com/Illuminate_Careers{job.get('externalPath', '')}",
         "date_posted": format_illuminate_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

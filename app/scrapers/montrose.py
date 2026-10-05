@@ -9,7 +9,7 @@ def get_montrose_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://montrose.wd1.myworkdayjobs.com/wday/cxs/montrose/ECT2/jobs"
+        base_url = "https://onterris.wd1.myworkdayjobs.com/wday/cxs/onterris/ONT/jobs"
         payload = {
             "appliedFacets": {},
             "searchText": target_role,
@@ -20,7 +20,7 @@ def get_montrose_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://montrose.wd1.myworkdayjobs.com/ECT2"
+            "Referer": "https://onterris.wd1.myworkdayjobs.com/ONT"
         }
 
         try:
@@ -65,7 +65,7 @@ def get_montrose_jobs(roles, days=7):
 
 def process_montrose_job(job, cutoff_date):
     try:
-        job_url = f"https://montrose.wd1.myworkdayjobs.com/en-US/ECT2{job.get('externalPath', '')}"
+        job_url = f"https://onterris.wd1.myworkdayjobs.com/en-US/ONT{job.get('externalPath', '')}"
         metadata = get_montrose_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -114,7 +114,7 @@ def format_montrose_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_montrose_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://montrose.wd1.myworkdayjobs.com/en-US/ECT2{job.get('externalPath', '')}",
+        "job_url": f"https://onterris.wd1.myworkdayjobs.com/en-US/ONT{job.get('externalPath', '')}",
         "date_posted": format_montrose_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')

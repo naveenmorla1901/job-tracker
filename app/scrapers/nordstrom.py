@@ -9,7 +9,7 @@ def get_nordstrom_jobs(roles, days=7):
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_api_url = "https://nordstrom.wd5.myworkdayjobs.com/wday/cxs/nordstrom/nordstrom_careers/jobs"
+        base_api_url = "https://nordstrom.wd501.myworkdayjobs.com/wday/cxs/nordstrom/nordstrom_careers/jobs"
 
         payload = {
             "appliedFacets": {},
@@ -22,7 +22,7 @@ def get_nordstrom_jobs(roles, days=7):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://nordstrom.wd5.myworkdayjobs.com/nordstrom_careers"
+            "Referer": "https://nordstrom.wd501.myworkdayjobs.com/nordstrom_careers"
         }
 
         try:
@@ -67,7 +67,7 @@ def get_nordstrom_jobs(roles, days=7):
 
 def process_nordstrom_job(job, cutoff_date):
     try:
-        job_url = f"https://nordstrom.wd5.myworkdayjobs.com/en-US/nordstrom_careers{job.get('externalPath', '')}"
+        job_url = f"https://nordstrom.wd501.myworkdayjobs.com/en-US/nordstrom_careers{job.get('externalPath', '')}"
         metadata = get_nordstrom_job_details(job_url)
 
         if not metadata.get('datePosted'):
@@ -116,7 +116,7 @@ def format_nordstrom_job_data(job, metadata):
         "job_title": job.get('title', 'N/A'),
         "job_id": extract_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "job_url": f"https://nordstrom.wd5.myworkdayjobs.com/en-US/nordstrom_careers{job.get('externalPath', '')}",
+        "job_url": f"https://nordstrom.wd501.myworkdayjobs.com/en-US/nordstrom_careers{job.get('externalPath', '')}",
         "date_posted": format_nordstrom_date(metadata['datePosted']),
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')
