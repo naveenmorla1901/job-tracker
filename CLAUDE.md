@@ -56,10 +56,13 @@ Four main layers:
 - `app/scrapers/__init__.py` exports `get_all_scrapers()` — discovers scrapers by listing the module
 
 ### 4. Scheduler (`app/scheduler/jobs.py`)
-- Uses APScheduler `BackgroundScheduler`
-- Runs all scrapers hourly 9–19 via `run_all_scrapers()` → `run_scraper(name)`
-- `run_scraper` dynamically imports `app.scrapers.{name}` and calls `get_{name}_jobs()`
+- Uses APScheduler `BackgroundScheduler` (UTC)
+- Runs all scrapers every hour, around the clock, via `run_all_scrapers()`; an overrunning cycle skips the next trigger
+- `run_all_scrapers` fans scrapers out to a spawn-based process pool (`SCRAPER_WORKERS`, default 10); each worker runs `fetch_scraper_output(name)` (no DB access) and the parent writes results one at a time with `record_scraper_result()`
+- Run status comes from `classify_run()`: success / partial / empty / failure, based on jobs returned and error lines the scraper printed
 - `COMPANY_NAMES` dict maps module name → display name used when writing to DB
+- `app/scrapers/__init__.py` mounts HTTP retries (429/5xx/timeouts) on every https request the scrapers make
+- `app/scrapers/ats_boards.py` has shared fetchers for public job-board APIs (Ashby, Greenhouse)
 
 ### Database (`app/db/`)
 - SQLAlchemy ORM; PostgreSQL in prod, SQLite in tests
