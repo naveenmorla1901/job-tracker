@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models import ScraperRun, Job
 from app.db.crud import upsert_jobs, mark_inactive_jobs
-from app.scrapers import get_all_scrapers
+from app.scrapers import get_all_scrapers, begin_scraper_run, end_scraper_run, set_workday_slots
 
 logger = logging.getLogger(__name__)
 
@@ -430,6 +430,7 @@ def fetch_scraper_output(scraper_name, roles, days_back=7):
     tee = _TeeStdout(sys.stdout)
     crash = None
     jobs_data = {}
+    begin_scraper_run(days_back)
     try:
         scraper_module = importlib.import_module(f"app.scrapers.{scraper_name}")
         get_jobs_func = getattr(scraper_module, f"get_{scraper_name}_jobs")
@@ -438,6 +439,8 @@ def fetch_scraper_output(scraper_name, roles, days_back=7):
         jobs_data = json.loads(json.dumps(jobs_data, default=str))
     except Exception as e:
         crash = f"{type(e).__name__}: {e}"
+    finally:
+        end_scraper_run()
     error_lines = [
         line.strip() for line in tee.buffer_text.getvalue().splitlines()
         if _ERROR_LINE.search(line)
@@ -540,6 +543,8 @@ def run_all_scrapers(days_back=7):
     are written to the database one at a time. Each scraper talks to a
     different company's site, so parallelism doesn't raise per-site load.
     SCRAPER_WORKERS sets the pool size (default 10, about 75 MB each; mostly network-bound).
+    Workday rate-limits by client IP across all tenants, so every worker shares one
+    budget of WORKDAY_MAX_CONCURRENCY (default 8) in-flight Workday requests.
     """
     started = datetime.now(timezone.utc)
     reset_global_stats()
@@ -558,7 +563,11 @@ def run_all_scrapers(days_back=7):
 
     # spawn, not fork: the API process has live threads and DB connections
     context = multiprocessing.get_context("spawn")
-    with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+    workday_slots = context.BoundedSemaphore(max(1, int(os.getenv("WORKDAY_MAX_CONCURRENCY", "8"))))
+    with ProcessPoolExecutor(
+        max_workers=workers, mp_context=context,
+        initializer=set_workday_slots, initargs=(workday_slots,),
+    ) as pool:
         futures = {
             pool.submit(fetch_scraper_output, name, resolve_roles_for_scraper(name), days_back): name
             for name in names
