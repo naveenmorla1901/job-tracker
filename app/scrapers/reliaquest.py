@@ -1,15 +1,26 @@
+import concurrent.futures
+import json
+
 import requests
 from bs4 import BeautifulSoup
-import json
-from datetime import datetime, timedelta
-import concurrent.futures
+
+from app.scrapers.workday_utils import (
+    format_workday_date,
+    parse_workday_date,
+    workday_effective_date,
+    workday_job_is_recent,
+)
+
+BASE_URL = "https://reliaquest.wd5.myworkdayjobs.com"
+BOARD = "ReliaQuest_Careers"
+
 
 def get_reliaquest_jobs(roles, days=40):
     """Main function to retrieve ReliaQuest jobs structured by roles"""
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
-        base_url = "https://reliaquest.wd5.myworkdayjobs.com/wday/cxs/reliaquest/Campus_Recruiting/jobs"
+        search_url = f"{BASE_URL}/wday/cxs/reliaquest/{BOARD}/jobs"
 
         payload = {
             "appliedFacets": {},
@@ -22,17 +33,16 @@ def get_reliaquest_jobs(roles, days=40):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://reliaquest.wd5.myworkdayjobs.com/Campus_Recruiting"
+            "Referer": f"{BASE_URL}/{BOARD}"
         }
 
         try:
-            response = requests.post(base_url, json=payload, headers=headers)
+            response = requests.post(search_url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
 
             seen_ids = set()
             jobs_to_process = []
-            cutoff_date = datetime.now() - timedelta(days=days)
 
             for job in data.get('jobPostings', []):
                 job_id = extract_reliaquest_id(job)
@@ -42,7 +52,7 @@ def get_reliaquest_jobs(roles, days=40):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_job = {
-                    executor.submit(process_reliaquest_job, job, cutoff_date): job
+                    executor.submit(process_reliaquest_job, job, days): job
                     for job in jobs_to_process
                 }
 
@@ -52,7 +62,7 @@ def get_reliaquest_jobs(roles, days=40):
                     if result:
                         results.append(result)
 
-            return sorted(results, key=lambda x: x['posted'], reverse=True)
+            return sorted(results, key=lambda x: x['date_posted'], reverse=True)
 
         except Exception as e:
             print(f"Error fetching {target_role} jobs: {str(e)}")
@@ -65,21 +75,19 @@ def get_reliaquest_jobs(roles, days=40):
 
     return structured_results
 
-def process_reliaquest_job(job, cutoff_date):
+
+def process_reliaquest_job(job, days):
     try:
-        job_url = f"https://reliaquest.wd5.myworkdayjobs.com/en-US/Campus_Recruiting{job.get('externalPath', '')}"
+        job_url = f"{BASE_URL}/en-US/{BOARD}{job.get('externalPath', '')}"
         metadata = get_reliaquest_details(job_url)
 
-        if not metadata.get('datePosted'):
-            return None
-
-        post_date = parse_reliaquest_date(metadata['datePosted'])
-        if post_date and post_date >= cutoff_date:
+        if workday_job_is_recent(job, days, metadata.get('datePosted')):
             return format_reliaquest_data(job, metadata)
 
     except Exception as e:
         print(f"Error processing job: {str(e)}")
     return None
+
 
 def get_reliaquest_details(job_url):
     try:
@@ -109,51 +117,36 @@ def get_reliaquest_details(job_url):
         print(f"Error fetching details: {str(e)}")
         return {}
 
+
 def format_reliaquest_data(job, metadata):
     return {
-        "position": job.get('title', 'N/A'),
-        "req_id": extract_reliaquest_id(job),
+        "job_title": job.get('title', 'N/A'),
+        "job_id": extract_reliaquest_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "url": f"https://reliaquest.wd5.myworkdayjobs.com/en-US/Campus_Recruiting{job.get('externalPath', '')}",
-        "posted": format_reliaquest_date(metadata['datePosted']),
-        "type": metadata.get('employmentType', 'N/A'),
-        "overview": metadata.get('description', 'N/A')
+        "job_url": f"{BASE_URL}/en-US/{BOARD}{job.get('externalPath', '')}",
+        "date_posted": workday_effective_date(job, metadata.get('datePosted')) or 'N/A',
+        "employment_type": metadata.get('employmentType', 'N/A'),
+        "description": metadata.get('description', 'N/A')
     }
+
 
 def extract_reliaquest_id(job):
     try:
+        bullet = (job.get('bulletFields') or [None])[0]
+        if bullet:
+            return bullet
         return job['externalPath'].split('/')[-1].split('_')[-1]
-    except:
-        return job.get('bulletFields', ['N/A'])[0]
+    except Exception:
+        return 'N/A'
+
 
 def parse_reliaquest_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z")
-    except:
-        try:
-            return datetime.fromisoformat(date_str.replace('Z', ''))
-        except:
-            return None
+    return parse_workday_date(date_str)
+
 
 def format_reliaquest_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%Y-%m-%d")
-    except:
-        return date_str
+    return format_workday_date(date_str) or date_str
+
 
 def clean_reliaquest_desc(desc):
     return ' '.join(BeautifulSoup(desc, 'html.parser').get_text().split()[:150]) + '...'
-
-# Example usage:
-# if __name__ == "__main__":
-#     roles_to_check = [
-#         "data scientist",
-#         "bussiness",
-#         "Cybersecurity Intern",
-#         "Entry Level Engineer",
-#         "Graduate Program",
-#         "Junior Developer"
-#     ]
-
-#     jobs_data = get_reliaquest_jobs(roles=roles_to_check, days=40)
-#     print(json.dumps(jobs_data, indent=2, ensure_ascii=False))

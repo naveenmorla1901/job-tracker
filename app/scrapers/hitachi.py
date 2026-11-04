@@ -1,8 +1,16 @@
+import concurrent.futures
+import json
+import re
+
 import requests
 from bs4 import BeautifulSoup
-import json
-from datetime import datetime, timedelta
-import concurrent.futures
+
+from app.scrapers.workday_utils import (
+    format_workday_date,
+    parse_workday_date,
+    workday_effective_date,
+    workday_job_is_recent,
+)
 
 def get_hitachi_jobs(roles, days=7):
     """Main function to retrieve Hitachi jobs structured by roles"""
@@ -32,7 +40,6 @@ def get_hitachi_jobs(roles, days=7):
 
             seen_ids = set()
             jobs_to_process = []
-            cutoff_date = datetime.now() - timedelta(days=days)
 
             for job in data.get('jobPostings', []):
                 job_id = extract_hitachi_job_id(job)
@@ -42,7 +49,7 @@ def get_hitachi_jobs(roles, days=7):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_job = {
-                    executor.submit(process_hitachi_job, job, cutoff_date): job
+                    executor.submit(process_hitachi_job, job, days): job
                     for job in jobs_to_process
                 }
 
@@ -65,16 +72,12 @@ def get_hitachi_jobs(roles, days=7):
 
     return structured_results
 
-def process_hitachi_job(job, cutoff_date):
+def process_hitachi_job(job, days):
     try:
         job_url = f"https://hitachi.wd1.myworkdayjobs.com/en-US/hitachi{job.get('externalPath', '')}"
         metadata = get_hitachi_job_details(job_url)
 
-        if not metadata.get('datePosted'):
-            return None
-
-        post_date = parse_hitachi_date(metadata['datePosted'])
-        if post_date and post_date >= cutoff_date:
+        if workday_job_is_recent(job, days, metadata.get('datePosted')):
             return format_hitachi_job_data(job, metadata)
 
     except Exception as e:
@@ -117,34 +120,26 @@ def format_hitachi_job_data(job, metadata):
         "job_id": extract_hitachi_job_id(job),
         "location": job.get('locationsText', 'N/A'),
         "job_url": f"https://hitachi.wd1.myworkdayjobs.com/en-US/hitachi{job.get('externalPath', '')}",
-        "date_posted": format_hitachi_date(metadata['datePosted']),
+        "date_posted": workday_effective_date(job, metadata.get('datePosted')) or 'N/A',
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')
     }
 
 def extract_hitachi_job_id(job):
-    try:
-        path_parts = job.get('externalPath', '').split('/')
-        return next((part for part in path_parts if part.startswith('JR-')), 'N/A')
-    except:
-        return job.get('bulletFields', ['N/A'])[0]
+    bullet = (job.get('bulletFields') or [None])[0]
+    if bullet:
+        return bullet
+    path = job.get('externalPath', '')
+    match = re.search(r'([A-Z]\d{4,})', path)
+    if match:
+        return match.group(1)
+    return path.rstrip('/').split('/')[-1].split('_')[-1] or 'N/A'
 
 def parse_hitachi_date(date_str):
-    formats = [
-        "%Y-%m-%dT%H:%M:%S.%f%z",
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%Y-%m-%d"
-    ]
-    for fmt in formats:
-        try:
-            return datetime.strptime(date_str, fmt)
-        except:
-            continue
-    return None
+    return parse_workday_date(date_str)
 
 def format_hitachi_date(date_str):
-    dt = parse_hitachi_date(date_str)
-    return dt.strftime("%Y-%m-%d") if dt else date_str
+    return format_workday_date(date_str) or date_str
 
 def clean_hitachi_description(desc):
     if not desc:

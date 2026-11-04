@@ -1,8 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-from datetime import datetime, timedelta
 import concurrent.futures
+
+from app.scrapers.workday_utils import (
+    format_workday_date,
+    parse_workday_date,
+    workday_effective_date,
+    workday_job_is_recent,
+)
 
 def get_humana_jobs(roles, days=7):
     """Main function to retrieve Humana jobs structured by roles"""
@@ -29,7 +35,6 @@ def get_humana_jobs(roles, days=7):
 
             seen_ids = set()
             jobs_to_process = []
-            cutoff_date = datetime.now() - timedelta(days=days)
 
             for job in data.get('jobPostings', []):
                 job_id = extract_humana_job_id(job)
@@ -39,7 +44,7 @@ def get_humana_jobs(roles, days=7):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_job = {
-                    executor.submit(process_humana_job, job, cutoff_date): job
+                    executor.submit(process_humana_job, job, days): job
                     for job in jobs_to_process
                 }
 
@@ -63,16 +68,12 @@ def get_humana_jobs(roles, days=7):
     return structured_results
 
 # Helper functions
-def process_humana_job(job, cutoff_date):
+def process_humana_job(job, days):
     try:
         job_url = f"https://humana.wd5.myworkdayjobs.com/en-US/Humana_External_Career_Site{job.get('externalPath', '')}"
         metadata = get_humana_job_details(job_url)
 
-        if not metadata.get('datePosted'):
-            return None
-
-        post_date = parse_humana_date(metadata['datePosted'])
-        if post_date and post_date >= cutoff_date:
+        if workday_job_is_recent(job, days, metadata.get('datePosted')):
             return format_humana_job_data(job, metadata)
 
     except Exception as e:
@@ -113,7 +114,7 @@ def format_humana_job_data(job, metadata):
         "job_id": extract_humana_job_id(job),
         "location": job.get('locationsText', 'N/A'),
         "job_url": f"https://humana.wd5.myworkdayjobs.com/en-US/Humana_External_Career_Site{job.get('externalPath', '')}",
-        "date_posted": format_humana_date(metadata['datePosted']),
+        "date_posted": workday_effective_date(job, metadata.get('datePosted')) or 'N/A',
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')
     }
@@ -125,16 +126,10 @@ def extract_humana_job_id(job):
         return job.get('bulletFields', ['N/A'])[0]
 
 def parse_humana_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z")
-    except:
-        return None
+    return parse_workday_date(date_str)
 
 def format_humana_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%Y-%m-%d")
-    except:
-        return date_str
+    return format_workday_date(date_str) or date_str
 
 def clean_humana_description(desc):
     if not desc:

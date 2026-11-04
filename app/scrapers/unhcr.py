@@ -1,8 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-from datetime import datetime, timedelta
 import concurrent.futures
+
+from app.scrapers.workday_utils import (
+    format_workday_date,
+    parse_workday_date,
+    workday_effective_date,
+    workday_job_is_recent,
+)
 
 def get_unhcr_jobs(roles, days=30):
     """Main function to retrieve UNHCR jobs structured by roles"""
@@ -11,7 +17,8 @@ def get_unhcr_jobs(roles, days=30):
         """Fetch jobs for a single role"""
         base_url = "https://unhcr.wd3.myworkdayjobs.com/wday/cxs/unhcr/External/jobs"
         payload = {
-            "appliedFacets": {"locationCountry": ["bc33aa3152ec42d4995f4791a106ed09"]},
+            # UNHCR hires worldwide; the old US-only facet hid every posting.
+            "appliedFacets": {},
             "searchText": target_role,
             "limit": 20,
             "offset": 0
@@ -30,7 +37,6 @@ def get_unhcr_jobs(roles, days=30):
 
             seen_ids = set()
             jobs_to_process = []
-            cutoff_date = datetime.now() - timedelta(days=days)
 
             for job in data.get('jobPostings', []):
                 job_id = extract_unhcr_job_id(job)
@@ -40,7 +46,7 @@ def get_unhcr_jobs(roles, days=30):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_job = {
-                    executor.submit(process_unhcr_job, job, cutoff_date): job
+                    executor.submit(process_unhcr_job, job, days): job
                     for job in jobs_to_process
                 }
 
@@ -50,7 +56,7 @@ def get_unhcr_jobs(roles, days=30):
                     if result:
                         results.append(result)
 
-            return sorted(results, key=lambda x: x['posting_date'], reverse=True)
+            return sorted(results, key=lambda x: x['date_posted'], reverse=True)
 
         except Exception as e:
             print(f"Error fetching {target_role} jobs: {str(e)}")
@@ -63,16 +69,12 @@ def get_unhcr_jobs(roles, days=30):
 
     return structured_results
 
-def process_unhcr_job(job, cutoff_date):
+def process_unhcr_job(job, days):
     try:
         job_url = f"https://unhcr.wd3.myworkdayjobs.com/en-US/External{job.get('externalPath', '')}"
         metadata = get_unhcr_job_details(job_url)
 
-        if not metadata.get('datePosted'):
-            return None
-
-        post_date = parse_unhcr_date(metadata['datePosted'])
-        if post_date and post_date >= cutoff_date:
+        if workday_job_is_recent(job, days, metadata.get('datePosted')):
             return format_unhcr_job_data(job, metadata)
 
     except Exception as e:
@@ -112,14 +114,14 @@ def get_unhcr_job_details(job_url):
 
 def format_unhcr_job_data(job, metadata):
     return {
-        "position": job.get('title', 'N/A'),
+        "job_title": job.get('title', 'N/A'),
         "job_id": extract_unhcr_job_id(job),
         "location": job.get('locationsText', 'N/A'),
-        "posting_date": format_unhcr_date(metadata.get('datePosted')),
-        "contract_type": metadata.get('employmentType', 'N/A'),
+        "job_url": f"https://unhcr.wd3.myworkdayjobs.com/en-US/External{job.get('externalPath', '')}",
+        "date_posted": workday_effective_date(job, metadata.get('datePosted')) or 'N/A',
+        "employment_type": metadata.get('employmentType', 'N/A'),
+        "description": metadata.get('description', 'N/A')[:500] + "...",
         "language_requirements": metadata.get('languages', 'English required'),
-        "application_url": f"https://unhcr.wd3.myworkdayjobs.com/en-US/External{job.get('externalPath', '')}",
-        "description": metadata.get('description', 'N/A')[:500] + "..."
     }
 
 def extract_unhcr_job_id(job):
@@ -129,16 +131,10 @@ def extract_unhcr_job_id(job):
         return job.get('bulletFields', ['N/A'])[0]
 
 def parse_unhcr_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z")
-    except:
-        return None
+    return parse_workday_date(date_str)
 
 def format_unhcr_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%Y-%m-%d")
-    except:
-        return date_str
+    return format_workday_date(date_str) or date_str
 
 def clean_description(desc):
     return BeautifulSoup(desc, 'html.parser').get_text(separator=' ').strip()

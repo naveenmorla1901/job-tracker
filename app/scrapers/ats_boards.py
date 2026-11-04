@@ -6,6 +6,7 @@ so each searched role is matched against job titles here.
 Not a scraper itself: there is no get_ats_boards_jobs, so the scheduler skips it.
 """
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -103,6 +104,164 @@ def fetch_greenhouse_jobs(board, roles, days=7):
             "date_posted": posted.strftime("%Y-%m-%d") if posted else None,
             "employment_type": "N/A",
             "description": _clean(BeautifulSoup(job.get("content") or "", "html.parser").get_text()),
+            "_posted": posted,
+        })
+    return _by_role(jobs, roles, days)
+
+
+def _rippling_detail(board, posting):
+    response = requests.get(
+        f"https://ats.rippling.com/api/v1/board/{board}/jobs/{posting['uuid']}",
+        headers=HEADERS, timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_rippling_jobs(board, roles, days=7):
+    """Jobs from https://ats.rippling.com/<board>/jobs grouped by role."""
+    response = requests.get(
+        f"https://ats.rippling.com/api/v1/board/{board}/jobs",
+        headers=HEADERS, timeout=30,
+    )
+    response.raise_for_status()
+    postings = []
+    seen = set()
+    for posting in response.json():
+        uuid = posting.get("uuid")
+        if uuid and uuid not in seen:
+            seen.add(uuid)
+            postings.append(posting)
+
+    details = []
+    failures = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(_rippling_detail, board, p) for p in postings]
+        for future in futures:
+            try:
+                details.append(future.result())
+            except Exception as exc:
+                # A single missing detail page should not hide the rest of the board.
+                failures.append(exc)
+
+    if postings and not details:
+        reason = failures[0] if failures else "no postings"
+        raise RuntimeError(f"Rippling board {board}: no job details could be fetched: {reason}")
+    if failures:
+        print(f"Error fetching {len(failures)} Rippling job detail(s) for {board}: {failures[0]}")
+
+    jobs = []
+    for detail in details:
+        posted = _parse_iso(detail.get("createdOn"))
+        description = detail.get("description") or {}
+        locations = [loc for loc in (detail.get("workLocations") or []) if loc]
+        jobs.append({
+            "job_title": detail.get("name", "N/A"),
+            "job_id": detail.get("uuid"),
+            "location": ", ".join(locations) if locations else "N/A",
+            "job_url": detail.get("url"),
+            "date_posted": posted.strftime("%Y-%m-%d") if posted else None,
+            "employment_type": (detail.get("employmentType") or {}).get("id") or "N/A",
+            "description": _clean(" ".join(
+                part for part in (description.get("company"), description.get("role")) if part
+            )),
+            "_posted": posted,
+        })
+    return _by_role(jobs, roles, days)
+
+
+_GEM_URL = "https://jobs.gem.com/api/public/graphql"
+_GEM_HEADERS = {
+    **HEADERS,
+    "Content-Type": "application/json",
+    "Origin": "https://jobs.gem.com",
+}
+_GEM_LIST_QUERY = """
+query JobBoardList($boardId: String!) {
+  oatsExternalJobPostings(boardId: $boardId) {
+    jobPostings {
+      extId
+      title
+      locations { name }
+      job { employmentType }
+    }
+  }
+}
+"""
+_GEM_DETAIL_QUERY = """
+query ExternalJobPosting($boardId: String!, $extId: String!) {
+  oatsExternalJobPosting(boardId: $boardId, extId: $extId) {
+    extId
+    title
+    firstPublishedTsSec
+    startDateTs
+    locations { name }
+    job { employmentType requisitionId }
+    descriptionHtml
+  }
+}
+"""
+
+
+def _gem_query(query, variables):
+    response = requests.post(
+        _GEM_URL,
+        json={"query": query, "variables": variables},
+        headers=_GEM_HEADERS, timeout=30,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if payload.get("errors"):
+        raise RuntimeError(payload["errors"][0].get("message", "Gem GraphQL error"))
+    return payload.get("data") or {}
+
+
+def _gem_detail(board, posting):
+    data = _gem_query(_GEM_DETAIL_QUERY, {"boardId": board, "extId": posting["extId"]})
+    return data.get("oatsExternalJobPosting") or {}
+
+
+def _gem_posted(detail):
+    timestamp = detail.get("firstPublishedTsSec") or detail.get("startDateTs")
+    if isinstance(timestamp, (int, float)):
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+    return _parse_iso(timestamp)
+
+
+def fetch_gem_jobs(board, roles, days=7):
+    """Jobs from https://jobs.gem.com/<board> grouped by role."""
+    data = _gem_query(_GEM_LIST_QUERY, {"boardId": board})
+    postings = (data.get("oatsExternalJobPostings") or {}).get("jobPostings") or []
+    postings = [p for p in postings if p.get("extId")]
+
+    details = []
+    failures = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(_gem_detail, board, p) for p in postings]
+        for future in futures:
+            try:
+                details.append(future.result())
+            except Exception as exc:
+                failures.append(exc)
+
+    if postings and not details:
+        reason = failures[0] if failures else "no postings"
+        raise RuntimeError(f"Gem board {board}: no job details could be fetched: {reason}")
+    if failures:
+        print(f"Error fetching {len(failures)} Gem job detail(s) for {board}: {failures[0]}")
+
+    jobs = []
+    for detail in details:
+        posted = _gem_posted(detail)
+        locations = [loc.get("name") for loc in (detail.get("locations") or []) if loc.get("name")]
+        jobs.append({
+            "job_title": detail.get("title", "N/A"),
+            "job_id": detail.get("extId"),
+            "location": ", ".join(locations) if locations else "N/A",
+            "job_url": f"https://jobs.gem.com/{board}/{detail.get('extId', '')}",
+            "date_posted": posted.strftime("%Y-%m-%d") if posted else None,
+            "employment_type": (detail.get("job") or {}).get("employmentType") or "N/A",
+            "description": _clean(detail.get("descriptionHtml")),
             "_posted": posted,
         })
     return _by_role(jobs, roles, days)
