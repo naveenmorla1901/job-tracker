@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple, Any
 import logging
 import time
 
+from app.company_aliases import COMPANY_ALIASES
 from app.db.models import Job, Role
 from app.db.database import get_db
 
@@ -101,16 +102,19 @@ def add_role_to_job(db: Session, job: Job, role: Role) -> bool:
         logger.error(f"Error adding role to job: {str(e)}")
     return False
 
-def safely_get_job_by_id(db: Session, job_id: str, company: str, max_retries: int = 3) -> Job:
+def safely_get_job_by_id(db: Session, job_id: str, company: str = None, max_retries: int = 3) -> Job:
     """
-    Try to retrieve a job with retries to handle potential transaction delays
+    Try to retrieve a job with retries to handle potential transaction delays.
+
+    Omit company to look the row up by job_id alone; callers that do this must
+    check the stored company before treating the row as theirs.
     """
     for attempt in range(max_retries):
         try:
-            job = db.query(Job).filter(
-                Job.job_id == job_id,
-                Job.company == company
-            ).first()
+            query = db.query(Job).filter(Job.job_id == job_id)
+            if company is not None:
+                query = query.filter(Job.company == company)
+            job = query.first()
             
             if job:
                 return job
@@ -128,6 +132,26 @@ def safely_get_job_by_id(db: Session, job_id: str, company: str, max_retries: in
                 db = next(get_db())
     
     return None
+
+def merge_company_aliases(db: Session) -> int:
+    """Relabel rows stored under a duplicate board's old company name.
+
+    Two scrapers reading one board used to write the same jobs under two
+    company names. The scheduler now uses one canonical name; this makes the
+    existing rows match. Idempotent, so it is safe on every startup.
+    """
+    moved = 0
+    for canonical, aliases in COMPANY_ALIASES.items():
+        count = db.query(Job).filter(Job.company.in_(aliases)).update(
+            {Job.company: canonical}, synchronize_session=False
+        )
+        if count:
+            logger.info(f"Relabeled {count} job(s) from {aliases} to {canonical}")
+            moved += count
+    if moved:
+        db.commit()
+        db.expire_all()
+    return moved
 
 def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) -> Tuple[bool, Job, bool]:
     """
@@ -151,8 +175,15 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
         logger.warning(f"Invalid date format: {job_data.get('date_posted')}. Using current date.")
         date_posted = datetime.utcnow()
     
-    # FIRST, check if job exists by ID to prevent UniqueViolation errors
+    # FIRST, check if job exists by ID to prevent UniqueViolation errors.
     existing_job = safely_get_job_by_id(db, job_id, company)
+    if existing_job is None:
+        # A row written under an old alias of this board is still ours. A row
+        # from a different company that reused the requisition ID is not, so
+        # never relabel or overwrite that one.
+        candidate = safely_get_job_by_id(db, job_id)
+        if candidate is not None and candidate.company in COMPANY_ALIASES.get(company, ()):
+            existing_job = candidate
     
     if existing_job:
         try:
@@ -160,6 +191,7 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
             logger.debug(f"Updating existing job: {job_id} - {job_data.get('job_title')}")
             
             existing_job.job_title = job_data.get("job_title", existing_job.job_title)
+            existing_job.company = company  # heal rows written under an old alias
             existing_job.location = job_data.get("location", existing_job.location)
             existing_job.job_url = job_data.get("job_url", existing_job.job_url)
             existing_job.date_posted = date_posted
@@ -226,7 +258,10 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
                     'last_updated': datetime.utcnow(),
                     'is_active': True,
                     'raw_data': job_data
-                }
+                },
+                # Never overwrite a different company's job that happens to use
+                # the same requisition ID. Alias rows are handled above.
+                where=(Job.company == company),
             )
             
             # Execute the statement

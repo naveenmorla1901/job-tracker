@@ -120,6 +120,17 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Warning: Could not set up scheduled cleanup: {str(e)}")
 
+    # Relabel jobs that two scrapers used to store under different company names
+    try:
+        from app.db.crud import merge_company_aliases
+        db = next(get_db())
+        moved = merge_company_aliases(db)
+        if moved:
+            logger.info(f"Company alias cleanup: {moved} job(s) relabeled")
+        db.close()
+    except Exception as e:
+        logger.error(f"Error merging company aliases: {str(e)}")
+
     # Get database statistics
     try:
         db = next(get_db())
