@@ -31,6 +31,7 @@ CATEGORY_PATTERNS: Dict[str, List[str]] = {
         r"reinforcement\s+learning",
         r"neural\s+net",
         r"applied\s+scientist",
+        r"model\s+engineer",
         r"ai/ml|ml/ai",
     ],
     "Data Science": [

@@ -314,6 +314,9 @@ def _init_scraper_role_maps():
         "roguefitness", "nisource", "brown"
     ]
     custom_roles = {name: list(base_roles) for name in companies_with_custom_roles}
+    # xAI uses "Model Engineer" for its core AI roles; the shared role list has
+    # no matching phrase, so search that title only on the X/xAI board.
+    custom_roles["x"].append("Model Engineer")
     return default_roles, custom_roles
 
 

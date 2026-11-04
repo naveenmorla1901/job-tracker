@@ -74,7 +74,7 @@ def _job_key(url):
 def _install_http_retries():
     """Retry transient failures for every HTTPS request the scrapers make.
 
-    Career sites (Workday especially) intermittently answer 429/500/502/503/504
+    Career sites (Workday especially) intermittently answer 429/500/502/503/504/520
     or time out on single job pages. Each scraper calls requests.get/post, which
     builds a fresh Session per call, so mounting the adapter in Session.__init__
     covers all of them without editing each module. Only https:// is mounted: the
@@ -98,7 +98,7 @@ def _install_http_retries():
         read=2,
         status=4,
         backoff_factor=2,  # waits 0s, 4s, 8s, 16s between attempts
-        status_forcelist=(429, 500, 502, 503, 504),
+        status_forcelist=(429, 500, 502, 503, 504, 520),
         allowed_methods=None,  # Workday job searches are read-only POSTs
         respect_retry_after_header=True,
         raise_on_status=False,  # hand the final response back; raise_for_status still reports it

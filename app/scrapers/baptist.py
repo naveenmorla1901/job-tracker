@@ -23,7 +23,7 @@ def get_baptist_jobs(roles, days=7):
         }
 
         try:
-            response = requests.post(base_url, json=payload, headers=headers)
+            response = requests.post(base_url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
 
