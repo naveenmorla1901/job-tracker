@@ -25,12 +25,15 @@ logger = logging.getLogger(__name__)
 COMPANY_NAMES = {
     "accenture": "Accenture",
     "acxiom": "Acxiom",
-    "acxiomllc": "Acxiom LLC",
+    # acxiomllc scrapes the same board as acxiom; keep one company name so the
+    # globally unique job_id updates the existing row instead of colliding.
+    "acxiomllc": "Acxiom",
     "abbott": "Abbott",
     "adobe": "Adobe",
     "aep": "AEP",
     "allstate": "Allstate",
-    "americanelectricpower": "American Electric Power",
+    # americanelectricpower scrapes the same board as aep.
+    "americanelectricpower": "AEP",
     "amplify": "Amplify",
     "appliedmaterials": "Applied Materials",
     "airbus": "Airbus",
@@ -138,8 +141,9 @@ COMPANY_NAMES = {
     "salesforce": "Salesforce",
     "samsung": "Samsung",
     "sanofi": "Sanofi",
-    "scottsmiracle": "Scotts Miracle-Gro",
-    "smg":"Scotts Miracle Gro",
+    "scottsmiracle": "Scotts Miracle Gro",
+    # smg scrapes the same board as scottsmiracle.
+    "smg": "Scotts Miracle Gro",
     "snc": "SNC-Lavalin",
     "socure": "Socure",
     "statestreet": "State Street",
