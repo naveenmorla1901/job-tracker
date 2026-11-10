@@ -36,6 +36,9 @@ ENV/
 logs/
 job_tracker.log
 
+# IDE - Cursor
+.cursor/
+
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json
