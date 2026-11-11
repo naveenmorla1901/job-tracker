@@ -248,7 +248,10 @@ COMPANY_NAMES = {
     "abercrombie": "Abercrombie & Fitch",
     "roguefitness": "Rogue Fitness",
     "nisource": "NiSource",
-    "brown": "Brown University"
+    "brown": "Brown University",
+    "bostonscientific": "Boston Scientific",
+    "synopsys": "Synopsys",
+    "toyota": "Toyota Motor North America"
 }
 
 
@@ -315,7 +318,8 @@ def _init_scraper_role_maps():
         "vumc", "westernalliance", "wework", "agilon", "ashland", "huron",
         "epiq", "erpa", "fifththird", "genpact", "lower",
         "nationwidechildrens", "sedgwick", "protiviti", "abercrombie",
-        "roguefitness", "nisource", "brown"
+        "roguefitness", "nisource", "brown", "bostonscientific", "synopsys",
+        "toyota"
     ]
     custom_roles = {name: list(base_roles) for name in companies_with_custom_roles}
     # xAI uses "Model Engineer" for its core AI roles; the shared role list has
