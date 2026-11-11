@@ -45,8 +45,7 @@ _PRODUCT_TITLE_RE = re.compile(
 _BUSINESS_TITLE_RE = re.compile(
     r"product\s+(manager|management|owner|lead)|program\s+manager|project\s+manager|"
     r"account\s+(executive|manager)|sales|marketing|communications|recruit|talent|"
-    r"customer\s+success|business\s+development|partnership|finance|legal|"
-    r"human\s+resources|\bhr\b",
+    r"customer\s+success|business\s+development|partnership",
     re.I,
 )
 _TECHNICAL_TITLE_RE = re.compile(
