@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from bs4 import BeautifulSoup
 
 from app.job_window import filter_jobs_to_window
-from app.scrapers import ats_boards, nxp, sedgwick, toyota, xpanse
+from app.scrapers import ats_boards, nxp, sedgwick, snapchat, toyota, xpanse
 
 
 class _FakeResponse:
@@ -190,6 +190,62 @@ def test_toyota_only_processes_title_matches(monkeypatch):
 
     assert processed == ["Data Engineer"]
     assert [job["job_title"] for job in result["Data Engineer"]] == ["Data Engineer"]
+
+
+def test_snapchat_uses_workday_board_and_filters_titles(monkeypatch):
+    payload = {
+        "total": 2,
+        "jobPostings": [
+            {
+                "title": "Data Scientist, Level 4",
+                "externalPath": "/job/Los-Angeles-California/Data-Scientist_Q426DSA4-1",
+                "locationsText": "6 Locations",
+                "postedOn": "Posted Yesterday",
+                "bulletFields": ["Q426DSA4"],
+            },
+            {
+                "title": "Accountant",
+                "externalPath": "/job/New-York/Accountant_R1-1",
+                "locationsText": "New York, New York",
+                "postedOn": "Posted Yesterday",
+                "bulletFields": ["R1"],
+            },
+        ],
+    }
+    captured = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured["url"] = url
+        captured["payload"] = json
+        captured["referer"] = headers.get("Referer")
+        return _FakeResponse(payload)
+
+    monkeypatch.setattr(snapchat.requests, "post", fake_post)
+    processed = []
+
+    def fake_process(job, days):
+        processed.append(job["title"])
+        return {
+            "job_title": job["title"],
+            "job_id": job["bulletFields"][0],
+            "location": job["locationsText"],
+            "job_url": snapchat.SITE_URL + job["externalPath"],
+            "date_posted": "2026-11-10",
+            "employment_type": "N/A",
+            "description": "Test description",
+        }
+
+    monkeypatch.setattr(snapchat, "process_snapchat_job", fake_process)
+
+    result = snapchat.get_snapchat_jobs(["Data Science"], days=7)
+
+    assert captured["url"] == snapchat.API_URL
+    assert captured["referer"] == snapchat.REFERER
+    assert captured["payload"]["searchText"] == "Data Science"
+    assert processed == ["Data Scientist, Level 4"]
+    assert [job["job_title"] for job in result["Data Science"]] == [
+        "Data Scientist, Level 4"
+    ]
 
 
 def test_eightfold_fetcher_matches_synonyms_and_filters_dates(monkeypatch):

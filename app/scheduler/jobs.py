@@ -146,6 +146,7 @@ COMPANY_NAMES = {
     # smg scrapes the same board as scottsmiracle.
     "smg": "Scotts Miracle Gro",
     "snc": "SNC-Lavalin",
+    "snapchat": "Snap Inc.",
     "socure": "Socure",
     "statestreet": "State Street",
     "sunlife": "Sun Life",
