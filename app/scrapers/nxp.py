@@ -1,11 +1,19 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-from datetime import datetime, timedelta
 import concurrent.futures
+
+from app.scrapers.workday_utils import (
+    workday_effective_date,
+    workday_job_is_recent,
+)
+
+_UNAVAILABLE_STATUSES = {422, 500, 502, 503, 504, 520}
+
 
 def get_nxp_jobs(roles, days=7):
     """Main function to retrieve NXP Semiconductors jobs structured by roles"""
+    outage_status = {"code": None}
 
     def fetch_role_jobs(target_role):
         """Fetch jobs for a single role"""
@@ -29,12 +37,14 @@ def get_nxp_jobs(roles, days=7):
 
         try:
             response = requests.post(base_url, json=payload, headers=headers, timeout=30)
+            if response.status_code in _UNAVAILABLE_STATUSES:
+                outage_status["code"] = response.status_code
+                return []
             response.raise_for_status()
             data = response.json()
 
             seen_ids = set()
             jobs_to_process = []
-            cutoff_date = datetime.now() - timedelta(days=days)
 
             for job in data.get('jobPostings', []):
                 job_id = extract_nxp_job_id(job)
@@ -44,7 +54,7 @@ def get_nxp_jobs(roles, days=7):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_job = {
-                    executor.submit(process_nxp_job, job, cutoff_date): job
+                    executor.submit(process_nxp_job, job, days): job
                     for job in jobs_to_process
                 }
 
@@ -56,6 +66,13 @@ def get_nxp_jobs(roles, days=7):
 
             return sorted(results, key=lambda x: x['date_posted'], reverse=True)
 
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status in _UNAVAILABLE_STATUSES:
+                outage_status["code"] = status
+                return []
+            print(f"Error fetching {target_role} jobs: {str(e)}")
+            return []
         except Exception as e:
             print(f"Error fetching {target_role} jobs: {str(e)}")
             return []
@@ -65,18 +82,21 @@ def get_nxp_jobs(roles, days=7):
     for role in roles:
         structured_results[role] = fetch_role_jobs(role)
 
+    if outage_status["code"] and not any(structured_results.values()):
+        print(
+            "SCRAPER_UNAVAILABLE: NXP Workday returned HTTP "
+            f"{outage_status['code']} (maintenance page); will retry next cycle."
+        )
+
     return structured_results
 
-def process_nxp_job(job, cutoff_date):
+
+def process_nxp_job(job, days):
     try:
         job_url = f"https://nxp.wd3.myworkdayjobs.com/en-US/careers{job.get('externalPath', '')}"
         metadata = get_nxp_job_details(job_url)
 
-        if not metadata.get('datePosted'):
-            return None
-
-        post_date = parse_nxp_date(metadata['datePosted'])
-        if post_date and post_date >= cutoff_date:
+        if workday_job_is_recent(job, days, metadata.get('datePosted')):
             return format_nxp_job_data(job, metadata)
 
     except Exception as e:
@@ -120,7 +140,7 @@ def format_nxp_job_data(job, metadata):
         "job_id": extract_nxp_job_id(job),
         "location": job.get('locationsText', 'N/A'),
         "job_url": f"https://nxp.wd3.myworkdayjobs.com/en-US/careers{job.get('externalPath', '')}",
-        "date_posted": format_nxp_date(metadata['datePosted']),
+        "date_posted": workday_effective_date(job, metadata.get('datePosted')) or 'N/A',
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')
     }
@@ -133,24 +153,6 @@ def extract_nxp_job_id(job):
         return path.split('/')[-1]
     except:
         return job.get('bulletFields', ['N/A'])[0]
-
-def parse_nxp_date(date_str):
-    formats = [
-        "%Y-%m-%dT%H:%M:%S.%f%z",
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%d"
-    ]
-    for fmt in formats:
-        try:
-            # Drop tzinfo so the result compares cleanly with the naive cutoff date
-            return datetime.strptime(date_str, fmt).replace(tzinfo=None)
-        except:
-            continue
-    return None
-
-def format_nxp_date(date_str):
-    parsed = parse_nxp_date(date_str)
-    return parsed.strftime("%Y-%m-%d") if parsed else date_str
 
 def clean_nxp_description(desc):
     if not desc:

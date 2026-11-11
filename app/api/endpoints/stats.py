@@ -114,7 +114,7 @@ def get_scraper_runs(db: Session = Depends(get_db)):
         }
 
         scrapers = []
-        counts = {s: 0 for s in ("success", "partial", "empty", "failure", "interrupted", "running", "never_run")}
+        counts = {s: 0 for s in ("success", "partial", "empty", "unavailable", "failure", "interrupted", "running", "never_run")}
         for name in registered:
             run = latest_runs.get(name)
             status = run.status if run else "never_run"

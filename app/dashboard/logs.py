@@ -318,6 +318,7 @@ STATUS_LABELS = {
     "success": "✅ Success",
     "partial": "⚠️ Partial",
     "empty": "➖ Empty",
+    "unavailable": "🛠️ Unavailable",
     "failure": "❌ Failure",
     "interrupted": "⏹️ Interrupted",
     "running": "⏳ Running",
@@ -354,8 +355,8 @@ def _display_scraper_runs():
         row1[2].metric("Working", summary.get("working", 0), "success + partial", delta_color="off")
         row1[3].metric("Working Rate", f"{summary.get('working_rate', 0):.1f}%")
 
-        row2 = st.columns(6)
-        for col, key in zip(row2, ("success", "partial", "empty", "failure", "interrupted", "never_run")):
+        row2 = st.columns(7)
+        for col, key in zip(row2, ("success", "partial", "empty", "unavailable", "failure", "interrupted", "never_run")):
             col.metric(STATUS_LABELS[key], counts.get(key, 0))
 
         with st.expander("What each status means", expanded=False):
@@ -363,6 +364,7 @@ def _display_scraper_runs():
                 "- **Success**: returned jobs and printed no errors.\n"
                 "- **Partial**: returned jobs, but some requests errored (e.g. one job page timed out).\n"
                 "- **Empty**: ran cleanly but no postings matched the searched roles in the date window.\n"
+                "- **Unavailable**: the company's ATS is down (maintenance/5xx); it will be retried on the next cycle.\n"
                 "- **Failure**: returned nothing *and* errored, or crashed: blocked, URL changed, API changed.\n"
                 "- **Interrupted**: the process restarted while the scraper was running.\n"
                 "- **Never run**: registered but no run recorded yet (new scrapers wait for the next scheduled cycle)."
@@ -388,7 +390,7 @@ def _display_scraper_runs():
         ])
 
         options = [STATUS_LABELS[k] for k in STATUS_LABELS if counts.get(k)]
-        default = [STATUS_LABELS[k] for k in ("failure", "partial", "interrupted") if counts.get(k)]
+        default = [STATUS_LABELS[k] for k in ("failure", "partial", "interrupted", "unavailable") if counts.get(k)]
         chosen = st.multiselect("Show statuses", options, default=default or options)
         view = df[df["Status"].isin(chosen)] if chosen else df
         st.dataframe(view.drop(columns=["_status"]), use_container_width=True, hide_index=True)

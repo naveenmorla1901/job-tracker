@@ -71,7 +71,7 @@ class ScraperRun(Base):
     scraper_name = Column(String(100), nullable=False)
     start_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     end_time = Column(DateTime)
-    status = Column(String(50))  # success, failure, partial
+    status = Column(String(50))  # success, partial, empty, unavailable, failure, interrupted
     jobs_added = Column(Integer, default=0)
     jobs_updated = Column(Integer, default=0)
     error_message = Column(Text)

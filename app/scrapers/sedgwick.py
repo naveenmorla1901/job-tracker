@@ -1,8 +1,12 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-from datetime import datetime, timedelta
 import concurrent.futures
+
+from app.scrapers.workday_utils import (
+    workday_effective_date,
+    workday_job_is_recent,
+)
 
 def get_sedgwick_jobs(roles, days=7):
     """Main function to retrieve Sedgwick jobs structured by roles"""
@@ -34,7 +38,6 @@ def get_sedgwick_jobs(roles, days=7):
 
             seen_ids = set()
             jobs_to_process = []
-            cutoff_date = datetime.now() - timedelta(days=days)
 
             for job in data.get('jobPostings', []):
                 job_id = extract_sedgwick_job_id(job)
@@ -44,7 +47,7 @@ def get_sedgwick_jobs(roles, days=7):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_job = {
-                    executor.submit(process_sedgwick_job, job, cutoff_date): job
+                    executor.submit(process_sedgwick_job, job, days): job
                     for job in jobs_to_process
                 }
 
@@ -67,16 +70,12 @@ def get_sedgwick_jobs(roles, days=7):
 
     return structured_results
 
-def process_sedgwick_job(job, cutoff_date):
+def process_sedgwick_job(job, days):
     try:
         job_url = f"https://sedgwick.wd1.myworkdayjobs.com/en-US/Sedgwick{job.get('externalPath', '')}"
         metadata = get_sedgwick_job_details(job_url)
 
-        if not metadata.get('datePosted'):
-            return None
-
-        post_date = parse_sedgwick_date(metadata['datePosted'])
-        if post_date and post_date >= cutoff_date:
+        if workday_job_is_recent(job, days, metadata.get('datePosted')):
             return format_sedgwick_job_data(job, metadata)
 
     except Exception as e:
@@ -120,7 +119,7 @@ def format_sedgwick_job_data(job, metadata):
         "job_id": extract_sedgwick_job_id(job),
         "location": job.get('locationsText', 'N/A'),
         "job_url": f"https://sedgwick.wd1.myworkdayjobs.com/en-US/Sedgwick{job.get('externalPath', '')}",
-        "date_posted": format_sedgwick_date(metadata['datePosted']),
+        "date_posted": workday_effective_date(job, metadata.get('datePosted')) or 'N/A',
         "employment_type": metadata.get('employmentType', 'N/A'),
         "description": metadata.get('description', 'N/A')
     }
@@ -133,24 +132,6 @@ def extract_sedgwick_job_id(job):
         return path.split('/')[-1]
     except:
         return job.get('bulletFields', ['N/A'])[0]
-
-def parse_sedgwick_date(date_str):
-    formats = [
-        "%Y-%m-%dT%H:%M:%S.%f%z",
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%d"
-    ]
-    for fmt in formats:
-        try:
-            # Drop tzinfo so the result compares cleanly with the naive cutoff date
-            return datetime.strptime(date_str, fmt).replace(tzinfo=None)
-        except:
-            continue
-    return None
-
-def format_sedgwick_date(date_str):
-    parsed = parse_sedgwick_date(date_str)
-    return parsed.strftime("%Y-%m-%d") if parsed else date_str
 
 def clean_sedgwick_description(desc):
     if not desc:

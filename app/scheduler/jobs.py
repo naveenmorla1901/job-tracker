@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models import ScraperRun, Job
 from app.db.crud import upsert_jobs, mark_inactive_jobs
+from app.job_window import filter_jobs_to_window
 from app.scrapers import get_all_scrapers, begin_scraper_run, end_scraper_run, set_workday_slots
 
 logger = logging.getLogger(__name__)
@@ -346,7 +347,8 @@ def fetch_scraper_jobs_raw(scraper_name, roles=None, days_back=7):
     resolved = resolve_roles_for_scraper(scraper_name, roles)
     scraper_module = importlib.import_module(f"app.scrapers.{scraper_name}")
     get_jobs_func = getattr(scraper_module, f"get_{scraper_name}_jobs")
-    return get_jobs_func(roles=resolved, days=days_back)
+    jobs_data = get_jobs_func(roles=resolved, days=days_back + 1) or {}
+    return filter_jobs_to_window(jobs_data, days_back)
 
 
 # Running statistics
@@ -373,6 +375,9 @@ def reset_global_stats():
 # so a run that failed every request still "completes". We tee stdout while a
 # scraper runs and count those printed errors to judge the run honestly.
 _ERROR_LINE = re.compile(r"\b(error|exception|traceback|failed)\b", re.IGNORECASE)
+# A scraper that finds its ATS down prints this marker instead of per-role
+# errors. The run is recorded as "unavailable" (upstream outage), not "failure".
+_UNAVAILABLE_MARKER = "SCRAPER_UNAVAILABLE:"
 STALE_RUN_AFTER = timedelta(hours=2)
 
 
@@ -397,19 +402,22 @@ class _TeeStdout(io.TextIOBase):
             pass
 
 
-def classify_run(jobs_found, error_lines):
+def classify_run(jobs_found, error_lines, unavailable_reason=None):
     """Return (status, message) for a finished scraper run.
 
-    success  jobs returned and no errors printed
-    partial  jobs returned but some requests errored
-    empty    ran cleanly, nothing matched the searched roles
-    failure  no jobs and errors printed (blocked, bad URL, API change)
+    success      jobs returned and no errors printed
+    partial      jobs returned but some requests errored
+    empty        ran cleanly, nothing matched the searched roles
+    unavailable  the company's ATS is down; retry on a later cycle
+    failure      no jobs and errors printed (blocked, bad URL, API change)
     """
     sample = "\n".join(error_lines[:5])
     if jobs_found > 0 and not error_lines:
         return "success", None
     if jobs_found > 0:
         return "partial", f"{jobs_found} jobs returned; {len(error_lines)} error line(s):\n{sample}"
+    if unavailable_reason:
+        return "unavailable", unavailable_reason
     if not error_lines:
         return "empty", "Ran without errors but returned 0 jobs for the searched roles"
     return "failure", f"Returned 0 jobs; {len(error_lines)} error line(s):\n{sample}"
@@ -446,20 +454,33 @@ def fetch_scraper_output(scraper_name, roles, days_back=7):
         scraper_module = importlib.import_module(f"app.scrapers.{scraper_name}")
         get_jobs_func = getattr(scraper_module, f"get_{scraper_name}_jobs")
         with contextlib.redirect_stdout(tee):
-            jobs_data = get_jobs_func(roles=roles, days=days_back) or {}
+            # One extra day covers date-only postings on the window boundary;
+            # filter_jobs_to_window trims the result back to `days_back`.
+            jobs_data = get_jobs_func(roles=roles, days=days_back + 1) or {}
+        jobs_data = filter_jobs_to_window(jobs_data, days_back)
         jobs_data = json.loads(json.dumps(jobs_data, default=str))
     except Exception as e:
         crash = f"{type(e).__name__}: {e}"
     finally:
         end_scraper_run()
+    output_lines = tee.buffer_text.getvalue().splitlines()
+    unavailable_reason = next(
+        (
+            line.strip()[len(_UNAVAILABLE_MARKER):].strip()
+            for line in output_lines
+            if line.strip().startswith(_UNAVAILABLE_MARKER)
+        ),
+        None,
+    )
     error_lines = [
-        line.strip() for line in tee.buffer_text.getvalue().splitlines()
+        line.strip() for line in output_lines
         if _ERROR_LINE.search(line)
     ]
     return {
         "scraper_name": scraper_name,
         "jobs_data": jobs_data,
         "error_lines": error_lines,
+        "unavailable": unavailable_reason,
         "crash": crash,
         "start_time": start_time,
         "end_time": datetime.now(timezone.utc),
@@ -501,7 +522,9 @@ def record_scraper_result(result):
         global_stats["total_jobs_updated"] += jobs_updated
         global_stats["total_jobs_expired"] += expired_count
 
-        status, message = classify_run(total_jobs_found, error_lines)
+        status, message = classify_run(
+            total_jobs_found, error_lines, result.get("unavailable")
+        )
         scraper_run.status = status
         scraper_run.error_message = message
         scraper_run.jobs_added = jobs_added
