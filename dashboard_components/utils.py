@@ -95,7 +95,7 @@ def fetch_data(endpoint, params=None):
         logger.error(traceback.format_exc())
         return None
 
-def fetch_data_with_params(endpoint, params_list):
+def fetch_data_with_params(endpoint, params_list, timeout=10):
     """Fetch data from API with params as a list of tuples for multi-select support"""
     # Ensure endpoint doesn't have trailing slash for consistent URLs
     if endpoint.endswith('/'):
@@ -112,7 +112,7 @@ def fetch_data_with_params(endpoint, params_list):
 
         # Use requests with params as a list of tuples
         # This ensures multiple values for the same key are properly encoded
-        response = requests.get(url, params=params_list, timeout=10)  # Added timeout
+        response = requests.get(url, params=params_list, timeout=timeout)
 
         # Log the actual URL for debugging
         logger.info(f"Actual request URL: {response.url}")

@@ -145,6 +145,103 @@ def test_talentbrew_filters_titles_and_dates(monkeypatch):
     assert jobs[0]["job_url"] == "https://example.com/job/remote/data-engineer/44408/111"
 
 
+def test_lever_fetcher_maps_fields(monkeypatch):
+    created_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    payload = [
+        {
+            "id": "lever-1",
+            "text": "Senior Data Scientist",
+            "categories": {
+                "commitment": "Full-time",
+                "location": "Remote",
+                "allLocations": ["Remote", "Columbus, OH"],
+            },
+            "createdAt": created_ms,
+            "hostedUrl": "https://jobs.lever.co/acme/lever-1",
+            "descriptionPlain": "Python SQL LLM",
+        },
+        {
+            "id": "lever-2",
+            "text": "Accountant",
+            "categories": {"location": "New York, NY"},
+            "createdAt": created_ms,
+            "hostedUrl": "https://jobs.lever.co/acme/lever-2",
+            "descriptionPlain": "Excel",
+        },
+    ]
+    monkeypatch.setattr(
+        ats_boards.requests, "get", lambda *args, **kwargs: _FakeResponse(payload)
+    )
+
+    result = ats_boards.fetch_lever_jobs(
+        "acme", ["Data Scientist python SQL"], days=7
+    )
+
+    jobs = result["Data Scientist python SQL"]
+    assert [job["job_id"] for job in jobs] == ["lever-1"]
+    assert jobs[0]["location"] == "Remote"
+    assert jobs[0]["job_url"] == "https://jobs.lever.co/acme/lever-1"
+    assert jobs[0]["employment_type"] == "Full-time"
+    assert jobs[0]["description"] == "Python SQL LLM"
+    assert "_posted" not in jobs[0]
+
+
+def test_smartrecruiters_fetches_details_only_for_matching_titles(monkeypatch):
+    released = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    list_payload = {
+        "totalFound": 2,
+        "content": [
+            {
+                "id": "sr-1",
+                "name": "Data Scientist",
+                "releasedDate": released,
+                "location": {"fullLocation": "Columbus, OH, United States"},
+                "typeOfEmployment": {"label": "Full-time"},
+            },
+            {
+                "id": "sr-2",
+                "name": "Accountant",
+                "releasedDate": released,
+                "location": {"fullLocation": "New York, NY, United States"},
+                "typeOfEmployment": {"label": "Full-time"},
+            },
+        ],
+    }
+    detail_payload = {
+        "jobAd": {
+            "sections": {
+                "companyDescription": {"text": "We build things."},
+                "jobDescription": {"text": "Python SQL LLM RAG."},
+            }
+        }
+    }
+    detail_calls = []
+
+    def fake_get(url, *args, **kwargs):
+        if url.endswith("/postings/sr-1"):
+            detail_calls.append(url)
+            return _FakeResponse(detail_payload)
+        if url.endswith("/postings/sr-2"):
+            detail_calls.append(url)
+            return _FakeResponse({"jobAd": {"sections": {}}})
+        return _FakeResponse(list_payload)
+
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    result = ats_boards.fetch_smartrecruiters_jobs(
+        "Acme", ["Data Scientist python SQL"], days=7
+    )
+
+    jobs = result["Data Scientist python SQL"]
+    assert [job["job_id"] for job in jobs] == ["sr-1"]
+    assert jobs[0]["location"] == "Columbus, OH, United States"
+    assert jobs[0]["job_url"] == "https://jobs.smartrecruiters.com/Acme/sr-1"
+    assert "Python SQL LLM RAG" in jobs[0]["description"]
+    assert detail_calls == [
+        "https://api.smartrecruiters.com/v1/companies/Acme/postings/sr-1"
+    ]
+
+
 def test_toyota_only_processes_title_matches(monkeypatch):
     payload = {
         "total": 2,

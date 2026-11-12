@@ -185,6 +185,128 @@ def fetch_greenhouse_jobs(board, roles, days=7):
     return _by_role(jobs, roles, days)
 
 
+def fetch_lever_jobs(board, roles, days=7):
+    """Jobs from https://jobs.lever.co/<board> grouped by role."""
+    response = requests.get(
+        f"https://api.lever.co/v0/postings/{board}?mode=json",
+        headers=HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+    jobs = []
+    for job in response.json():
+        created = job.get("createdAt")
+        posted = None
+        if isinstance(created, (int, float)):
+            posted = datetime.fromtimestamp(created / 1000, tz=timezone.utc)
+        categories = job.get("categories") or {}
+        locations = categories.get("allLocations") or []
+        jobs.append({
+            "job_title": job.get("text", "N/A"),
+            "job_id": job.get("id"),
+            "location": categories.get("location")
+            or (", ".join(locations) if locations else "N/A"),
+            "job_url": job.get("hostedUrl") or job.get("applyUrl"),
+            "date_posted": posted.strftime("%Y-%m-%d") if posted else None,
+            "employment_type": categories.get("commitment", "N/A"),
+            "description": _clean(
+                job.get("descriptionPlain") or job.get("description") or ""
+            ),
+            "_posted": posted,
+        })
+    return _by_role(jobs, roles, days)
+
+
+def _smartrecruiters_detail(company, posting_id):
+    response = requests.get(
+        f"https://api.smartrecruiters.com/v1/companies/{company}/postings/{posting_id}",
+        headers=HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_smartrecruiters_jobs(company, roles, days=7):
+    """Jobs from a SmartRecruiters company board, grouped by role.
+
+    The list endpoint does not include descriptions, so detail pages are fetched
+    only for titles that match one of the searched roles.
+    """
+    postings = []
+    offset = 0
+    while True:
+        response = requests.get(
+            f"https://api.smartrecruiters.com/v1/companies/{company}/postings",
+            params={"limit": 100, "offset": offset},
+            headers=HEADERS,
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        page = payload.get("content", [])
+        postings.extend(page)
+        offset += len(page)
+        if not page or offset >= payload.get("totalFound", 0):
+            break
+
+    matchers = [_role_matcher(role) for role in roles]
+    selected = [
+        posting
+        for posting in postings
+        if any(matcher(posting.get("name", "")) for matcher in matchers)
+    ]
+
+    details = {}
+    if selected:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(
+                    _smartrecruiters_detail, company, posting.get("id")
+                ): posting.get("id")
+                for posting in selected[:120]
+                if posting.get("id")
+            }
+            for future in as_completed(futures):
+                posting_id = futures[future]
+                try:
+                    details[posting_id] = future.result()
+                except Exception as exc:
+                    print(f"Error fetching SmartRecruiters detail {posting_id}: {exc}")
+
+    jobs = []
+    for posting in selected:
+        detail = details.get(posting.get("id"), {})
+        sections = (detail.get("jobAd") or {}).get("sections") or {}
+        description = " ".join(
+            section.get("text", "")
+            for section in sections.values()
+            if isinstance(section, dict)
+        )
+        posted = _parse_iso(posting.get("releasedDate"))
+        location = posting.get("location") or {}
+        jobs.append({
+            "job_title": posting.get("name", "N/A"),
+            "job_id": str(posting.get("id") or ""),
+            "location": location.get("fullLocation")
+            or ", ".join(
+                part for part in (
+                    location.get("city"), location.get("region"),
+                    location.get("country"),
+                ) if part
+            )
+            or "N/A",
+            "job_url": f"https://jobs.smartrecruiters.com/{company}/{posting.get('id')}",
+            "date_posted": posted.strftime("%Y-%m-%d") if posted else None,
+            "employment_type": (posting.get("typeOfEmployment") or {}).get(
+                "label", "N/A"
+            ),
+            "description": _clean(description),
+            "_posted": posted,
+        })
+    return _by_role(jobs, roles, days)
+
+
 def _rippling_detail(board, posting):
     response = requests.get(
         f"https://ats.rippling.com/api/v1/board/{board}/jobs/{posting['uuid']}",

@@ -245,9 +245,10 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
                 raw_data=job_data
             )
             
-            # On conflict, update the record
+            # On conflict, update the record. Conflict target is the per-company
+            # unique key, not job_id alone: two companies can both post R12345.
             stmt = stmt.on_conflict_do_update(
-                index_elements=['job_id'],
+                index_elements=['job_id', 'company'],
                 set_={
                     'job_title': job_data.get("job_title", ""),
                     'location': job_data.get("location", ""),
@@ -259,9 +260,6 @@ def upsert_job(db: Session, job_data: Dict[str, Any], company: str, role: Role) 
                     'is_active': True,
                     'raw_data': job_data
                 },
-                # Never overwrite a different company's job that happens to use
-                # the same requisition ID. Alias rows are handled above.
-                where=(Job.company == company),
             )
             
             # Execute the statement

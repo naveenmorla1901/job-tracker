@@ -21,6 +21,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 # Import dashboard components
 from dashboard_components.jobs_page import display_jobs_page
 from dashboard_components.ai_jobs_page import display_ai_jobs_page
+from dashboard_components.matches_page import display_matches_page
 from app.dashboard.logs import display_logs_page
 from app.dashboard.auth import login_page, user_settings_page, user_menu, is_authenticated, is_admin, auth_required, admin_required, check_for_auth_cookie
 from app.dashboard.user_jobs import tracked_jobs_page
@@ -124,7 +125,7 @@ def main():
     
     # Initialize session state for page navigation if not exists
     if 'page' not in st.session_state:
-        st.session_state.page = 'ai_jobs'
+        st.session_state.page = 'matches'
     
     # Display user auth menu in sidebar
     user_menu()
@@ -134,8 +135,8 @@ def main():
     
     # Different navigation options based on auth status
     if is_authenticated():
-        # AI & DS first so it is the page that opens by default
-        pages = ["AI & DS Jobs", "Jobs Dashboard"]
+        # Best Matches first: it is the profile-filtered view the tracker is for.
+        pages = ["Best Matches", "AI & DS Jobs", "Jobs Dashboard"]
         
         # Add admin pages if user is admin
         if is_admin():
@@ -144,7 +145,9 @@ def main():
         page = st.sidebar.radio("Go to", pages)
         
         # Map selected page to session state
-        if page == "Jobs Dashboard":
+        if page == "Best Matches":
+            st.session_state.page = 'matches'
+        elif page == "Jobs Dashboard":
             st.session_state.page = 'jobs'
         elif page == "AI & DS Jobs":
             st.session_state.page = 'ai_jobs'
@@ -155,10 +158,12 @@ def main():
         # Analytics page removed as requested
     else:
         # Not authenticated, simplified menu
-        pages = ["AI & DS Jobs", "Jobs Dashboard", "Login"]
+        pages = ["Best Matches", "AI & DS Jobs", "Jobs Dashboard", "Login"]
         page = st.sidebar.radio("Go to", pages)
-        
-        if page == "Jobs Dashboard":
+
+        if page == "Best Matches":
+            st.session_state.page = 'matches'
+        elif page == "Jobs Dashboard":
             st.session_state.page = 'jobs'
         elif page == "AI & DS Jobs":
             st.session_state.page = 'ai_jobs'
@@ -168,7 +173,9 @@ def main():
     # Display the selected page based on session state
     current_page = st.session_state.page
     
-    if current_page == 'jobs':
+    if current_page == 'matches':
+        display_matches_page()
+    elif current_page == 'jobs':
         display_jobs_page()
     elif current_page == 'ai_jobs':
         display_ai_jobs_page()

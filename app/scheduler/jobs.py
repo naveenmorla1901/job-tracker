@@ -253,7 +253,46 @@ COMPANY_NAMES = {
     "brown": "Brown University",
     "bostonscientific": "Boston Scientific",
     "synopsys": "Synopsys",
-    "toyota": "Toyota Motor North America"
+    "toyota": "Toyota Motor North America",
+    # ATS boards from the company sheet that were marked scrape=FALSE. They are
+    # high-signal AI/data employers and are safe to poll through the shared
+    # Greenhouse/Lever/Ashby/SmartRecruiters fetchers.
+    "airapps": "Air Apps",
+    "cantina": "Cantina",
+    "deposco": "Deposco",
+    "nirvana": "Nirvana Insurance",
+    "ramp": "Ramp",
+    "realitydefender": "Reality Defender",
+    "robinhood": "Robinhood",
+    "adswerveinc": "Adswerve",
+    "anthropic": "Anthropic",
+    "betterhelpcom": "BetterHelp",
+    "blend": "Blend",
+    "boxinc": "Box",
+    "dataiku": "Dataiku",
+    "discord": "Discord",
+    "doordashusa": "DoorDash",
+    "etchedai": "Etched",
+    "extend": "Extend",
+    "gensyn": "Gensyn",
+    "gofundme": "GoFundMe",
+    "imaginepediatrics": "Imagine Pediatrics",
+    "lucidmotors": "Lucid Motors",
+    "moloco": "Moloco",
+    "newsbreak": "NewsBreak",
+    "pairteam": "Pair Team",
+    "point72": "Point72",
+    "scaleai": "Scale AI",
+    "snorkelai": "Snorkel AI",
+    "tenstorrent": "Tenstorrent",
+    "thetradedesk": "The Trade Desk",
+    "tubitv": "Tubi",
+    "upgrade": "Upgrade",
+    "dnwest": "Donor Network West",
+    "hatchit": "HatchIt",
+    "immuta": "Immuta",
+    "pingwind": "PingWind",
+    "nielseniq": "NielsenIQ"
 }
 
 

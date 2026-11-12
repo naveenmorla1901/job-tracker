@@ -101,7 +101,15 @@ def display_custom_jobs_table(df_jobs):
     st.header("Job Listings")
 
     # --- Sort ---------------------------------------------------------------
-    if "first_seen" in df_jobs.columns:
+    show_match = "match_score" in df_jobs.columns
+    if show_match:
+        sort_cols = ["match_score"]
+        ascending = [False]
+        if "first_seen" in df_jobs.columns:
+            sort_cols.append("first_seen")
+            ascending.append(False)
+        df_jobs = df_jobs.sort_values(by=sort_cols, ascending=ascending)
+    elif "first_seen" in df_jobs.columns:
         df_jobs = df_jobs.sort_values(by="first_seen", ascending=False)
     else:
         df_jobs = df_jobs.sort_values(by="date_posted", ascending=False)
@@ -117,6 +125,28 @@ def display_custom_jobs_table(df_jobs):
         location = html_lib.escape(str(row["location"]))
         job_type = html_lib.escape(str(row.get("employment_type", "N/A")))
         already_applied = job_id in applied_ids
+
+        match_cell = ""
+        skills_cell = ""
+        if show_match:
+            try:
+                score = int(row.get("match_score") or 0)
+            except (TypeError, ValueError):
+                score = 0
+            score_class = "score-high" if score >= 80 else "score-mid" if score >= 65 else "score-low"
+            match_cell = (
+                f"<td style='text-align:center'>"
+                f"<span class='score {score_class}'>{score}</span></td>"
+            )
+            skills = row.get("matched_skills") or []
+            if isinstance(skills, str):
+                skills = [part.strip() for part in skills.split(",") if part.strip()]
+            skills_text = ", ".join(str(skill) for skill in skills[:4]) or "—"
+            skills_full = ", ".join(str(skill) for skill in skills)
+            skills_cell = (
+                f"<td title='{html_lib.escape(skills_full)}'>"
+                f"{html_lib.escape(skills_text)}</td>"
+            )
 
         if user_email:
             if already_applied:
@@ -136,19 +166,63 @@ def display_custom_jobs_table(df_jobs):
                 f"class='apply-btn apply-btn-new'>Apply Now</a>"
             )
 
-        rows_html += (
-            f"<tr>"
-            f"<td>{title}</td>"
-            f"<td>{company}</td>"
-            f"<td>{location}</td>"
-            f"<td>{date_posted}</td>"
-            f"<td>{job_type}</td>"
-            f"<td style='text-align:center'>{btn}</td>"
-            f"</tr>\n"
-        )
+        if show_match:
+            rows_html += (
+                f"<tr>"
+                f"<td>{title}</td>"
+                f"<td>{company}</td>"
+                f"<td>{location}</td>"
+                f"{match_cell}"
+                f"{skills_cell}"
+                f"<td>{date_posted}</td>"
+                f"<td>{job_type}</td>"
+                f"<td style='text-align:center'>{btn}</td>"
+                f"</tr>\n"
+            )
+        else:
+            rows_html += (
+                f"<tr>"
+                f"<td>{title}</td>"
+                f"<td>{company}</td>"
+                f"<td>{location}</td>"
+                f"<td>{date_posted}</td>"
+                f"<td>{job_type}</td>"
+                f"<td style='text-align:center'>{btn}</td>"
+                f"</tr>\n"
+            )
 
     num_rows = len(df_jobs)
     table_height = min(60 + num_rows * 42, 2000)
+
+    if show_match:
+        column_css = """
+        th:nth-child(1), td:nth-child(1) { width: 23%; }
+        th:nth-child(2), td:nth-child(2) { width: 14%; }
+        th:nth-child(3), td:nth-child(3) { width: 13%; }
+        th:nth-child(4), td:nth-child(4) { width: 7%; text-align: center; }
+        th:nth-child(5), td:nth-child(5) { width: 14%; }
+        th:nth-child(6), td:nth-child(6) { width: 11%; font-weight: bold; }
+        th:nth-child(7), td:nth-child(7) { width: 9%; }
+        th:nth-child(8), td:nth-child(8) { width: 9%; text-align: center; }
+        """
+        header_html = (
+            "<th>Job Title</th><th>Company</th><th>Location</th>"
+            "<th>Match</th><th>Matched Skills</th><th>Posted Date</th>"
+            "<th>Job Type</th><th>Apply</th>"
+        )
+    else:
+        column_css = """
+        th:nth-child(1), td:nth-child(1) { width: 25%; }
+        th:nth-child(2), td:nth-child(2) { width: 18%; }
+        th:nth-child(3), td:nth-child(3) { width: 17%; }
+        th:nth-child(4), td:nth-child(4) { width: 20%; font-weight: bold; }
+        th:nth-child(5), td:nth-child(5) { width: 12%; }
+        th:nth-child(6), td:nth-child(6) { width: 8%; text-align: center; }
+        """
+        header_html = (
+            "<th>Job Title</th><th>Company</th><th>Location</th>"
+            "<th>Posted Date</th><th>Job Type</th><th>Apply</th>"
+        )
 
     full_html = f"""
     <!DOCTYPE html>
@@ -165,12 +239,15 @@ def display_custom_jobs_table(df_jobs):
               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
         tr:hover {{ background-color: rgba(200, 200, 200, 0.1); }}
 
-        th:nth-child(1), td:nth-child(1) {{ width: 25%; }}
-        th:nth-child(2), td:nth-child(2) {{ width: 18%; }}
-        th:nth-child(3), td:nth-child(3) {{ width: 17%; }}
-        th:nth-child(4), td:nth-child(4) {{ width: 20%; font-weight: bold; }}
-        th:nth-child(5), td:nth-child(5) {{ width: 12%; }}
-        th:nth-child(6), td:nth-child(6) {{ width: 8%; text-align: center; }}
+        {column_css}
+
+        .score {{
+            display: inline-block; min-width: 34px; padding: 2px 6px;
+            border-radius: 10px; font-weight: bold; font-size: 0.78rem;
+        }}
+        .score-high {{ background-color: #1b5e20; color: #b9f6ca; }}
+        .score-mid {{ background-color: #0d47a1; color: #bbdefb; }}
+        .score-low {{ background-color: #37474f; color: #cfd8dc; }}
 
         .apply-btn {{
             display: inline-block; padding: 4px 10px;
@@ -188,8 +265,7 @@ def display_custom_jobs_table(df_jobs):
     <table>
         <thead>
             <tr>
-                <th>Job Title</th><th>Company</th><th>Location</th>
-                <th>Posted Date</th><th>Job Type</th><th>Apply</th>
+                {header_html}
             </tr>
         </thead>
         <tbody>

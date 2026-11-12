@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List, Optional, Union
+from collections import Counter
 from datetime import datetime, timedelta
 import logging
 
 from app.db.database import get_db
 from app.db.models import Job, Role
 from app.db.crud import get_or_create_role
+from app.matching import get_matcher
 from app.role_categories import CATEGORIES, classify_title
 
 # Configure logger
@@ -135,6 +137,168 @@ def _day_start_cutoff(days: int) -> datetime:
     """Start of the day `days` days ago (UTC), with the same 12h buffer as get_jobs."""
     date_cutoff = datetime.utcnow() - timedelta(days=days, hours=12)
     return datetime(date_cutoff.year, date_cutoff.month, date_cutoff.day)
+
+
+# Scoring every posting in a long window is cheap enough for the dashboard, but
+# cap it so a bad query cannot turn into an unbounded scan.
+MAX_MATCH_SCAN = 10000
+
+
+@router.get("/profile")
+def get_matching_profile():
+    """The matching profile used by /jobs/matches."""
+    matcher = get_matcher()
+    return {
+        "name": matcher.profile.get("name", ""),
+        "target_titles": matcher.target_titles,
+        "title_keywords": matcher.title_keywords,
+        "preferred_locations": matcher.preferred_locations,
+        "remote_ok": matcher.remote_ok,
+        "max_years_experience": matcher.max_years,
+        "min_score": matcher.min_score,
+    }
+
+
+@router.get("/matches")
+def get_matching_jobs(
+    db: Session = Depends(get_db),
+    days: int = Query(7, ge=1, le=60),
+    min_score: Optional[int] = Query(None, ge=0, le=100),
+    us_only: bool = Query(True),
+    include_excluded: bool = Query(False),
+    company: Optional[List[str]] = Query(None),
+    category: Optional[List[str]] = Query(None),
+    search: Optional[str] = None,
+    limit: int = Query(200, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """Active jobs ranked against config/profile.yaml.
+
+    Unlike /jobs, this endpoint scores the whole date window and then paginates,
+    so ``total`` is the number of matches rather than a truncated page count.
+    """
+    matcher = get_matcher()
+    threshold = matcher.min_score if min_score is None else min_score
+
+    query = db.query(
+        Job.id,
+        Job.job_id,
+        Job.job_title,
+        Job.company,
+        Job.location,
+        Job.job_url,
+        Job.date_posted,
+        Job.employment_type,
+        Job.description,
+        Job.first_seen,
+    ).filter(
+        Job.is_active == True,  # noqa: E712
+        Job.date_posted >= _day_start_cutoff(days),
+    )
+
+    if company:
+        query = query.filter(Job.company.in_(company))
+    if search:
+        term = f"%{search}%"
+        query = query.filter(or_(Job.job_title.ilike(term), Job.description.ilike(term)))
+
+    wanted_categories = set(category or [])
+    matches = []
+    excluded_count = 0
+    scanned = 0
+    skill_counts: Counter = Counter()
+
+    for row in query.order_by(Job.date_posted.desc()).limit(MAX_MATCH_SCAN).all():
+        categories = classify_title(row.job_title)
+        if wanted_categories and not wanted_categories.intersection(categories):
+            continue
+
+        result = matcher.score(
+            title=row.job_title,
+            description=row.description or "",
+            location=row.location or "",
+            employment_type=row.employment_type or "",
+        )
+        scanned += 1
+        if result.excluded:
+            excluded_count += 1
+            if not include_excluded:
+                continue
+        elif not matcher.is_match(result, threshold):
+            continue
+
+        if us_only and not result.is_us:
+            continue
+
+        for skill in result.matched_skills:
+            skill_counts[skill] += 1
+
+        matches.append({
+            "id": row.id,
+            "job_id": row.job_id,
+            "job_title": row.job_title,
+            "company": row.company,
+            "location": row.location,
+            "job_url": row.job_url,
+            "date_posted": row.date_posted.strftime("%Y-%m-%d") if row.date_posted else None,
+            "employment_type": row.employment_type,
+            "first_seen": row.first_seen.strftime("%Y-%m-%d %H:%M:%S") if row.first_seen else None,
+            "categories": categories,
+            "match_score": result.score,
+            "title_score": result.title_score,
+            "skill_score": result.skill_score,
+            "location_score": result.location_score,
+            "seniority_score": result.seniority_score,
+            "matched_skills": list(result.matched_skills),
+            "match_reasons": list(result.reasons),
+            "excluded": result.excluded,
+            "exclusion_reason": result.exclusion_reason,
+            "is_us": result.is_us,
+            "required_years": result.required_years,
+        })
+
+    # Highest score first, newest first inside the same score.
+    matches.sort(
+        key=lambda job: (job["match_score"], job.get("date_posted") or ""),
+        reverse=True,
+    )
+    total = len(matches)
+    page = matches[offset:offset + limit]
+
+    top_companies = Counter(job["company"] for job in matches).most_common(10)
+    stats = {
+        "scanned": scanned,
+        "matches": total,
+        "strong_matches": sum(1 for job in matches if job["match_score"] >= 80),
+        "excluded": excluded_count,
+        "average_score": (
+            round(sum(job["match_score"] for job in matches) / total, 1) if total else 0
+        ),
+        "top_skills": [
+            {"skill": skill, "count": count}
+            for skill, count in skill_counts.most_common(10)
+        ],
+        "top_companies": [
+            {"company": name, "count": count} for name, count in top_companies
+        ],
+    }
+
+    return {
+        "jobs": page,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "profile": {
+            "name": matcher.profile.get("name", ""),
+            "min_score": threshold,
+            "default_min_score": matcher.min_score,
+            "max_years_experience": matcher.max_years,
+            "target_titles": matcher.target_titles,
+            "preferred_locations": matcher.preferred_locations,
+            "remote_ok": matcher.remote_ok,
+        },
+        "stats": stats,
+    }
 
 
 @router.get("/ai-ds")

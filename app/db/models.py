@@ -30,7 +30,10 @@ class Job(Base):
     __tablename__ = 'jobs'
     
     id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(String(255), unique=True, index=True, nullable=False)  # External job ID
+    # External job ID. Not globally unique: different companies routinely reuse
+    # the same numeric requisition IDs. Uniqueness is enforced per company by
+    # uix_job_company below.
+    job_id = Column(String(255), index=True, nullable=False)
     job_title = Column(String(255), nullable=False)
     location = Column(String(255))
     job_url = Column(String(1024), nullable=False)

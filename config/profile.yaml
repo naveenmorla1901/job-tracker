@@ -1,0 +1,130 @@
+# Job Tracker matching profile.
+#
+# This is the tracker's copy of the requirements used by the "Best Matches"
+# page and the /api/jobs/matches endpoint. Edit it and redeploy to change what
+# the tracker considers a good fit. No resume text is stored here; matching is
+# based on titles, skills, location, and seniority.
+
+name: Naveen Morla
+
+# Roles you actively want. A title containing one of these phrases gets the
+# full title score.
+target_titles:
+  - data scientist
+  - machine learning engineer
+  - ml engineer
+  - ai engineer
+  - artificial intelligence engineer
+  - ai/ml engineer
+  - nlp engineer
+  - llm engineer
+  - rag engineer
+  - prompt engineer
+  - ai application developer
+  - agentic ai engineer
+  - applied scientist
+  - generative ai engineer
+  - research engineer
+  - full stack ml engineer
+  - business intelligence engineer
+  - data engineer
+  - analytics engineer
+  - data analyst
+
+# Softer title signals. Each distinct keyword earns partial title credit.
+title_keywords:
+  - data
+  - machine learning
+  - ml
+  - ai
+  - nlp
+  - llm
+  - rag
+  - genai
+  - gen ai
+  - agentic
+  - analytics
+  - scientist
+  - applied scientist
+  - business intelligence
+
+# Hard rejects on the title. Word-boundary match, so "manager" will not reject
+# "data management" titles.
+exclude_titles:
+  - director
+  - head of
+  - vice president
+  - vp
+  - evp
+  - svp
+  - executive
+  - manager
+  - sales
+  - account executive
+  - recruiter
+  - nurse
+  - driver
+  - technician
+  - teacher
+  - intern
+  - internship
+  - extern
+  - externship
+  - co-op
+  - coop
+  - sdet
+  - qa tester
+
+# Hard rejects anywhere in the description.
+exclude_keywords:
+  - security clearance
+  - ts/sci
+  - polygraph
+  - us citizen only
+  - citizens only
+  - not eligible for work authorization sponsorship
+  - not eligible for visa sponsorship
+  - without sponsorship
+  - green card required
+  - green card holders only
+  - itar
+  - export control
+  - no sponsorship
+  - not sponsoring
+  - unable to sponsor
+  - will not sponsor
+  - does not sponsor
+  - unpaid
+  - commission only
+
+# weight = how much this skill matters (1 = nice to have, 3 = core).
+skills:
+  - {name: python, weight: 3, aliases: [py]}
+  - {name: sql, weight: 3, aliases: [postgresql, mysql, t-sql, bigquery]}
+  - {name: machine learning, weight: 3, aliases: [ml, supervised learning, scikit-learn, sklearn, xgboost]}
+  - {name: deep learning, weight: 2, aliases: [pytorch, tensorflow, keras, neural network]}
+  - {name: nlp, weight: 3, aliases: [natural language processing, spacy, transformers, huggingface, bert]}
+  - {name: llm, weight: 3, aliases: [large language model, rag, langchain, langgraph, dspy, prompt engineering, openai, agentic ai, multi-agent]}
+  - {name: vector databases, weight: 2, aliases: [faiss, pinecone, chromadb, embeddings, semantic search]}
+  - {name: statistics, weight: 2, aliases: [a/b testing, hypothesis testing, regression, forecasting]}
+  - {name: pandas, weight: 2, aliases: [numpy, polars]}
+  - {name: data visualization, weight: 2, aliases: [tableau, power bi, matplotlib, seaborn, looker]}
+  - {name: aws, weight: 2, aliases: [sagemaker, s3, lambda, ec2, bedrock]}
+  - {name: azure, weight: 2, aliases: [azure functions, databricks, synapse, azure ml]}
+  - {name: gcp, weight: 2, aliases: [bigquery, vertex ai]}
+  - {name: spark, weight: 2, aliases: [pyspark, hadoop, databricks]}
+  - {name: airflow, weight: 1, aliases: [dbt, etl, data pipeline]}
+  - {name: docker, weight: 2, aliases: [kubernetes, k8s, mlops, ci/cd, github actions]}
+  - {name: fastapi, weight: 2, aliases: [flask, django, rest api]}
+
+preferred_locations:
+  - columbus, oh
+  - remote
+  - united states
+remote_ok: true
+
+# Postings demanding much more than this get a seniority penalty.
+max_years_experience: 5
+
+# Default threshold for the Best Matches page. Jobs below this are hidden.
+min_score: 55

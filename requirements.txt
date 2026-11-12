@@ -30,6 +30,7 @@ streamlit
 # Utilities
 python-dateutil
 pytz
+PyYAML
 tqdm
 
 # Authentication

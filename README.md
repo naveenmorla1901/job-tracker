@@ -5,13 +5,15 @@
 ![Database](https://img.shields.io/badge/database-PostgreSQL-336791)
 ![Monitoring](https://img.shields.io/badge/monitoring-psutil-4EAA25)
 ![Deployment](https://img.shields.io/badge/deployment-GitHub_Actions-2088FF)
-![Scrapers](https://img.shields.io/badge/scrapers-30+-FFA500)
+![Scrapers](https://img.shields.io/badge/scrapers-260+-FFA500)
 
-A comprehensive job tracking system that automatically scrapes, stores, and visualizes job postings from over 30 company career sites, helping you stay on top of the job market.
+A comprehensive job tracking system that automatically scrapes, stores, and visualizes job postings from 260+ company career sites, then ranks them against a personal profile so the strongest matches surface first.
 
 ## Features
 
-- **Multi-Source Scraping**: Automated collection from 30+ company career sites
+- **Multi-Source Scraping**: Automated collection from 260+ company career sites (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, SuccessFactors, TalentBrew, and custom APIs)
+- **Best Matches**: Every posting is scored 0–100 against `config/profile.yaml` on title, skills, location, and seniority, with hard exclusions for roles you do not want
+- **Explainable Ranking**: Each match shows its score and the skills that earned it
 - **Interactive Dashboard**: Filter and visualize job trends with Streamlit
 - **Time-Based Filtering**: View jobs from the last 24 hours, 3 days, or 7 days
 - **Advanced Filtering**: Filter by role, company, location, and more
@@ -96,6 +98,7 @@ http://localhost:8501
 
 ## Usage
 
+- **Best Matches**: Open the first page to see active jobs ranked against your profile; adjust the minimum score, time window, categories, and US-only filter in the sidebar
 - **View Job Listings**: Browse all jobs or filter by role, company, etc.
 - **Track New Postings**: See jobs posted in the last 24 hours
 - **Apply Directly**: Click 'Apply' to go to the original job posting
@@ -105,6 +108,33 @@ http://localhost:8501
 - **Dark Mode**: Toggle between light and dark themes
 - **Mobile Access**: Use on mobile devices with optimized layout
 - **Pagination**: Navigate through large job listing result sets
+
+## Personal Matching Profile
+
+`config/profile.yaml` controls what "Best Matches" considers a good fit. Edit it and redeploy; no resume text is stored.
+
+```yaml
+target_titles: [data scientist, machine learning engineer, ai engineer, ...]
+title_keywords: [data, machine learning, ai, nlp, llm, ...]
+exclude_titles: [director, manager, sales, intern, ...]
+exclude_keywords: [security clearance, no sponsorship, ...]
+skills:
+  - {name: python, weight: 3, aliases: [py]}
+  - {name: llm, weight: 3, aliases: [rag, langchain, prompt engineering]}
+preferred_locations: [columbus, oh, remote, united states]
+max_years_experience: 5
+min_score: 55
+```
+
+Scoring is deterministic and explainable:
+
+- **40 points** — title matches a target phrase, or partial credit for title keywords
+- **40 points** — weighted skills found in the title and description
+- **15 points** — Columbus, remote, or another preferred location; 12 for other US locations
+- **5 points** — seniority fit; postings asking for materially more than `max_years_experience` lose points
+- **Hard rejects** — excluded titles, clearance/sponsorship restrictions, and similar requirements return score 0
+
+Use `JOB_TRACKER_PROFILE=/path/to/profile.yaml` to point at a different profile.
 
 ## System Monitoring
 
@@ -158,11 +188,14 @@ journalctl -u job-tracker-dashboard.service | grep post-receive
 The system provides a RESTful API for accessing job data:
 
 - `GET /api/jobs` - Get job listings with filtering options
+- `GET /api/jobs/matches` - Profile-ranked jobs (`days`, `min_score`, `us_only`, `category`, `company`, `search`)
+- `GET /api/jobs/profile` - The active matching profile
+- `GET /api/jobs/ai-ds` - Active AI / data roles classified by title
 - `GET /api/jobs/companies` - Get all available companies
 - `GET /api/jobs/roles` - Get all job role categories
-- `GET /api/stats` - Get statistics about job listings
+- `GET /api/jobs/stats` - Get statistics about job listings
 
-All list endpoints support pagination with navigation links.
+All list endpoints support pagination with navigation links. `/api/jobs/matches` scores the full date window before paginating, so `total` is the number of matches rather than a truncated page count.
 
 ## Deployment
 
@@ -196,6 +229,9 @@ python run.py help          # Show all available commands
 
 ## Recent Enhancements
 
+- **Best Matches**: Profile-based 0–100 scoring with skill explanations and hard exclusions
+- **ATS Coverage**: Added 36 live Greenhouse, Lever, Ashby, and SmartRecruiters boards from the company sheet
+- **Per-Company Job IDs**: `job_id` is now unique per company, so reused numeric requisition IDs no longer collide
 - **Automatic Service Restart**: Added Git hook to automatically restart services after pushing changes
 - **Dark Mode Toggle**: Added user-selectable dark theme for better viewing experience
 - **Mobile Responsiveness**: Optimized layout for mobile devices
