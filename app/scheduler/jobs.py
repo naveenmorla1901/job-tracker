@@ -352,7 +352,9 @@ COMPANY_NAMES = {
     "snowflake": "Snowflake",
     "supabase": "Supabase",
     "palantir": "Palantir",
-    "spotify": "Spotify"
+    "spotify": "Spotify",
+    # Eightfold PCS boards.
+    "ukg": "UKG"
 }
 
 
