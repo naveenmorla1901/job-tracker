@@ -716,6 +716,357 @@ def fetch_talentbrew_jobs(base_url, roles, days=7):
     return _by_role(jobs, roles, days)
 
 
+# --- Oracle HCM Cloud --------------------------------------------------------
+# Oracle's Candidate Experience sites expose the same search API the page uses.
+# A single unfiltered query returns every posting in the date window, which is
+# more complete than replaying the scheduler's 22 role searches.
+
+_ORACLE_PAGE_SIZE = 100
+_ORACLE_MAX_JOBS = 1500
+_ORACLE_FACETS = (
+    "LOCATIONS;WORK_LOCATIONS;WORKPLACE_TYPES;TITLES;CATEGORIES;"
+    "ORGANIZATIONS;POSTING_DATES;FLEX_FIELDS"
+)
+
+
+def _oracle_hcm_page(host, site, days, offset):
+    finder = (
+        f"findReqs;siteNumber={site},facetsList={_ORACLE_FACETS},"
+        f"limit={_ORACLE_PAGE_SIZE},selectedPostingDatesFacet={days},"
+        f"sortBy=POSTING_DATES_DESC,offset={offset}"
+    )
+    response = requests.get(
+        f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions",
+        params={
+            "onlyData": "true",
+            "expand": "requisitionList.secondaryLocations",
+            "finder": finder,
+        },
+        headers=HEADERS,
+        timeout=45,
+    )
+    response.raise_for_status()
+    items = response.json().get("items") or [{}]
+    return items[0]
+
+
+def _oracle_hcm_detail(host, site, requisition_id):
+    response = requests.get(
+        f"https://{host}/hcmRestApi/resources/latest/"
+        "recruitingCEJobRequisitionDetails",
+        params={
+            "expand": "all",
+            "onlyData": "true",
+            "finder": f'ById;Id="{requisition_id}",siteNumber={site}',
+        },
+        headers=HEADERS,
+        timeout=45,
+    )
+    response.raise_for_status()
+    items = response.json().get("items") or [{}]
+    return items[0]
+
+
+def fetch_oracle_hcm_jobs(host, site, roles, days=7):
+    """Jobs from an Oracle HCM Candidate Experience site, grouped by role."""
+    requisitions = {}
+    offset = 0
+    total = None
+    while offset < _ORACLE_MAX_JOBS:
+        page = _oracle_hcm_page(host, site, days, offset)
+        if total is None:
+            total = page.get("TotalJobsCount") or 0
+        rows = page.get("requisitionList") or []
+        for row in rows:
+            requisition_id = row.get("Id")
+            if requisition_id:
+                requisitions.setdefault(str(requisition_id), row)
+        offset += len(rows)
+        if not rows or offset >= total or len(rows) < _ORACLE_PAGE_SIZE:
+            break
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    matchers = [_role_matcher(role) for role in roles]
+    matched = []
+    for row in requisitions.values():
+        posted = _parse_iso(row.get("PostedDate"))
+        if not posted or posted.date() < cutoff:
+            continue
+        if any(matcher(row.get("Title", "")) for matcher in matchers):
+            matched.append(row)
+
+    details = {}
+    failures = []
+    if matched:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(
+                    _oracle_hcm_detail, host, site, row["Id"]
+                ): row["Id"]
+                for row in matched[:200]
+            }
+            for future in as_completed(futures):
+                requisition_id = futures[future]
+                try:
+                    details[requisition_id] = future.result()
+                except Exception as exc:
+                    failures.append(exc)
+    if failures:
+        print(f"Error fetching {len(failures)} Oracle HCM detail(s) for {host}: {failures[0]}")
+
+    jobs = []
+    for row in matched:
+        detail = details.get(row["Id"]) or row
+        posted = _parse_iso(detail.get("ExternalPostedStartDate")) or _parse_iso(
+            row.get("PostedDate")
+        )
+        locations = []
+        for value in [row.get("PrimaryLocation")] + [
+            loc.get("Name") for loc in (row.get("secondaryLocations") or [])
+        ]:
+            if value and value not in locations:
+                locations.append(value)
+        description = " ".join(
+            value for value in (
+                detail.get("ExternalDescriptionStr"),
+                detail.get("ExternalResponsibilitiesStr"),
+                detail.get("ExternalQualificationsStr"),
+            ) if value
+        )
+        jobs.append({
+            "job_title": detail.get("Title") or row.get("Title", "N/A"),
+            "job_id": str(row["Id"]),
+            # Multi-location Oracle postings can list a dozen cities; the
+            # jobs.location column is VARCHAR(255).
+            "location": (", ".join(locations) if locations else "N/A")[:255],
+            "job_url": (
+                f"https://{host}/hcmUI/CandidateExperience/en/sites/"
+                f"{site}/job/{row['Id']}"
+            ),
+            "date_posted": posted.strftime("%Y-%m-%d") if posted else None,
+            "employment_type": detail.get("JobSchedule") or "N/A",
+            "description": _clean(description),
+            "_posted": posted,
+        })
+    return _by_role(jobs, roles, days)
+
+
+# --- Taleo ------------------------------------------------------------------
+# Taleo's newer career sites render one accordion block per requisition. The
+# detail page carries a JobPosting JSON-LD block with the posting date and full
+# description.
+
+_TALEO_MAX_JOBS = 100
+
+
+def _taleo_detail(job_url):
+    response = requests.get(job_url, headers=HTML_HEADERS, timeout=30)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    for script in soup.find_all("script", {"type": "application/ld+json"}):
+        try:
+            data = json.loads(script.string or "{}")
+        except (TypeError, ValueError):
+            continue
+        if data.get("@type") == "JobPosting":
+            return data
+    return {}
+
+
+def fetch_taleo_jobs(search_url, roles, days=7):
+    """Jobs from a Taleo v2 search results page, grouped by role."""
+    response = requests.get(search_url, headers=HTML_HEADERS, timeout=45)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    candidates = {}
+    for block in soup.select("div.oracletaleocwsv2-accordion-block"):
+        link = block.select_one("h4.oracletaleocwsv2-head-title a.viewJobLink")
+        if not link:
+            continue
+        href = link.get("href") or ""
+        match = re.search(r"[?&]rid=(\d+)", href)
+        if not match:
+            continue
+        info = block.select_one("div.oracletaleocwsv2-accordion-head-info")
+        values = [
+            div.get_text(" ", strip=True)
+            for div in (info.select("div") if info else [])
+            if div.get_text(" ", strip=True)
+        ]
+        # values: country, city, job id
+        location = ", ".join(values[1:2] or values[:1]) or "N/A"
+        candidates[match.group(1)] = {
+            "job_title": link.get_text(" ", strip=True),
+            "job_id": match.group(1),
+            "location": location,
+            "job_url": href,
+            "date_posted": None,
+            "employment_type": "N/A",
+            "description": "N/A",
+            "_posted": None,
+        }
+
+    failures = []
+    for job in list(candidates.values())[:_TALEO_MAX_JOBS]:
+        try:
+            detail = _taleo_detail(job["job_url"])
+        except Exception as exc:
+            failures.append(exc)
+            continue
+        posted = _parse_iso(detail.get("datePosted"))
+        if posted:
+            job["_posted"] = posted
+            job["date_posted"] = posted.strftime("%Y-%m-%d")
+        if detail.get("description"):
+            job["description"] = _clean(detail["description"])
+        if detail.get("employmentType"):
+            job["employment_type"] = detail["employmentType"]
+    if failures:
+        print(f"Error fetching {len(failures)} Taleo detail(s): {failures[0]}")
+    return _by_role(list(candidates.values()), roles, days)
+
+
+# --- Breezy HR ---------------------------------------------------------------
+# The board JSON lists every position but no description; detail pages carry a
+# JobPosting JSON-LD block.
+
+def _breezy_detail(job_url):
+    response = requests.get(job_url, headers=HTML_HEADERS, timeout=30)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    for script in soup.find_all("script", {"type": "application/ld+json"}):
+        try:
+            data = json.loads(script.string or "{}")
+        except (TypeError, ValueError):
+            continue
+        if data.get("@type") == "JobPosting":
+            return data
+    return {}
+
+
+def fetch_breezy_jobs(board, roles, days=7):
+    """Jobs from https://<board>.breezy.hr grouped by role."""
+    response = requests.get(f"https://{board}.breezy.hr/json", headers=HEADERS, timeout=30)
+    response.raise_for_status()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    matchers = [_role_matcher(role) for role in roles]
+    candidates = []
+    for posting in response.json():
+        posted = _parse_iso(posting.get("published_date"))
+        if not posted or posted.date() < cutoff:
+            continue
+        location = posting.get("location") or {}
+        candidates.append({
+            "job_title": posting.get("name", "N/A"),
+            "job_id": posting.get("id"),
+            "location": location.get("name") or ", ".join(
+                part for part in (
+                    location.get("city"),
+                    (location.get("country") or {}).get("name"),
+                ) if part
+            ) or "N/A",
+            "job_url": posting.get("url"),
+            "date_posted": posted.strftime("%Y-%m-%d"),
+            "employment_type": (posting.get("type") or {}).get("name", "N/A"),
+            "description": "N/A",
+            "_posted": posted,
+        })
+
+    matched = [
+        job for job in candidates
+        if any(matcher(job["job_title"]) for matcher in matchers)
+    ]
+    failures = []
+    if matched:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(_breezy_detail, job["job_url"]): job
+                for job in matched[:100]
+            }
+            for future in as_completed(futures):
+                job = futures[future]
+                try:
+                    detail = future.result()
+                except Exception as exc:
+                    failures.append(exc)
+                    continue
+                if detail.get("description"):
+                    job["description"] = _clean(detail["description"])
+                if detail.get("employmentType"):
+                    job["employment_type"] = detail["employmentType"]
+    if failures:
+        print(f"Error fetching {len(failures)} Breezy detail(s) for {board}: {failures[0]}")
+    return _by_role(candidates, roles, days)
+
+
+# --- BambooHR ---------------------------------------------------------------
+# BambooHR's public careers JSON lists active openings; the detail page exposes
+# the description through its Open Graph tags. The list has no posting date, so
+# active openings are treated as current.
+
+def _bamboohr_detail(board, job_id):
+    response = requests.get(
+        f"https://{board}.bamboohr.com/careers/{job_id}",
+        headers=HTML_HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    description = soup.find("meta", {"property": "og:description"})
+    return {
+        "description": description.get("content") if description else None,
+    }
+
+
+def fetch_bamboohr_jobs(board, roles, days=7):
+    """Jobs from https://<board>.bamboohr.com/careers grouped by role."""
+    response = requests.get(
+        f"https://{board}.bamboohr.com/careers/list", headers=HEADERS, timeout=30
+    )
+    response.raise_for_status()
+    matchers = [_role_matcher(role) for role in roles]
+    now = datetime.now(timezone.utc)
+    candidates = []
+    for posting in response.json().get("result", []):
+        location = posting.get("location") or {}
+        candidates.append({
+            "job_title": posting.get("jobOpeningName", "N/A"),
+            "job_id": str(posting.get("id")),
+            "location": ", ".join(
+                part for part in (location.get("city"), location.get("state")) if part
+            ) or "N/A",
+            "job_url": f"https://{board}.bamboohr.com/careers/{posting.get('id')}",
+            "date_posted": now.strftime("%Y-%m-%d"),
+            "employment_type": posting.get("employmentStatusLabel") or "N/A",
+            "description": "N/A",
+            "_posted": now,
+        })
+
+    matched = [
+        job for job in candidates
+        if any(matcher(job["job_title"]) for matcher in matchers)
+    ]
+    failures = []
+    if matched:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(_bamboohr_detail, board, job["job_id"]): job
+                for job in matched[:100]
+            }
+            for future in as_completed(futures):
+                job = futures[future]
+                try:
+                    detail = future.result()
+                except Exception as exc:
+                    failures.append(exc)
+                    continue
+                if detail.get("description"):
+                    job["description"] = _clean(detail["description"])
+    if failures:
+        print(f"Error fetching {len(failures)} BambooHR detail(s) for {board}: {failures[0]}")
+    return _by_role(candidates, roles, days)
+
+
 # --- Eightfold PCS -----------------------------------------------------------
 # Autodesk's current careers site runs on Eightfold. The old Workday "Ext"
 # board is nearly empty, while Eightfold's public search API returns the real

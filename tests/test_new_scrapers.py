@@ -242,6 +242,189 @@ def test_smartrecruiters_fetches_details_only_for_matching_titles(monkeypatch):
     ]
 
 
+class _FakeHtmlResponse:
+    def __init__(self, text):
+        self.text = text
+
+    def raise_for_status(self):
+        return None
+
+
+def test_oracle_hcm_fetcher_maps_requisition_and_detail(monkeypatch):
+    posted = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    page_payload = {
+        "items": [
+            {
+                "TotalJobsCount": 1,
+                "requisitionList": [
+                    {
+                        "Id": "210808145",
+                        "Title": "Senior Data Scientist",
+                        "PostedDate": posted,
+                        "PrimaryLocation": "Columbus, OH, United States",
+                        "secondaryLocations": [
+                            {"Name": "Brooklyn, NY, United States"}
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    detail_payload = {
+        "items": [
+            {
+                "Title": "Senior Data Scientist",
+                "JobSchedule": "Full time",
+                "ExternalPostedStartDate": f"{posted}T14:40:39+00:00",
+                "ExternalDescriptionStr": "<p>Python SQL LLM RAG</p>",
+                "ExternalQualificationsStr": "<p>5+ years</p>",
+            }
+        ]
+    }
+
+    def fake_get(url, *args, **kwargs):
+        if "recruitingCEJobRequisitionDetails" in url:
+            return _FakeResponse(detail_payload)
+        return _FakeResponse(page_payload)
+
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    result = ats_boards.fetch_oracle_hcm_jobs(
+        "acme.oraclecloud.com", "CX_1", ["Data Scientist python SQL"], days=7
+    )
+
+    jobs = result["Data Scientist python SQL"]
+    assert [job["job_id"] for job in jobs] == ["210808145"]
+    assert jobs[0]["location"] == (
+        "Columbus, OH, United States, Brooklyn, NY, United States"
+    )
+    assert jobs[0]["job_url"] == (
+        "https://acme.oraclecloud.com/hcmUI/CandidateExperience/en/sites/"
+        "CX_1/job/210808145"
+    )
+    assert jobs[0]["employment_type"] == "Full time"
+    assert "Python SQL LLM RAG" in jobs[0]["description"]
+    assert "5+ years" in jobs[0]["description"]
+
+
+def test_taleo_fetcher_reads_list_and_jsonld_detail(monkeypatch):
+    posted = datetime.now(timezone.utc).isoformat()
+    search_html = """
+    <div class="oracletaleocwsv2-accordion-block">
+      <div class="oracletaleocwsv2-accordion-head-info">
+        <h4 class="oracletaleocwsv2-head-title">
+          <a href="https://acme.taleo.net/careers/v2/viewRequisition?rid=42"
+             class="viewJobLink">Data Scientist</a>
+        </h4>
+        <div>US</div><div>Columbus</div><div>42</div>
+      </div>
+    </div>
+    """
+    detail_html = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":"Data Scientist",'
+        f'"datePosted":"{posted}","employmentType":"Full-time",'
+        '"description":"<p>Python SQL LLM</p>"}'
+        "</script>"
+    )
+
+    def fake_get(url, *args, **kwargs):
+        if "viewRequisition" in url:
+            return _FakeHtmlResponse(detail_html)
+        return _FakeHtmlResponse(search_html)
+
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    result = ats_boards.fetch_taleo_jobs(
+        "https://acme.taleo.net/careers/v2/searchResults?org=ACME&cws=1",
+        ["Data Scientist python SQL"],
+        days=7,
+    )
+
+    jobs = result["Data Scientist python SQL"]
+    assert [job["job_id"] for job in jobs] == ["42"]
+    assert jobs[0]["location"] == "Columbus"
+    assert jobs[0]["employment_type"] == "Full-time"
+    assert jobs[0]["description"] == "Python SQL LLM"
+
+
+def test_breezy_fetcher_fetches_detail_only_for_matches(monkeypatch):
+    published = datetime.now(timezone.utc).isoformat()
+    list_payload = [
+        {
+            "id": "b1",
+            "name": "Data Scientist",
+            "url": "https://acme.breezy.hr/p/b1",
+            "published_date": published,
+            "type": {"name": "Full-Time"},
+            "location": {"name": "Remote"},
+        },
+        {
+            "id": "b2",
+            "name": "Accountant",
+            "url": "https://acme.breezy.hr/p/b2",
+            "published_date": published,
+            "type": {"name": "Full-Time"},
+            "location": {"name": "New York, NY"},
+        },
+    ]
+    detail_html = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","description":"<p>Python SQL LLM</p>",'
+        '"employmentType":"Full-Time"}'
+        "</script>"
+    )
+    detail_calls = []
+
+    def fake_get(url, *args, **kwargs):
+        if url.endswith("/p/b1"):
+            detail_calls.append(url)
+            return _FakeHtmlResponse(detail_html)
+        return _FakeResponse(list_payload)
+
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    result = ats_boards.fetch_breezy_jobs(
+        "acme", ["Data Scientist python SQL"], days=7
+    )
+
+    jobs = result["Data Scientist python SQL"]
+    assert [job["job_id"] for job in jobs] == ["b1"]
+    assert jobs[0]["description"] == "Python SQL LLM"
+    assert detail_calls == ["https://acme.breezy.hr/p/b1"]
+
+
+def test_bamboohr_fetcher_maps_active_openings(monkeypatch):
+    list_payload = {
+        "result": [
+            {
+                "id": "121",
+                "jobOpeningName": "Computer Vision Scientist",
+                "employmentStatusLabel": "Full-Time",
+                "location": {"city": "San Diego", "state": "California"},
+            }
+        ]
+    }
+    detail_html = (
+        '<meta property="og:description" '
+        'content="Python PyTorch computer vision" />'
+    )
+
+    def fake_get(url, *args, **kwargs):
+        if url.endswith("/careers/121"):
+            return _FakeHtmlResponse(detail_html)
+        return _FakeResponse(list_payload)
+
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    result = ats_boards.fetch_bamboohr_jobs("acme", ["Computer Vision"], days=7)
+
+    jobs = result["Computer Vision"]
+    assert [job["job_id"] for job in jobs] == ["121"]
+    assert jobs[0]["location"] == "San Diego, California"
+    assert jobs[0]["description"] == "Python PyTorch computer vision"
+
+
 def test_toyota_only_processes_title_matches(monkeypatch):
     payload = {
         "total": 2,

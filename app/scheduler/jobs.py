@@ -292,7 +292,24 @@ COMPANY_NAMES = {
     "hatchit": "HatchIt",
     "immuta": "Immuta",
     "pingwind": "PingWind",
-    "nielseniq": "NielsenIQ"
+    "nielseniq": "NielsenIQ",
+    # Oracle HCM Candidate Experience boards.
+    "chase": "JPMorgan Chase",
+    "citizens": "Citizens",
+    "mayoclinic": "Mayo Clinic",
+    "navyfederal": "Navy Federal Credit Union",
+    "oraclecloud": "Oracle",
+    "perficient": "Perficient",
+    "vertiv": "Vertiv",
+    # Taleo, Breezy HR, and BambooHR boards.
+    "altair": "Altair",
+    "accrete": "Accrete",
+    "reveleer": "Reveleer",
+    "aicadium": "Aicadium",
+    # Boards that moved from Greenhouse/Lever to Ashby.
+    "notion": "Notion",
+    "thumbtack": "Thumbtack",
+    "wayve": "Wayve"
 }
 
 

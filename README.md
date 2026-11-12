@@ -5,13 +5,13 @@
 ![Database](https://img.shields.io/badge/database-PostgreSQL-336791)
 ![Monitoring](https://img.shields.io/badge/monitoring-psutil-4EAA25)
 ![Deployment](https://img.shields.io/badge/deployment-GitHub_Actions-2088FF)
-![Scrapers](https://img.shields.io/badge/scrapers-260+-FFA500)
+![Scrapers](https://img.shields.io/badge/scrapers-270+-FFA500)
 
-A comprehensive job tracking system that automatically scrapes, stores, and visualizes job postings from 260+ company career sites, then ranks them against a personal profile so the strongest matches surface first.
+A comprehensive job tracking system that automatically scrapes, stores, and visualizes job postings from 270+ company career sites, then ranks them against a personal profile so the strongest matches surface first.
 
 ## Features
 
-- **Multi-Source Scraping**: Automated collection from 260+ company career sites (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, SuccessFactors, TalentBrew, and custom APIs)
+- **Multi-Source Scraping**: Automated collection from 270+ company career sites (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Oracle HCM, Taleo, Breezy HR, BambooHR, SuccessFactors, TalentBrew, and custom APIs)
 - **Best Matches**: Every posting is scored 0–100 against `config/profile.yaml` on title, skills, location, and seniority, with hard exclusions for roles you do not want
 - **Explainable Ranking**: Each match shows its score and the skills that earned it
 - **Interactive Dashboard**: Filter and visualize job trends with Streamlit
@@ -230,7 +230,7 @@ python run.py help          # Show all available commands
 ## Recent Enhancements
 
 - **Best Matches**: Profile-based 0–100 scoring with skill explanations and hard exclusions
-- **ATS Coverage**: Added 36 live Greenhouse, Lever, Ashby, and SmartRecruiters boards from the company sheet
+- **ATS Coverage**: Added 36 live Greenhouse, Lever, Ashby, and SmartRecruiters boards from the company sheet, plus Oracle HCM, Taleo, Breezy HR, and BambooHR boards and three Ashby boards that replaced dead Greenhouse/Lever boards
 - **Per-Company Job IDs**: `job_id` is now unique per company, so reused numeric requisition IDs no longer collide
 - **Automatic Service Restart**: Added Git hook to automatically restart services after pushing changes
 - **Dark Mode Toggle**: Added user-selectable dark theme for better viewing experience
