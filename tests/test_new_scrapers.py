@@ -425,6 +425,160 @@ def test_bamboohr_fetcher_maps_active_openings(monkeypatch):
     assert jobs[0]["description"] == "Python PyTorch computer vision"
 
 
+def test_greenhouse_fetcher_fetches_descriptions_only_for_matches(monkeypatch):
+    published = datetime.now(timezone.utc).isoformat()
+    old = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    list_payload = {
+        "jobs": [
+            {
+                "id": 1,
+                "title": "Data Scientist",
+                "location": {"name": "Columbus, OH"},
+                "absolute_url": "https://boards.greenhouse.io/acme/jobs/1",
+                "first_published": published,
+            },
+            {
+                "id": 2,
+                "title": "Accountant",
+                "location": {"name": "New York, NY"},
+                "absolute_url": "https://boards.greenhouse.io/acme/jobs/2",
+                "first_published": published,
+            },
+            {
+                "id": 3,
+                "title": "Data Scientist",
+                "location": {"name": "Columbus, OH"},
+                "absolute_url": "https://boards.greenhouse.io/acme/jobs/3",
+                "first_published": old,
+            },
+        ]
+    }
+    detail_calls = []
+
+    def fake_get(url, *args, **kwargs):
+        if url.endswith("/jobs/1"):
+            detail_calls.append(url)
+            return _FakeResponse({"content": "<p>Python SQL LLM</p>"})
+        return _FakeResponse(list_payload)
+
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    result = ats_boards.fetch_greenhouse_jobs(
+        "acme", ["Data Scientist python SQL"], days=7
+    )
+
+    jobs = result["Data Scientist python SQL"]
+    assert [job["job_id"] for job in jobs] == ["1"]
+    assert jobs[0]["description"] == "Python SQL LLM"
+    assert detail_calls == [
+        "https://boards-api.greenhouse.io/v1/boards/acme/jobs/1"
+    ]
+
+
+def test_workday_board_fetcher_skips_old_and_fetches_details(monkeypatch):
+    recent = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    postings = [
+        {
+            "title": "Data Scientist",
+            "externalPath": "/job/Columbus/Data-Scientist_R1",
+            "locationsText": "Columbus, OH",
+            "postedOn": "Posted Today",
+        },
+        {
+            "title": "Old Data Scientist",
+            "externalPath": "/job/Columbus/Old_R2",
+            "locationsText": "Columbus, OH",
+            "postedOn": "Posted 30+ Days Ago",
+        },
+    ]
+    detail_html = (
+        '<script type="application/ld+json">'
+        f'{{"datePosted":"{recent}","employmentType":"FULL_TIME",'
+        '"description":"<p>Python SQL LLM</p>"}'
+        "</script>"
+    )
+    detail_calls = []
+
+    def fake_post(url, *args, **kwargs):
+        return _FakeResponse({"jobPostings": postings})
+
+    def fake_get(url, *args, **kwargs):
+        detail_calls.append(url)
+        return _FakeHtmlResponse(detail_html)
+
+    monkeypatch.setattr(ats_boards.requests, "post", fake_post)
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    from app.scrapers.workday_utils import fetch_workday_board_jobs
+
+    result = fetch_workday_board_jobs(
+        "https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/EXT/jobs",
+        "https://acme.wd1.myworkdayjobs.com/en-US/EXT",
+        ["Data Scientist python SQL"],
+        days=7,
+    )
+
+    jobs = result["Data Scientist python SQL"]
+    assert [job["job_id"] for job in jobs] == ["R1"]
+    assert jobs[0]["description"] == "Python SQL LLM"
+    assert jobs[0]["employment_type"] == "FULL_TIME"
+    assert detail_calls == [
+        "https://acme.wd1.myworkdayjobs.com/en-US/EXT/job/Columbus/Data-Scientist_R1"
+    ]
+
+
+def test_workday_board_fetcher_uses_detail_date_when_posted_on_missing(monkeypatch):
+    recent = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    old = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+    postings = [
+        {
+            "title": "Data Scientist",
+            "externalPath": "/job/Columbus/Recent_R1",
+            "locationsText": "Columbus, OH",
+            "postedOn": None,
+        },
+        {
+            "title": "Data Scientist",
+            "externalPath": "/job/Columbus/Old_R2",
+            "locationsText": "Columbus, OH",
+            "postedOn": None,
+        },
+    ]
+    detail_html = {
+        "R1": (
+            '<script type="application/ld+json">'
+            f'{{"datePosted":"{recent}","description":"<p>Python</p>"}}'
+            "</script>"
+        ),
+        "R2": (
+            '<script type="application/ld+json">'
+            f'{{"datePosted":"{old}","description":"<p>Python</p>"}}'
+            "</script>"
+        ),
+    }
+
+    def fake_post(url, *args, **kwargs):
+        return _FakeResponse({"jobPostings": postings})
+
+    def fake_get(url, *args, **kwargs):
+        job_id = "R1" if "Recent_R1" in url else "R2"
+        return _FakeHtmlResponse(detail_html[job_id])
+
+    monkeypatch.setattr(ats_boards.requests, "post", fake_post)
+    monkeypatch.setattr(ats_boards.requests, "get", fake_get)
+
+    from app.scrapers.workday_utils import fetch_workday_board_jobs
+
+    result = fetch_workday_board_jobs(
+        "https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/EXT/jobs",
+        "https://acme.wd1.myworkdayjobs.com/en-US/EXT",
+        ["Data Scientist"],
+        days=7,
+    )
+
+    assert [job["job_id"] for job in result["Data Scientist"]] == ["R1"]
+
+
 def test_toyota_only_processes_title_matches(monkeypatch):
     payload = {
         "total": 2,

@@ -7,9 +7,12 @@ Filtering only on the detail date silently drops jobs that Workday has just
 re-posted, so the scrapers use the search result's age first and fall back to
 the detail date when ``postedOn`` is missing.
 """
+import json
 import re
 from datetime import datetime, timedelta, timezone
 
+import requests
+from bs4 import BeautifulSoup
 from dateutil.parser import isoparse
 
 _POSTED_RE = re.compile(r"(\d+)\+?\s+days?\s+ago", re.I)
@@ -95,3 +98,108 @@ def format_workday_date(value):
     """Format a Workday date as YYYY-MM-DD, or return None if unparseable."""
     parsed = parse_workday_date(value)
     return parsed.strftime("%Y-%m-%d") if parsed else None
+
+
+_WORKDAY_HEADERS = {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+}
+
+
+def _workday_job_id(posting):
+    path = posting.get("externalPath") or ""
+    if "_" in path:
+        return path.rsplit("_", 1)[-1].split("/")[0]
+    tail = path.rstrip("/").split("/")[-1]
+    if tail:
+        return tail
+    fields = posting.get("bulletFields") or []
+    return fields[0] if fields else None
+
+
+def _workday_detail(job_url):
+    try:
+        response = requests.get(job_url, timeout=30)
+        response.raise_for_status()
+    except Exception as exc:
+        print(f"Error fetching Workday detail {job_url}: {exc}")
+        return {}
+    soup = BeautifulSoup(response.text, "html.parser")
+    script = soup.find("script", {"type": "application/ld+json"})
+    if script:
+        try:
+            data = json.loads(script.string or "{}")
+            return {
+                "datePosted": data.get("datePosted"),
+                "employmentType": data.get("employmentType"),
+                "description": " ".join(
+                    BeautifulSoup(
+                        data.get("description") or "", "html.parser"
+                    ).get_text(separator=" ").split()[:250]
+                ),
+            }
+        except (TypeError, ValueError):
+            pass
+    return {}
+
+
+def fetch_workday_board_jobs(api_url, base_url, roles, days=7, page_limit=20):
+    """Jobs from a Workday CXS board, grouped by role.
+
+    Workday's search result carries a relative ``postedOn`` label. Postings
+    already older than the window are dropped before their detail page is
+    fetched; postings without a label fall back to the detail date.
+    """
+    role_jobs = {}
+    details = {}
+    for role in roles:
+        try:
+            response = requests.post(
+                api_url,
+                json={
+                    "appliedFacets": {},
+                    "searchText": role,
+                    "limit": page_limit,
+                    "offset": 0,
+                },
+                headers={**_WORKDAY_HEADERS, "Referer": base_url},
+                timeout=30,
+            )
+            response.raise_for_status()
+            postings = response.json().get("jobPostings", [])
+        except Exception as exc:
+            print(f"Error fetching {role} jobs: {exc}")
+            role_jobs[role] = []
+            continue
+
+        jobs = []
+        for posting in postings:
+            job_id = _workday_job_id(posting)
+            if not job_id:
+                continue
+            age = posted_age_days(posting.get("postedOn"))
+            if age is not None and age > days:
+                continue
+            job_url = base_url + (posting.get("externalPath") or "")
+            if job_id not in details:
+                details[job_id] = _workday_detail(job_url)
+            detail = details[job_id]
+            if age is None and not workday_job_is_recent(
+                posting, days, detail.get("datePosted")
+            ):
+                continue
+            jobs.append({
+                "job_title": posting.get("title", "N/A"),
+                "job_id": job_id,
+                "location": posting.get("locationsText", "N/A"),
+                "job_url": job_url,
+                "date_posted": workday_effective_date(
+                    posting, detail.get("datePosted")
+                ) or "N/A",
+                "employment_type": detail.get("employmentType") or "N/A",
+                "description": detail.get("description") or "N/A",
+            })
+        role_jobs[role] = jobs
+    return role_jobs

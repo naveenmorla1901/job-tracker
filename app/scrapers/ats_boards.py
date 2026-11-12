@@ -162,11 +162,27 @@ def fetch_ashby_jobs(board, roles, days=7):
     return _by_role(jobs, roles, days)
 
 
+def _greenhouse_detail(board, job_id):
+    response = requests.get(
+        f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs/{job_id}",
+        headers=HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def fetch_greenhouse_jobs(board, roles, days=7):
-    """Jobs from https://job-boards.greenhouse.io/<board> grouped by role."""
+    """Jobs from https://job-boards.greenhouse.io/<board> grouped by role.
+
+    The list endpoint is fetched without ``content=true``: large boards such as
+    SpaceX return tens of megabytes of descriptions that are never read for
+    titles outside the profile. Descriptions are fetched per job only for
+    recent postings whose titles match a searched role.
+    """
     response = requests.get(
         f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs",
-        params={"content": "true"}, headers=HEADERS, timeout=30,
+        headers=HEADERS, timeout=30,
     )
     response.raise_for_status()
     jobs = []
@@ -179,9 +195,34 @@ def fetch_greenhouse_jobs(board, roles, days=7):
             "job_url": job.get("absolute_url"),
             "date_posted": posted.strftime("%Y-%m-%d") if posted else None,
             "employment_type": "N/A",
-            "description": _clean(BeautifulSoup(job.get("content") or "", "html.parser").get_text()),
+            "description": "N/A",
             "_posted": posted,
         })
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    matchers = [_role_matcher(role) for role in roles]
+    detail_jobs = [
+        job for job in jobs
+        if job["_posted"] and job["_posted"].date() >= cutoff
+        and any(matcher(job["job_title"]) for matcher in matchers)
+    ]
+    failures = []
+    if detail_jobs:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(_greenhouse_detail, board, job["job_id"]): job
+                for job in detail_jobs[:200]
+            }
+            for future in as_completed(futures):
+                job = futures[future]
+                try:
+                    detail = future.result()
+                except Exception as exc:
+                    failures.append(exc)
+                    continue
+                job["description"] = _clean(detail.get("content"))
+    if failures:
+        print(f"Error fetching {len(failures)} Greenhouse detail(s) for {board}: {failures[0]}")
     return _by_role(jobs, roles, days)
 
 

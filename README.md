@@ -5,13 +5,13 @@
 ![Database](https://img.shields.io/badge/database-PostgreSQL-336791)
 ![Monitoring](https://img.shields.io/badge/monitoring-psutil-4EAA25)
 ![Deployment](https://img.shields.io/badge/deployment-GitHub_Actions-2088FF)
-![Scrapers](https://img.shields.io/badge/scrapers-270+-FFA500)
+![Scrapers](https://img.shields.io/badge/scrapers-310+-FFA500)
 
-A comprehensive job tracking system that automatically scrapes, stores, and visualizes job postings from 270+ company career sites, then ranks them against a personal profile so the strongest matches surface first.
+A comprehensive job tracking system that automatically scrapes, stores, and visualizes job postings from 310+ company career sites, then ranks them against a personal profile so the strongest matches surface first.
 
 ## Features
 
-- **Multi-Source Scraping**: Automated collection from 270+ company career sites (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Oracle HCM, Taleo, Breezy HR, BambooHR, SuccessFactors, TalentBrew, and custom APIs)
+- **Multi-Source Scraping**: Automated collection from 310+ company career sites (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Oracle HCM, Taleo, Breezy HR, BambooHR, SuccessFactors, TalentBrew, and custom APIs)
 - **Best Matches**: Every posting is scored 0–100 against `config/profile.yaml` on title, skills, location, and seniority, with hard exclusions for roles you do not want
 - **Explainable Ranking**: Each match shows its score and the skills that earned it
 - **Interactive Dashboard**: Filter and visualize job trends with Streamlit
