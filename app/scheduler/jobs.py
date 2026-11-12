@@ -354,7 +354,12 @@ COMPANY_NAMES = {
     "palantir": "Palantir",
     "spotify": "Spotify",
     # Eightfold PCS boards.
-    "ukg": "UKG"
+    "ukg": "UKG",
+    # Previously dead boards that moved to Ashby.
+    "g2crowd": "G2",
+    "haus": "Haus",
+    "qumulo": "Qumulo",
+    "sensortower": "Sensor Tower"
 }
 
 
